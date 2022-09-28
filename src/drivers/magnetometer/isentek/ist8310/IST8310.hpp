@@ -48,8 +48,6 @@
 #include <lib/perf/perf_counter.h>
 #include <lib/sensor_calibration/Barometer.hpp>
 #include <px4_platform_common/i2c_spi_buses.h>
-#include <uORB/SubscriptionMultiArray.hpp>
-#include <uORB/topics/sensor_baro.h>
 
 using namespace iSentek_IST8310;
 
@@ -96,10 +94,6 @@ private:
 	void RegisterWrite(Register reg, uint8_t value);
 
 	void RegisterSetAndClearBits(Register reg, uint8_t setbits, uint8_t clearbits);
-
-	void UpdateTemperature();
-
-	uORB::SubscriptionMultiArray<sensor_baro_s, calibration::Barometer::MAX_SENSOR_COUNT> _sensor_baro_sub{ORB_ID::sensor_baro};
 
 	PX4Magnetometer _px4_mag;
 
