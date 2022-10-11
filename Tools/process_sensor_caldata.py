@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from scipy.signal import medfilt
+from scipy.signal import lfilter
+from scipy.signal import butter
 
 from pyulog import *
 
@@ -17,7 +19,7 @@ Reads in IMU data from a static thermal calibration test and performs a curve fi
 Data can be gathered using the following sequence:
 
 1) Power up the board and set the TC_A_ENABLE, TC_B_ENABLE and TC_G_ENABLE parameters to 1
-2) Set all CAL_GYR and CAL_ACC parameters to defaults
+2) Set all CAL_ACC*, CAL_GYR*, and CAL_MAG* parameters to defaults
 3) Set the parameter SDLOG_MODE to 2, and SDLOG_PROFILE "Thermal calibration" bit (2) to enable logging of sensor data for calibration and power off
 4) Cold soak the board for 30 minutes
 5) Move to a warm dry, still air, constant pressure environment.
@@ -31,7 +33,6 @@ Data can be gathered using the following sequence:
 
 Outputs thermal compensation parameters in a file named <inputfilename>.params which can be loaded onto the board using QGroundControl
 Outputs summary plots in a pdf file named <inputfilename>.pdf
-
 """
 
 def resampleWithDeltaX(x,y):
@@ -657,13 +658,26 @@ if num_gyros >= 1 and not math.isnan(sensor_gyro_0['temperature'][0]):
     gyro_0_params['TC_G0_TMIN'] = np.amin(sensor_gyro_0['temperature'])
     gyro_0_params['TC_G0_TMAX'] = np.amax(sensor_gyro_0['temperature'])
     gyro_0_params['TC_G0_TREF'] = 0.5 * (gyro_0_params['TC_G0_TMIN'] + gyro_0_params['TC_G0_TMAX'])
+
     temp_rel = sensor_gyro_0['temperature'] - gyro_0_params['TC_G0_TREF']
-    temp_rel_resample = np.linspace(gyro_0_params['TC_G0_TMIN']-gyro_0_params['TC_G0_TREF'], gyro_0_params['TC_G0_TMAX']-gyro_0_params['TC_G0_TREF'], 100)
+
+    temp_rel_resample = np.linspace(gyro_0_params['TC_G0_TMIN'] - gyro_0_params['TC_G0_TREF'], gyro_0_params['TC_G0_TMAX'] - gyro_0_params['TC_G0_TREF'], 100)
+
     temp_resample = temp_rel_resample + gyro_0_params['TC_G0_TREF']
 
-    sensor_gyro_0['x'] = median_filter(sensor_gyro_0['x'])
-    sensor_gyro_0['y'] = median_filter(sensor_gyro_0['y'])
-    sensor_gyro_0['z'] = median_filter(sensor_gyro_0['z'])
+#    sensor_gyro_0['x'] = median_filter(sensor_gyro_0['x'])
+#    sensor_gyro_0['y'] = median_filter(sensor_gyro_0['y'])
+#    sensor_gyro_0['z'] = median_filter(sensor_gyro_0['z'])
+
+    order       = 6
+    sample_rate = 1000.0  # sample rate, Hz
+    cutoff      = 3.667   # desired cutoff frequency of the filter, Hz
+
+    b, a = butter(order, cutoff, fs=sample_rate, btype='low', analog=False)
+
+    sensor_gyro_0['x'] = lfilter(b, a, sensor_gyro_0['x'])
+    sensor_gyro_0['y'] = lfilter(b, a, sensor_gyro_0['y'])
+    sensor_gyro_0['z'] = lfilter(b, a, sensor_gyro_0['z'])
 
     # fit X axis
     if noResample:
@@ -1062,7 +1076,7 @@ if num_gyros >= 4 and not math.isnan(sensor_gyro_3['temperature'][0]):
 
 #################################################################################
 
-# define data dictionary of accel 0 thermal correction  parameters
+# define data dictionary of mag 0 thermal correction  parameters
 mag_0_params = {
 'TC_M0_ID':0,
 'TC_M0_TMIN':0.0,
@@ -1082,17 +1096,36 @@ mag_0_params = {
 'TC_M0_X3_2':0.0
 }
 
-# curve fit the data for accel 0 corrections
-if num_mags >= 1 and not math.isnan(sensor_mag_0['temperature'][0]):
-    mag_0_params['TC_M0_ID'] = int(np.median(sensor_mag_0['device_id']))
+# curve fit the data for mag 0 corrections
+if num_mags >= 1:
 
-    # find the min, max and reference temperature
-    mag_0_params['TC_M0_TMIN'] = np.amin(sensor_mag_0['temperature'])
-    mag_0_params['TC_M0_TMAX'] = np.amax(sensor_mag_0['temperature'])
-    mag_0_params['TC_M0_TREF'] = 0.5 * (mag_0_params['TC_M0_TMIN'] + mag_0_params['TC_M0_TMAX'])
-    temp_rel = sensor_mag_0['temperature'] - mag_0_params['TC_M0_TREF']
+    mag_0_params['TC_M0_ID'] = int(np.median(sensor_baro_0['device_id']))
+
+    if math.isnan(sensor_mag_0['temperature'][0]):
+
+        # find the min, max and reference temperature
+        mag_0_params['TC_M0_TMIN'] = np.amin(sensor_baro_0['temperature'])
+        mag_0_params['TC_M0_TMAX'] = np.amax(sensor_baro_0['temperature'])
+        mag_0_params['TC_M0_TREF'] = 0.5 * (mag_0_params['TC_M0_TMIN'] + mag_0_params['TC_M0_TMAX'])
+
+        temp_rel = sensor_baro_0['temperature'] - mag_0_params['TC_M0_TREF']
+
+    else:
+        mag_0_params['TC_M0_ID'] = int(np.median(sensor_mag_0['device_id']))
+
+        # find the min, max and reference temperature
+        mag_0_params['TC_M0_TMIN'] = np.amin(sensor_mag_0['temperature'])
+        mag_0_params['TC_M0_TMAX'] = np.amax(sensor_mag_0['temperature'])
+        mag_0_params['TC_M0_TREF'] = 0.5 * (mag_0_params['TC_M0_TMIN'] + mag_0_params['TC_M0_TMAX'])
+
+        temp_rel = sensor_mag_0['temperature'] - mag_0_params['TC_M0_TREF']
+
     temp_rel_resample = np.linspace(mag_0_params['TC_M0_TMIN']-mag_0_params['TC_M0_TREF'], mag_0_params['TC_M0_TMAX']-mag_0_params['TC_M0_TREF'], 100)
-    temp_resample = temp_rel_resample + mag_0_params['TC_M0_TREF']
+    temp_resample     = temp_rel_resample + mag_0_params['TC_M0_TREF']
+
+    # Delete the dataset first and last 10 seconds of data
+    sensor_mag_0 = np.delete(sensor_mag_0, range(0,1000), axis=['x'])
+    sensor_mag_0 = np.delete(sensor_mag_0, range(-1000,), axis=['x'])
 
     sensor_mag_0['x'] = median_filter(sensor_mag_0['x'])
     sensor_mag_0['y'] = median_filter(sensor_mag_0['y'])
