@@ -57,6 +57,7 @@
 #include <uORB/topics/vehicle_global_position.h>
 // try using gps instead of EKF2 prediction
 #include <uORB/topics/sensor_gps.h>
+#include <uORB/topics/gimbal_device_attitude_status.h>
 
 class CameraFeedback : public ModuleBase<CameraFeedback>, public ModuleParams, public px4::WorkItem
 {
@@ -84,6 +85,7 @@ private:
 	uORB::Subscription	_gpos_sub{ORB_ID(vehicle_global_position)};
 	uORB::Subscription	_att_sub{ORB_ID(vehicle_attitude)};
 	uORB::Subscription	_gps_raw_sub{ORB_ID(sensor_gps)};
+	uORB::Subscription	_gimbal_sub{ORB_ID(gimbal_device_attitude_status)};
 
 	uORB::Publication<camera_capture_s>	_capture_pub{ORB_ID(camera_capture)};
 
