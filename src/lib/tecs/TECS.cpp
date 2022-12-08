@@ -200,6 +200,7 @@ float TECSReferenceModel::getAltitudeRateReference() const
 void TECSReferenceModel::initialize(const AltitudeReferenceState &state)
 {
 	AltitudeReferenceState init_state{state};
+	_alt_rate_ref = state.alt_rate;
 
 	if (!PX4_ISFINITE(state.alt)) {
 		init_state.alt = 0.0f;
@@ -207,6 +208,7 @@ void TECSReferenceModel::initialize(const AltitudeReferenceState &state)
 
 	if (!PX4_ISFINITE(state.alt_rate)) {
 		init_state.alt_rate = 0.0f;
+		_alt_rate_ref = 0.0f;
 	}
 
 	_alt_control_traj_generator.reset(0.0f, init_state.alt_rate, init_state.alt);
@@ -680,8 +682,8 @@ void TECS::update(float pitch, float altitude, float hgt_setpoint, float EAS_set
 		_debug_status.true_airspeed_filtered = eas_to_tas * eas.speed;
 		_debug_status.true_airspeed_derivative = eas_to_tas * eas.speed_rate;
 		_debug_status.altitude_sp = control_setpoint.altitude_reference.alt;
-		_debug_status.altitude_rate = control_setpoint.altitude_reference.alt_rate;
-		_debug_status.altitude_rate_setpoint = control_setpoint.altitude_rate_setpoint;
+		_debug_status.altitude_rate_alt_ref = control_setpoint.altitude_reference.alt_rate;
+		_debug_status.altitude_rate_feedforward = control_setpoint.altitude_rate_setpoint;
 	}
 
 	// Update time stamps
