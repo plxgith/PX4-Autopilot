@@ -458,7 +458,8 @@ FixedwingPositionControl::adapt_airspeed_setpoint(const float control_interval, 
 }
 
 void
-FixedwingPositionControl::tecs_status_publish()
+FixedwingPositionControl::tecs_status_publish(float alt_sp, float equivalent_airspeed_sp,
+		float true_airspeed_derivative_raw, float throttle_trim)
 {
 	tecs_status_s t{};
 
@@ -482,25 +483,28 @@ FixedwingPositionControl::tecs_status_publish()
 		break;
 	}
 
+	t.altitude_sp = alt_sp;
 	t.altitude_filtered = debug_output.altitude_sp;
-
-	t.true_airspeed_filtered = debug_output.true_airspeed_filtered;
-
 	t.height_rate_setpoint = debug_output.altitude_rate_setpoint;
 	t.height_rate = debug_output.altitude_rate;
-
-	t.true_airspeed_derivative_sp = debug_output.true_airspeed_derivative_control;
+	t.equivalent_airspeed_sp = equivalent_airspeed_sp;
+	t.true_airspeed_sp = _eas2tas * equivalent_airspeed_sp;
+	t.true_airspeed_filtered = debug_output.true_airspeed_filtered;
+	t.true_airspeed_derivative_sp = debug_output.control.true_airspeed_derivative_control;
 	t.true_airspeed_derivative = debug_output.true_airspeed_derivative;
-
-	t.total_energy_rate_error = debug_output.total_energy_rate_error;
-
-	t.energy_distribution_rate_error = debug_output.energy_balance_rate_error;
-
-	t.total_energy_rate_sp = debug_output.total_energy_rate_sp;
-	t.total_energy_balance_rate_sp = debug_output.energy_balance_rate_sp;
-
+	t.true_airspeed_derivative_raw = true_airspeed_derivative_raw;
+	t.total_energy_rate_error = debug_output.control.total_energy_rate_error;
+	t.energy_distribution_rate_error = debug_output.control.energy_balance_rate_error;
+	t.total_energy_rate = debug_output.control.total_energy_rate_sp - debug_output.control.total_energy_rate_error;
+	t.total_energy_balance_rate = debug_output.control.energy_balance_rate_sp -
+				      debug_output.control.energy_balance_rate_error;
+	t.total_energy_rate_sp = debug_output.control.total_energy_rate_sp;
+	t.total_energy_balance_rate_sp = debug_output.control.energy_balance_rate_sp;
+	t.throttle_integ = debug_output.control.throttle_integrator;
+	t.pitch_integ = debug_output.control.pitch_integrator;
 	t.throttle_sp = _tecs.get_throttle_setpoint();
 	t.pitch_sp_rad = _tecs.get_pitch_setpoint();
+	t.throttle_trim = throttle_trim;
 
 	t.timestamp = hrt_absolute_time();
 
@@ -2531,7 +2535,7 @@ FixedwingPositionControl::tecs_update_pitch_throttle(const float control_interva
 		     -_local_pos.vz,
 		     hgt_rate_sp);
 
-	tecs_status_publish();
+	tecs_status_publish(alt_sp, airspeed_sp, -_local_pos.vz, throttle_trim_comp);
 }
 
 float

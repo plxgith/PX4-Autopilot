@@ -243,6 +243,8 @@ void TECSControl::update(const float dt, const Setpoint &setpoint, const Input &
 
 	_debug_output.altitude_rate_control = control_setpoint.altitude_rate_setpoint;
 	_debug_output.true_airspeed_derivative_control = control_setpoint.tas_rate_setpoint;
+	_debug_output.pitch_integrator = _pitch_integ_state;
+	_debug_output.throttle_integrator = _throttle_integ_state;
 }
 
 TECSControl::STELimit TECSControl::_calculateTotalEnergyRateLimit(const Param &param) const
@@ -674,13 +676,7 @@ void TECS::update(float pitch, float altitude, float hgt_setpoint, float EAS_set
 		_detect_uncommanded_descent(throttle_setpoint_max, altitude, hgt_setpoint, equivalent_airspeed * eas_to_tas,
 					    control_setpoint.tas_setpoint);
 
-		TECSControl::DebugOutput control_status = _control.getDebugOutput();
-		_debug_status.altitude_rate_control = control_status.altitude_rate_control;
-		_debug_status.energy_balance_rate_error = control_status.energy_balance_rate_error;
-		_debug_status.energy_balance_rate_sp = control_status.energy_balance_rate_sp;
-		_debug_status.total_energy_rate_error = control_status.total_energy_rate_error;
-		_debug_status.total_energy_rate_sp = control_status.total_energy_rate_sp;
-		_debug_status.true_airspeed_derivative_control = control_status.true_airspeed_derivative_control;
+		_debug_status.control = _control.getDebugOutput();
 		_debug_status.true_airspeed_filtered = eas_to_tas * eas.speed;
 		_debug_status.true_airspeed_derivative = eas_to_tas * eas.speed_rate;
 		_debug_status.altitude_sp = control_setpoint.altitude_reference.alt;

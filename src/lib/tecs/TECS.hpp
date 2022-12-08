@@ -239,6 +239,8 @@ public:
 		float total_energy_rate_sp;			///< Total energy rate setpoint [m²/s³].
 		float energy_balance_rate_error;		///< Energy balance rate error [m²/s³].
 		float energy_balance_rate_sp;			///< Energy balance rate setpoint [m²/s³].
+		float pitch_integrator;				///< Pitch control integrator state [-].
+		float throttle_integrator;			///< Throttle control integrator state [-].
 	};
 
 	/**
@@ -466,7 +468,8 @@ public:
 		ECL_TECS_MODE_CLIMBOUT
 	};
 
-	struct DebugOutput : TECSControl::DebugOutput {
+	struct DebugOutput {
+		TECSControl::DebugOutput control;
 		float true_airspeed_filtered;
 		float true_airspeed_derivative;
 		float altitude_sp;
@@ -576,8 +579,6 @@ public:
 	uint64_t timestamp() { return _update_timestamp; }
 	ECL_TECS_MODE tecs_mode() { return _tecs_mode; }
 
-	static constexpr float DT_DEFAULT = 0.02f;
-
 private:
 	TECSControl 		_control;				///< Control submodule.
 	TECSAirspeedFilter 	_airspeed_filter;			///< Airspeed filter submodule.
@@ -599,10 +600,6 @@ private:
 	static constexpr float DT_MIN = 0.001f;				///< minimum allowed value of _dt (sec)
 	static constexpr float DT_MAX = 1.0f;				///< max value of _dt allowed before a filter state reset is performed (sec)
 
-	static constexpr float _jerk_max = 1000.0f;			///< Magnitude of the maximum jerk allowed [m/s³].
-	static constexpr float _tas_error_percentage =
-		0.15f;		///< [0,1] percentage of true airspeed trim corresponding to expected (safe) true airspeed tracking errors
-
 	DebugOutput _debug_status{};
 
 	// Params
@@ -617,7 +614,7 @@ private:
 	TECSReferenceModel::Param _reference_param{
 		.target_climbrate = 2.0f,
 		.target_sinkrate = 2.0f,
-		.jerk_max = _jerk_max,
+		.jerk_max = 1000.0f,
 		.vert_accel_limit = 0.0f,
 		.max_climb_rate = 2.0f,
 		.max_sink_rate = 2.0f,
@@ -636,7 +633,7 @@ private:
 		.throttle_min = 0.1f,
 		.altitude_error_gain = 0.2f,
 		.altitude_setpoint_gain_ff = 0.0f,
-		.tas_error_percentage = _tas_error_percentage,
+		.tas_error_percentage = 0.15f,
 		.airspeed_error_gain = 0.1f,
 		.ste_rate_time_const = 0.1f,
 		.seb_rate_ff = 1.0f,

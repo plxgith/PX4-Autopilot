@@ -730,7 +730,7 @@ PARAM_DEFINE_FLOAT(FW_T_SPD_STD, 0.2f);
  * @unit m/s^2
  * @min 0.01
  * @max 10.0
- * @decimal 1
+ * @decimal 2
  * @increment 0.1
  * @group FW TECS
  */
@@ -747,7 +747,7 @@ PARAM_DEFINE_FLOAT(FW_T_SPD_DEV_STD, 0.05f);
  * @unit m/s^2
  * @min 0.01
  * @max 10.0
- * @decimal 1
+ * @decimal 2
  * @increment 0.1
  * @group FW TECS
  */
