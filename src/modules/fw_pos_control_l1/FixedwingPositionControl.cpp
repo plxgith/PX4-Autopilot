@@ -831,7 +831,7 @@ FixedwingPositionControl::update_in_air_states(const hrt_abstime now)
 		_was_in_air = true;
 		_time_went_in_air = now;
 
-		_tecs.initialize(_current_altitude, -_local_pos.vz, _airspeed);
+		_tecs.initialize(_current_altitude, -_local_pos.vz, _airspeed, _eas2tas);
 	}
 
 	/* reset flag when airplane landed */
@@ -839,7 +839,7 @@ FixedwingPositionControl::update_in_air_states(const hrt_abstime now)
 		_was_in_air = false;
 		_completed_manual_takeoff = false;
 
-		_tecs.initialize(_current_altitude, -_local_pos.vz, _airspeed);
+		_tecs.initialize(_current_altitude, -_local_pos.vz, _airspeed, _eas2tas);
 	}
 }
 
@@ -2319,7 +2319,7 @@ FixedwingPositionControl::Run()
 				_att_sp.apply_flaps = vehicle_attitude_setpoint_s::FLAPS_OFF;
 				_att_sp.apply_spoilers = vehicle_attitude_setpoint_s::SPOILERS_OFF;
 
-				_tecs.initialize(_current_altitude, -_local_pos.vz, _airspeed);
+				_tecs.initialize(_current_altitude, -_local_pos.vz, _airspeed, _eas2tas);
 
 				break;
 			}
@@ -2501,7 +2501,7 @@ FixedwingPositionControl::tecs_update_pitch_throttle(const float control_interva
 	}
 
 	if (_reinitialize_tecs) {
-		_tecs.initialize(_current_altitude, -_local_pos.vz, _airspeed);
+		_tecs.initialize(_current_altitude, -_local_pos.vz, _airspeed, _eas2tas);
 		_reinitialize_tecs = false;
 	}
 
@@ -2509,7 +2509,7 @@ FixedwingPositionControl::tecs_update_pitch_throttle(const float control_interva
 	_tecs.set_detect_underspeed_enabled(!disable_underspeed_detection);
 
 	if (_landed) {
-		_tecs.initialize(_current_altitude, -_local_pos.vz, _airspeed);
+		_tecs.initialize(_current_altitude, -_local_pos.vz, _airspeed, _eas2tas);
 	}
 
 	/* update TECS vehicle state estimates */

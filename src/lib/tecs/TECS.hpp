@@ -39,6 +39,7 @@
 
 #pragma once
 
+#include <drivers/drv_hrt.h>
 #include <mathlib/mathlib.h>
 #include <matrix/math.hpp>
 #include <lib/mathlib/math/filter/AlphaFilter.hpp>
@@ -176,8 +177,6 @@ private:
 	// State
 	VelocitySmoothing
 	_alt_control_traj_generator;		///< Generates altitude rate and altitude setpoint trajectory when altitude is commanded.
-
-	// Output
 	float _alt_rate_ref; 			///< Altitude rate reference in [m/s].
 };
 
@@ -280,7 +279,7 @@ public:
 	 * @brief Initialization of the state.
 	 *
 	 */
-	void initialize();
+	void initialize(const Setpoint &setpoint, const Input &input, Param &param, const Flag &flag);
 	/**
 	 * @brief Update state and output.
 	 *
@@ -338,20 +337,22 @@ private:
 	};
 
 	/**
+	 * @brief Energy rate values.
+	 * rate, rate setpoint, and rate error values used for specific energy and energy balance control calculations.
+	 *
+	 */
+	struct EnergyRateValues {
+		float rate_setpoint;	///< Specific energy setpoint rate in [m²/s³].
+		float rate_error;	///< Specific energy rate error in [m²/s³].
+	};
+
+	/**
 	 * @brief Calculated specific energy rates.
 	 *
 	 */
 	struct SpecificEnergyRates {
-		struct {
-			float rate;		///< Specific kinetic energy rate in [m²/s³].
-			float rate_setpoint;	///< Specific kinetic energy setpoint rate in [m²/s³].
-			float rate_error;	///< Specific kinetic energy rate error in [m²/s³].
-		} ske;				///< Specific kinetic energy.
-		struct {
-			float rate;		///< Specific potential energy rate in [m²/s³].
-			float rate_setpoint;	///< Specific potential energy setpoint rate in [m²/s³].
-			float rate_error;	///< Specific potential energy rate error in [m²/s³].
-		} spe;				///< Specific potential energy rate.
+		EnergyRateValues ske;	///< Specific kinetic energy rate.
+		EnergyRateValues spe;	///< Specific potential energy rate.
 	};
 
 	/**
@@ -381,7 +382,7 @@ private:
 	 */
 	STELimit _calculateTotalEnergyRateLimit(const Param &param) const;
 	/**
-	 * @brief Airspeed control loop.
+	 * @brief calculate airspeed control proportional output.
 	 *
 	 * @param setpoint is the control setpoints.
 	 * @param input	is the current input measurment of the UAS.
@@ -389,16 +390,17 @@ private:
 	 * @param flag	is the control flags.
 	 * @return controlled airspeed rate setpoint in [m/s²].
 	 */
-	float _airspeedControl(const Setpoint &setpoint, const Input &input, const Param &param, const Flag &flag) const;
+	float _calcAirspeedControlOutput(const Setpoint &setpoint, const Input &input, const Param &param,
+					 const Flag &flag) const;
 	/**
-	 * @brief Altitude control loop.
+	 * @brief calculate altitude control proportional output.
 	 *
 	 * @param setpoint is the control setpoints.
 	 * @param input is the current input measurment of the UAS.
 	 * @param param is the control parameters.
 	 * @return controlled altitude rate setpoint in [m/s].
 	 */
-	float _altitudeControl(const Setpoint &setpoint, const Input &input, const Param &param) const;
+	float _calcAltitudeControlOutput(const Setpoint &setpoint, const Input &input, const Param &param) const;
 	/**
 	 * @brief Calculate specific energy rates.
 	 *
@@ -424,24 +426,92 @@ private:
 	 */
 	SpecificEnergyWeighting _updateSpeedAltitudeWeights(const Param &param, const Flag &flag);
 	/**
-	 * @brief Update controlled pitch setpoint.
+	 * @brief Calculate pitch control.
 	 *
 	 * @param dt is the update time intervall in [s].
-	 * @param input is the current input measurment of the UAS.
+	 * @param input is the current input measurement of the UAS.
 	 * @param se is the calculated specific energy.
 	 * @param param is the control parameters.
 	 * @param flag is the control flags.
 	 */
-	void _updatePitchSetpoint(float dt, const Input &input, const SpecificEnergyRates &se, Param &param, const Flag &flag);
+	void _calcPitchControl(float dt, const Input &input, const SpecificEnergyRates &se, const Param &param,
+			       const Flag &flag);
+
+	/**
+	 * @brief Calculate pitch control specific energy balance rates.
+	 *
+	 * @param weight is the weighting use of the potential and kinetic energy.
+	 * @param se is the specific energy rates
+	 * @return specific energy balance rates
+	 */
+	EnergyRateValues _calcPitchControlSeb(const SpecificEnergyWeighting &weight, const SpecificEnergyRates &se) const;
+
+	/**
+	 * @brief Calculate the pitch control update function.
+	 * Update the states of the pitch control
+	 *
+	 * @param dt is the update time intervall in [s].
+	 * @param seb is the specific energy balance rate.
+	 * @param param is the control parameters.
+	 */
+	void _calcPitchControlUpdate(float dt, const EnergyRateValues &seb, const Param &param);
+
+	/**
+	 * @brief Calculate the pitch control output function.
+	 *
+	 * @param input is the current input measurement of the UAS.
+	 * @param seb is the specific energy balance rate.
+	 * @param param is the control parameters.
+	 * @param flag is the control flags.
+	 * @return pitch setpoint angle [rad].
+	 */
+	float _calcPitchControlOutput(const Input &input, const EnergyRateValues &seb, const Param &param,
+				      const Flag &flag) const;
+
 	/**
 	 * @brief Update controlled throttle setpoint.
 	 *
 	 * @param dt is the update time intervall in [s].
 	 * @param se is the calculated specific energy.
+	 * @param flag is the control flags.
+	 */
+	void _calcThrottleControl(float dt, const SpecificEnergyRates &se, const Param &param, const Flag &flag);
+
+	/**
+	 * @brief Calculate throttle control specific total energy
+	 *
+	 * @param limit is the specific total energy rate limits.
+	 * @param se is the specific energy rates.
+	 * @param param is the control parameters.
+	 * @return EnergyRateValues
+	 */
+	EnergyRateValues _calcThrottleControlSte(const STELimit &limit, const SpecificEnergyRates &se,
+			const Param &param) const;
+
+	/**
+	 * @brief Calculate the throttle control update function.
+	 * Update the throttle control states.
+	 *
+	 * @param dt is the update time intervall in [s].
+	 * @param limit is the specific total energy rate limits.
+	 * @param ste is the specific total energy rates.
 	 * @param param is the control parameters.
 	 * @param flag is the control flags.
 	 */
-	void _updateThrottleSetpoint(float dt, const SpecificEnergyRates &se, const Param &param, const Flag &flag);
+	void _calcThrottleControlUpdate(float dt, const STELimit &limit, const EnergyRateValues &ste, const Param &param,
+					const Flag &flag);
+
+	/**
+	 * @brief Calculate the throttle control output function.
+	 *
+	 * @param limit is the specific total energy rate limits.
+	 * @param ste is the specific total energy rates.
+	 * @param param is the control parameters.
+	 * @param flag is the control flags.
+	 * @return throttle setpoin in [0,1].
+	 */
+	float _calcThrottleControlOutput(const STELimit &limit, const EnergyRateValues &ste, const Param &param,
+					 const Flag &flag) const;
 
 private:
 	// State
@@ -451,9 +521,9 @@ private:
 
 
 	// Output
-	DebugOutput _debug_output;
+	DebugOutput _debug_output;				///< Debug output.
 	float _pitch_setpoint{0.0f};				///< Controlled pitch setpoint [rad].
-	float _throttle_setpoint{0.0f};				///< Controlled throttle setpoint.
+	float _throttle_setpoint{0.0f};				///< Controlled throttle setpoint [0,1].
 	float _percent_undersped{0.0f};				///< A continuous representation of how "undersped" the TAS is [0,1]
 	float _ste_rate{0.0f};					///< Specific total energy rate [m²/s³].
 };
@@ -494,12 +564,12 @@ public:
 	 *
 	 * @return true if airspeed is enabled for control
 	 */
-	bool airspeed_sensor_enabled() { return _airspeed_enabled; }
+	bool airspeed_sensor_enabled() { return _control_flag.airspeed_enabled; }
 
 	/**
 	 * Set the airspeed enable state
 	 */
-	void enable_airspeed(bool enabled) { _airspeed_enabled = enabled; }
+	void enable_airspeed(bool enabled) { _control_flag.airspeed_enabled = enabled; }
 
 	/**
 	 * @brief Update the control loop calculations
@@ -508,20 +578,20 @@ public:
 	void update(float pitch, float altitude, float hgt_setpoint, float EAS_setpoint, float equivalent_airspeed,
 		    float eas_to_tas, bool climb_out_setpoint, float pitch_min_climbout, float throttle_min, float throttle_setpoint_max,
 		    float throttle_trim, float pitch_limit_min, float pitch_limit_max, float target_climbrate, float target_sinkrate,
-		    const float speed_deriv_forward, float hgt_rate, float hgt_rate_sp = NAN);
+		    float speed_deriv_forward, float hgt_rate, float hgt_rate_sp = NAN);
 
 	/**
 	 * @brief Initialize the control loop
 	 *
 	 */
-	void initialize(const float altitude, const float altitude_rate, const float equivalent_airspeed);
+	void initialize(float altitude, float altitude_rate, float equivalent_airspeed, float eas_to_tas);
 
 	void resetIntegrals()
 	{
 		_control.resetIntegrals();
 	}
 
-	void set_detect_underspeed_enabled(bool enabled) { _detect_underspeed_enabled = enabled; };
+	void set_detect_underspeed_enabled(bool enabled) { _control_flag.detect_underspeed_enabled = enabled; };
 
 	// // setters for parameters
 	void set_airspeed_measurement_std_dev(float std_dev) {_airspeed_param.airspeed_measurement_std_dev = std_dev;};
@@ -539,7 +609,7 @@ public:
 
 	void set_equivalent_airspeed_max(float airspeed) { _equivalent_airspeed_max = airspeed; }
 	void set_equivalent_airspeed_min(float airspeed) { _equivalent_airspeed_min = airspeed; }
-	void set_equivalent_airspeed_trim(float airspeed) { _equivalent_airspeed_trim = airspeed; }
+	void set_equivalent_airspeed_trim(float airspeed) { _control_param.equivalent_airspeed_trim = airspeed; _airspeed_param.equivalent_airspeed_trim = airspeed; }
 
 	void set_pitch_damping(float damping) { _control_param.pitch_damping_gain = damping; }
 	void set_vertical_accel_limit(float limit) { _reference_param.vert_accel_limit = limit; _control_param.vert_accel_limit = limit; };
@@ -586,16 +656,13 @@ private:
 
 	enum ECL_TECS_MODE _tecs_mode {ECL_TECS_MODE_NORMAL};		///< Current activated mode.
 
-	uint64_t _update_timestamp{0};					///< last timestamp of the update function call.
+	hrt_abstime _update_timestamp{0};					///< last timestamp of the update function call.
 
 	float _equivalent_airspeed_min{3.0f};				///< equivalent airspeed demand lower limit (m/sec)
 	float _equivalent_airspeed_max{30.0f};				///< equivalent airspeed demand upper limit (m/sec)
-	float _equivalent_airspeed_trim{15.0f};				///< equivalent cruise airspeed for airspeed less mode (m/sec)
 
 	// controller mode logic
 	bool _uncommanded_descent_recovery{false};			///< true when a continuous descent caused by an unachievable airspeed demand has been detected
-	bool _airspeed_enabled{false};					///< true when airspeed use has been enabled
-	bool _detect_underspeed_enabled{false};				///< true when underspeed detection is enabled
 
 	static constexpr float DT_MIN = 0.001f;				///< minimum allowed value of _dt (sec)
 	static constexpr float DT_MAX = 1.0f;				///< max value of _dt allowed before a filter state reset is performed (sec)
@@ -605,7 +672,7 @@ private:
 	// Params
 	/// Airspeed filter parameters.
 	TECSAirspeedFilter::Param _airspeed_param{
-		.equivalent_airspeed_trim = 0.0f,
+		.equivalent_airspeed_trim = 15.0f,
 		.airspeed_measurement_std_dev = 0.2f,
 		.airspeed_rate_measurement_std_dev = 0.05f,
 		.airspeed_rate_noise_std_dev = 0.02
@@ -645,6 +712,12 @@ private:
 		.throttle_slewrate = 0.0f,
 		.load_factor_correction = 0.0f,
 		.load_factor = 1.0f,
+	};
+
+	TECSControl::Flag _control_flag{
+		.airspeed_enabled = false,
+		.climbout_mode_active = false,
+		.detect_underspeed_enabled = false,
 	};
 
 	/**
