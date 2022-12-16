@@ -19,9 +19,6 @@ float32 true_airspeed_derivative_sp
 float32 true_airspeed_derivative
 float32 true_airspeed_derivative_raw
 
-float32 total_energy_rate_error
-float32 energy_distribution_rate_error
-
 float32 total_energy_rate
 float32 total_energy_balance_rate
 

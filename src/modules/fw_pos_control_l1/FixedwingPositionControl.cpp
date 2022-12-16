@@ -493,11 +493,8 @@ FixedwingPositionControl::tecs_status_publish(float alt_sp, float equivalent_air
 	t.true_airspeed_derivative_sp = debug_output.control.true_airspeed_derivative_control;
 	t.true_airspeed_derivative = debug_output.true_airspeed_derivative;
 	t.true_airspeed_derivative_raw = true_airspeed_derivative_raw;
-	t.total_energy_rate_error = debug_output.control.total_energy_rate_error;
-	t.energy_distribution_rate_error = debug_output.control.energy_balance_rate_error;
-	t.total_energy_rate = debug_output.control.total_energy_rate_sp - debug_output.control.total_energy_rate_error;
-	t.total_energy_balance_rate = debug_output.control.energy_balance_rate_sp -
-				      debug_output.control.energy_balance_rate_error;
+	t.total_energy_rate = debug_output.control.total_energy_rate_estimate;
+	t.total_energy_balance_rate = debug_output.control.energy_balance_rate_estimate;
 	t.total_energy_rate_sp = debug_output.control.total_energy_rate_sp;
 	t.total_energy_balance_rate_sp = debug_output.control.energy_balance_rate_sp;
 	t.throttle_integ = debug_output.control.throttle_integrator;
