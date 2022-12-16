@@ -67,7 +67,7 @@ public:
 	 *
 	 */
 	struct Param {
-		float equivalent_airspeed_trim; 	///< the trim value of the equivalent airspeed om [m/s].
+		float equivalent_airspeed_trim; 	///< the trim value of the equivalent airspeed [m/s].
 		float airspeed_measurement_std_dev; 	///< airspeed measurement standard deviation in [m/s].
 		float airspeed_rate_measurement_std_dev;///< airspeed rate measurement standard deviation in [m/s²].
 		float airspeed_rate_noise_std_dev; 	///< standard deviation on the airspeed rate deviation in the model in [m/s²].

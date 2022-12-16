@@ -716,7 +716,7 @@ PARAM_DEFINE_FLOAT(FW_T_VERT_ACC, 7.0f);
  * @unit m/s
  * @min 0.01
  * @max 10.0
- * @decimal 1
+ * @decimal 2
  * @increment 0.1
  * @group FW TECS
  */

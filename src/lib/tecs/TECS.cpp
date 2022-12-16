@@ -115,7 +115,7 @@ void TECSAirspeedFilter::update(const float dt, const Input &input, const Param 
 	new_state = new_state_predicted + dt * (kalman_gain * (innovation));
 
 	// Clip airspeed at zero
-	if (new_state(0) < 0.0f) {
+	if (new_state(0) < FLT_EPSILON) {
 		new_state(0) = 0.0f;
 		// calculate input that would result in zero speed.
 		const float desired_airspeed_innovation = (-new_state_predicted(0) / dt - kalman_gain(0,
@@ -440,7 +440,7 @@ TECSControl::EnergyRateValues TECSControl::_calcPitchControlSeb(const SpecificEn
 
 void TECSControl::_calcPitchControlUpdate(float dt, const EnergyRateValues &seb, const Param &param)
 {
-	if (param.integrator_gain_pitch > 0.0f) {
+	if (param.integrator_gain_pitch > FLT_EPSILON) {
 		// Calculate pitch integrator input term
 		float pitch_integ_input = seb.rate_error * param.integrator_gain_pitch;
 
@@ -501,7 +501,7 @@ void TECSControl::_calcThrottleControl(float dt, const SpecificEnergyRates &se, 
 	float throttle_setpoint{_calcThrottleControlOutput(limit, ste, param, flag)};
 
 	// Rate limit the throttle demand
-	if (fabsf(param.throttle_slewrate) > 0.01f) {
+	if (fabsf(param.throttle_slewrate) > FLT_EPSILON) {
 		const float throttle_increment_limit = dt * (param.throttle_max - param.throttle_min) * param.throttle_slewrate;
 		throttle_setpoint = constrain(throttle_setpoint, _throttle_setpoint - throttle_increment_limit,
 					      _throttle_setpoint + throttle_increment_limit);
@@ -542,7 +542,7 @@ void TECSControl::_calcThrottleControlUpdate(float dt, const STELimit &limit, co
 
 	// Integral handling
 	if (flag.airspeed_enabled) {
-		if (param.integrator_gain_throttle > 0.0f) {
+		if (param.integrator_gain_throttle > FLT_EPSILON) {
 			// underspeed conditions zero out integration
 			float throttle_integ_input = (ste.rate_error * param.integrator_gain_throttle) * dt *
 						     STE_rate_to_throttle * (1.0f - _percent_undersped);
@@ -585,7 +585,7 @@ float TECSControl::_calcThrottleControlOutput(const STELimit &limit, const Energ
 	// Specific total energy rate = _STE_rate_min is achieved when throttle is set to _throttle_setpoint_min
 	float throttle_predicted = 0.0f;
 
-	if (ste.rate_setpoint >= 0) {
+	if (ste.rate_setpoint >= FLT_EPSILON) {
 		// throttle is between trim and maximum
 		throttle_predicted = param.throttle_trim + ste.rate_setpoint / limit.STE_rate_max *
 				     (param.throttle_max - param.throttle_trim);
