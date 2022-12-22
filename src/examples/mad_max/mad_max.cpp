@@ -1,10 +1,15 @@
 
-#include "mad_max.hpp"
+#include "mad_max.h"
 
 
 MadMax::MadMax()
 {
 	// Do nothing in constructor
+
+}
+
+MadMax::~MadMax()
+{
 
 }
 
@@ -16,7 +21,7 @@ MadMax *MadMax::instantiate(int argc, char *argv[])	//returns pointer type madma
 
 int MadMax::task_spawn(int argc, char *argv[])
 {
-	px4_main_t entry_point = (px4_main_t)&run_trampoline();	// Entry point for px4_task_spawn_cmd() if the module runs in its own thread.
+	px4_main_t entry_point = (px4_main_t)&run_trampoline;	// Entry point for px4_task_spawn_cmd() if the module runs in its own thread.
 
 	int _task_id = px4_task_spawn_cmd("Mad Max", SCHED_DEFAULT, SCHED_PRIORITY_DEFAULT, 1500, entry_point, (char *const *)argv);
 
@@ -34,23 +39,36 @@ int MadMax::task_spawn(int argc, char *argv[])
 void MadMax::run()
 {
 	static vehicle_local_position_s v_position{};
-	hrt_abstime now = hrt_absolute_time();
+	//hrt_abstime now = hrt_absolute_time();
 
+	while(!should_exit()){
 	// New topic data had been received
-	if(_vehicle_local_position_sub.update(&v_position)) {
+		//if(_vehicle_local_position_sub.update(&v_position)) {
 
 
-		const Vector2f vehicle_xy_vel{v_position.xv, v_position_vy};
+		const Vector2f vehicle_xy_vel{v_position.vx, v_position.vy};
 		const float vehicle_speed_m_s = vehicle_xy_vel.norm();
 
+		if (vehicle_speed_m_s < 1.0f) {
+			PX4_INFO("In");
+		}
+
+		else {
+			PX4_INFO("InIN");
+		}
 
 
+		px4_sleep(100_ms);
 	}
-
-	px4_sleep(1000_ms);
+	//ScheduleClear();
+	//exit_and_cleanup();
+	//return;
 
 
 }
+
+
+
 
 
 int MadMax::print_usage(const char *reason)
@@ -62,6 +80,8 @@ int MadMax::custom_command(int argc, char *argv[])
 {
 	return print_usage("Unrecognized command");
 }
+
+
 
 
 // Main entry point function for PX4 Nuttx System

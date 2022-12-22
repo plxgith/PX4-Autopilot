@@ -1,6 +1,6 @@
 #pragma once
 
->
+
 #include <px4_platform_common/module.h>
 
 #include <drivers/drv_hrt.h>
@@ -35,13 +35,13 @@ public:
 
 	static MadMax *instantiate(int argc, char *argv[]);
 
-
-
-private:
 	void run() override;
 
+private:
+
+
 	// Subscription to the vehicle_local_position uORB topic
-	uORB::Subscription		__vehicle_local_position{ORB_ID(vehicle_local_position)};
+	uORB::Subscription		_vehicle_local_position_sub{ORB_ID(vehicle_local_position)};
 
 
 
