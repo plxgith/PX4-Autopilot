@@ -1,0 +1,11 @@
+menuconfig MODULES_FLAP_CONTROLLER
+	bool "flap_controller"
+	default n
+	---help---
+		Enable support for flap_controller
+
+menuconfig USER_FLAP_CONTROLLER
+	bool "flap_controller running as userspace module"
+	default y
+	---help---
+		Put flap_controller in userspace memory
