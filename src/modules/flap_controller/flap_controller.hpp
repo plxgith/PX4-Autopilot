@@ -27,6 +27,12 @@
 #include <uORB/topics/actuator_controls.h>
 // Need airspeed topic
 #include <uORB/topics/airspeed.h>
+// Need to know in which state the VTOL is
+#include <uORB/topics/vtol_vehicle_status.h>
+// To listen in which mode it is(auto, mission, etc)
+//#include <uORB/topics/vehicle_control_mode.h>
+// To send data to QGround?
+#include <uORB/topics/debug_value.h>
 
 
 
@@ -57,7 +63,9 @@ private:
 	// Publications
 	//uORB::Publication<orb_test_s> _orb_test_pub{ORB_ID(orb_test)};
 	// Publishes calculated elevon angle
-	//uORB::Publication<actuator_controls_s>	_actuator_controls_pub{ORB_ID(actuator_controls)};
+	// actuator_controls_1 for VTOL
+	uORB::Publication<actuator_controls_s>	_actuator_controls_pub{ORB_ID(actuator_controls_1)};
+	uORB::Publication<debug_value_s>	_debug_value_pub{ORB_ID(debug_value)};
 
 
 	// Subscriptions
@@ -65,8 +73,17 @@ private:
 	uORB::SubscriptionInterval         _parameter_update_sub{ORB_ID(parameter_update), 1_s}; // subscription limited to 1 Hz updates
 	uORB::Subscription                 _vehicle_status_sub{ORB_ID(vehicle_status)};          // regular subscription for additional data
 
+
+
 	// Subscribes to airspeed needed to calculate the flap output
 	uORB::SubscriptionCallbackWorkItem _airspeed_sub{this, ORB_ID(airspeed)};
+	// Subscribe to topic and listen if the vehicle is in transition mode
+	uORB::Subscription		   _vehicle_vtol_state_sub{ORB_ID(vtol_vehicle_status)};
+
+	// Subscribe to VTOL actuator topic to see values
+	uORB::Subscription		   _actuator_controls_1_sub{ORB_ID(actuator_controls_1)};
+
+
 
 	// Performance (perf) counters
 	perf_counter_t	_loop_perf{perf_alloc(PC_ELAPSED, MODULE_NAME": cycle")};
@@ -77,6 +94,13 @@ private:
 		(ParamInt<px4::params::SYS_AUTOSTART>) _param_sys_autostart,   /**< example parameter */
 		(ParamInt<px4::params::SYS_AUTOCONFIG>) _param_sys_autoconfig  /**< another parameter */
 	)
+
+	// Variables
+	actuator_controls_s 	_flap_command{};
+
+	// Debug Variables
+	debug_value_s		_debug_value{};
+	actuator_controls_s	_debug_actuator_commands{};
 
 
 	bool _armed{false};

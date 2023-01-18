@@ -15,11 +15,12 @@ FlapController::~FlapController()
 bool FlapController::init()
 {
 	// execute Run() on every sensor_accel publication
+	/*
 	if (!_sensor_accel_sub.registerCallback()) {
 		PX4_ERR("callback registration failed");
 		return false;
 	}
-
+	*/
 	// alternatively, Run on fixed interval
 	// ScheduleOnInterval(5000_us); // 2000 us interval, 200 Hz rate
 
@@ -29,6 +30,10 @@ bool FlapController::init()
 		PX4_ERR("airspeed callback registration failed");
 		return false;
 	}
+
+
+
+
 
 	return true;
 }
@@ -53,7 +58,7 @@ void FlapController::Run()
 	}
 
 
-	// Example
+
 	//  update vehicle_status to check arming state
 	if (_vehicle_status_sub.updated()) {
 		vehicle_status_s vehicle_status;
@@ -73,31 +78,65 @@ void FlapController::Run()
 		}
 	}
 
-
-	// Example
+	// comment out, it's unnecessary, but keep for reference
+	/*
 	//  grab latest accelerometer data
 	if (_sensor_accel_sub.updated()) {
 		sensor_accel_s accel;
 
 		if (_sensor_accel_sub.copy(&accel)) {
 			// DO WORK
-
 			// access parameter value (SYS_AUTOSTART)
 			if (_param_sys_autostart.get() == 1234) {
 				// do something if SYS_AUTOSTART is 1234
 			}
 		}
 	}
+	*/
 
 
 	// grab latest airspeed data
 	if(_airspeed_sub.updated()) {
 		airspeed_s p_airspeed;	// struct for data
 
+		// Publish to debug just to check it's getting there
+		//_debug_value.value = 69;
+		//_debug_value_pub.publish(_debug_value);
+
+
+
+		// Try getting pitch elevon pitch angle to publish to debug
+		_actuator_controls_1_sub.copy(&_debug_actuator_commands); // copy into struct
+		_debug_value.value = _debug_actuator_commands.control[actuator_controls_s::INDEX_PITCH];
+		_debug_value_pub.publish(_debug_value);
+
+
 		// copy to buffer
 		if(_airspeed_sub.copy(&p_airspeed)) {
 			// print for debug
-			PX4_INFO("%f", double(p_airspeed.indicated_airspeed_m_s));
+			//PX4_INFO("%f", double(p_airspeed.indicated_airspeed_m_s));
+
+			vtol_vehicle_status_s VTOL_state; // struct for VTOL state
+			if(_vehicle_vtol_state_sub.copy(&VTOL_state)) {
+				// if it's in transition
+				if(VTOL_state.in_transition_to_fw) {
+					PX4_INFO("In transition");
+
+					/*
+					 * struct actuator_control_s *get_actuators_fw_in()
+					 */
+					_flap_command.control[actuator_controls_s::INDEX_PITCH] = 45.0f;	// actuator_controls[1][1] -> pitch
+
+					// publish to uORB
+					// but maybe need to copy other commander before
+					// (other axis)
+					_actuator_controls_pub.publish(_flap_command);
+					_debug_value.value = _flap_command.control[actuator_controls_s::INDEX_PITCH];
+					// publish to topic
+					_debug_value_pub.publish(_debug_value);
+
+				}
+			}
 		}
 
 
@@ -106,14 +145,7 @@ void FlapController::Run()
 	}
 
 
-	// Example
-	//  publish some data
-	/*
-	orb_test_s data{};
-	data.val = 314159;
-	data.timestamp = hrt_absolute_time();
-	_orb_test_pub.publish(data);
-	*/
+
 
 	perf_end(_loop_perf);
 }
