@@ -107,8 +107,15 @@ void FlapController::Run()
 
 		// Try getting pitch elevon pitch angle to publish to debug
 		_actuator_controls_1_sub.copy(&_debug_actuator_commands); // copy into struct
+		/* struct actuator_controls_s {
+		*	uint64_t timestamp
+		*	uint64_t timestamp_sample
+		*	float control[8]
+		*/
+		}
 		_debug_value.value = _debug_actuator_commands.control[actuator_controls_s::INDEX_PITCH];
 		_debug_value_pub.publish(_debug_value);
+		PX4_INFO("%f", double(_debug_actuator_commands.control))
 
 
 		// copy to buffer
