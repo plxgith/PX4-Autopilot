@@ -1,18 +1,18 @@
-#include "flap_controller.hpp"
+#include "flap_controller_2.hpp"
 
-FlapController::FlapController() :
+FlapController2::FlapController2() :
 	ModuleParams(nullptr),
 	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::test1)
 {
 }
 
-FlapController::~FlapController()
+FlapController2::~FlapController2()
 {
 	perf_free(_loop_perf);
 	perf_free(_loop_interval_perf);
 }
 
-bool FlapController::init()
+bool FlapController2::init()
 {
 	// execute Run() on every sensor_accel publication
 
@@ -40,7 +40,7 @@ bool FlapController::init()
 	return true;
 }
 
-void FlapController::Run()
+void FlapController2::Run()
 {
 	if (should_exit()) {
 		ScheduleClear();
@@ -185,9 +185,9 @@ void FlapController::Run()
 	perf_end(_loop_perf);
 }
 
-int FlapController::task_spawn(int argc, char *argv[])
+int FlapController2::task_spawn(int argc, char *argv[])
 {
-	FlapController *instance = new FlapController();
+	FlapController2 *instance = new FlapController2();
 
 	if (instance) {
 		_object.store(instance);
@@ -208,19 +208,19 @@ int FlapController::task_spawn(int argc, char *argv[])
 	return PX4_ERROR;
 }
 
-int FlapController::print_status()
+int FlapController2::print_status()
 {
 	perf_print_counter(_loop_perf);
 	perf_print_counter(_loop_interval_perf);
 	return 0;
 }
 
-int FlapController::custom_command(int argc, char *argv[])
+int FlapController2::custom_command(int argc, char *argv[])
 {
 	return print_usage("unknown command");
 }
 
-int FlapController::print_usage(const char *reason)
+int FlapController2::print_usage(const char *reason)
 {
 	if (reason) {
 		PX4_WARN("%s\n", reason);
@@ -240,7 +240,7 @@ Flap Controller module running on a work queue.
 	return 0;
 }
 
-extern "C" __EXPORT int flap_controller_main(int argc, char *argv[])
+extern "C" __EXPORT int flap_controller_2_main(int argc, char *argv[])
 {
-	return FlapController::main(argc, argv);
+	return FlapController2::main(argc, argv);
 }

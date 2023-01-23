@@ -9,7 +9,6 @@
 #include <px4_platform_common/defines.h>
 #include <px4_platform_common/module.h>
 #include <px4_platform_common/module_params.h>
-#include <px4_platform_common/posix.h>
 #include <px4_platform_common/px4_work_queue/ScheduledWorkItem.hpp>
 
 #include <drivers/drv_hrt.h>
@@ -41,11 +40,11 @@
 
 using namespace time_literals;
 
-class FlapController : public ModuleBase<FlapController>, public ModuleParams, public px4::ScheduledWorkItem
+class FlapController2 : public ModuleBase<FlapController2>, public ModuleParams, public px4::ScheduledWorkItem
 {
 public:
-	FlapController();
-	~FlapController() override;
+	FlapController2();
+	~FlapController2() override;
 
 	/** @see ModuleBase */
 	static int task_spawn(int argc, char *argv[]);

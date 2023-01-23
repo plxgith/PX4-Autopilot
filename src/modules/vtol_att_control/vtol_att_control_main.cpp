@@ -477,15 +477,21 @@ VtolAttitudeControl::Run()
 		switch (_vtol_type->get_mode()) {
 		case mode::TRANSITION_TO_FW:
 		case mode::TRANSITION_TO_MC:
+
+			/***** Do something here *****/
 			// vehicle is doing a transition
 			_vtol_vehicle_status.vtol_in_trans_mode = true;
 			_vtol_vehicle_status.vtol_in_rw_mode = true; // making mc attitude controller work during transition
 			_vtol_vehicle_status.in_transition_to_fw = (_vtol_type->get_mode() == mode::TRANSITION_TO_FW);
 
+			// updates for security; has to know where it was
 			_fw_virtual_att_sp_sub.update(&_fw_virtual_att_sp);
 
+			// some vtol checks
 			if (!_vtol_type->was_in_trans_mode() || mc_att_sp_updated || fw_att_sp_updated) {
+				// some vtol checks; time, dT, Quadchute
 				_vtol_type->update_transition_state();
+				// vehicle attitude setpoint publish
 				_v_att_sp_pub.publish(_v_att_sp);
 			}
 
@@ -518,8 +524,11 @@ VtolAttitudeControl::Run()
 
 		_vtol_type->fill_actuator_outputs();
 		_actuators_0_pub.publish(_actuators_out_0);
+
+		// Here it publishes; have to override this behaviour
 		_actuators_1_pub.publish(_actuators_out_1);
 
+		// Don't understand this bit yet
 		_vehicle_torque_setpoint0_pub.publish(_torque_setpoint_0);
 		_vehicle_torque_setpoint1_pub.publish(_torque_setpoint_1);
 		_vehicle_thrust_setpoint0_pub.publish(_thrust_setpoint_0);
