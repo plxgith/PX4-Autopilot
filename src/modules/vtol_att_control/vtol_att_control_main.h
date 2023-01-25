@@ -84,6 +84,9 @@
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/vehicle_thrust_setpoint.h>
 #include <uORB/topics/vehicle_torque_setpoint.h>
+// Add Debug Topic and Array
+#include <uORB/topics/debug_value.h>
+#include <uORB/topics/debug_array.h>
 #include "standard.h"
 #include "tailsitter.h"
 #include "tiltrotor.h"
@@ -215,6 +218,8 @@ private:
 	float					_flap_angle{};
 	vtol_vehicle_status_s			_vtol_trans_status{};
 	float					_flap_max_angle{};
+
+	// flag whether to copy to flap
 
 	float _air_density{CONSTANTS_AIR_DENSITY_SEA_LEVEL_15C};	// [kg/m^3]
 
