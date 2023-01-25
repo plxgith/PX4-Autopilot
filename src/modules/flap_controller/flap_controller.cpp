@@ -112,10 +112,10 @@ void FlapController::Run()
 		*	uint64_t timestamp_sample
 		*	float control[8]
 		*/
-		}
+
 		_debug_value.value = _debug_actuator_commands.control[actuator_controls_s::INDEX_PITCH];
 		_debug_value_pub.publish(_debug_value);
-		PX4_INFO("%f", double(_debug_actuator_commands.control))
+		//PX4_INFO("%f", double(_debug_actuator_commands.control));
 
 
 		// copy to buffer
@@ -141,6 +141,18 @@ void FlapController::Run()
 					_debug_value.value = _flap_command.control[actuator_controls_s::INDEX_PITCH];
 					// publish to topic
 					_debug_value_pub.publish(_debug_value);
+
+					// try sending a mavlink message
+					/* DOESN'T WORK
+					_vehicle_status.source_system = _vehicle_status_sub.get().system_id;
+					_vehicle_status.target_system = _vehicle_status_sub.get().system_id;
+					_vehicle_status.source_component = _vehicle_status_sub.get().component_id;
+					_vehicle_status.target_component = _vehicle_status_sub.get().component_id;
+					*/
+					// Publish to actuator
+					//_mav_vehicle_command.command = vehicle_command_s::MAV_CMD_DO_SET_ACTUATOR;
+					//_vehicle_command.publish(_mav_vehicle_command);
+					//_vehicle_command.unadvertise();
 
 				}
 			}

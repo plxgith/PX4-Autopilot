@@ -476,8 +476,33 @@ VtolAttitudeControl::Run()
 		// check in which mode we are in and call mode specific functions
 		switch (_vtol_type->get_mode()) {
 		case mode::TRANSITION_TO_FW:
+			// copy validated airspeed into temp struct
+			_airspeed_validated_sub.copy(&_flap_airspeed);
+			// calculate wanted flap angle depending on airspeed
+			_flap_angle = _flap_airspeed.true_airspeed_m_s * 1;
+			//PX4_INFO("%f", double(_flap_angle));
+			// want to stop publishing to the pitch command
+			//_actuators_1_pub.unadvertise()
+
+			/*** Same as down*/
+			_vtol_vehicle_status.vtol_in_trans_mode = true;
+			_vtol_vehicle_status.vtol_in_rw_mode = true; // making mc attitude controller work during transition
+			_vtol_vehicle_status.in_transition_to_fw = (_vtol_type->get_mode() == mode::TRANSITION_TO_FW);
+
+			_fw_virtual_att_sp_sub.update(&_fw_virtual_att_sp);
+
+			if (!_vtol_type->was_in_trans_mode() || mc_att_sp_updated || fw_att_sp_updated) {
+				_vtol_type->update_transition_state();
+				_v_att_sp_pub.publish(_v_att_sp);
+			}
+			break;
 		case mode::TRANSITION_TO_MC:
 			// vehicle is doing a transition
+			/***** Custmize sstart*/
+			// Try to stop publishing the topix to see whether
+			// that's what blocks the flap_controller
+			//_actuators_1_pub.unadvertise();
+			/********* END */
 			_vtol_vehicle_status.vtol_in_trans_mode = true;
 			_vtol_vehicle_status.vtol_in_rw_mode = true; // making mc attitude controller work during transition
 			_vtol_vehicle_status.in_transition_to_fw = (_vtol_type->get_mode() == mode::TRANSITION_TO_FW);
@@ -518,6 +543,13 @@ VtolAttitudeControl::Run()
 
 		_vtol_type->fill_actuator_outputs();
 		_actuators_0_pub.publish(_actuators_out_0);
+
+		// if in transition
+		// 	Copy Flap Angle into _actuators_out_1 struct
+		if(_vtol_vehicle_status.in_transition_to_fw)
+			_actuators_out_1.control[actuator_controls_s::INDEX_PITCH] = _flap_angle;
+
+		//PX4_INFO("%f",(double)_actuators_out_1.control[actuator_controls_s::INDEX_PITCH]);
 		_actuators_1_pub.publish(_actuators_out_1);
 
 		_vehicle_torque_setpoint0_pub.publish(_torque_setpoint_0);

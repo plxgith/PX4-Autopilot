@@ -210,6 +210,12 @@ private:
 	vehicle_local_position_setpoint_s	_local_pos_sp{};
 	vtol_vehicle_status_s 			_vtol_vehicle_status{};
 
+	/* Custom*/
+	airspeed_validated_s			_flap_airspeed{};
+	float					_flap_angle{};
+	vtol_vehicle_status_s			_vtol_trans_status{};
+	float					_flap_max_angle{};
+
 	float _air_density{CONSTANTS_AIR_DENSITY_SEA_LEVEL_15C};	// [kg/m^3]
 
 	Params _params{};	// struct holding the parameters

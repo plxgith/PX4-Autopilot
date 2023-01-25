@@ -34,6 +34,15 @@
 // To send data to QGround?
 #include <uORB/topics/debug_value.h>
 
+// To send Mavlink Commands
+#include <uORB/topics/vehicle_command.h>
+
+// To see Mavlink Messages
+//#include <v2.0/standard/standard.h>
+//#include <MAVLink/mavlink_messages.h>
+#include <uORB/topics/actuator_outputs.h>
+
+
 
 
 using namespace time_literals;
@@ -67,10 +76,16 @@ private:
 	uORB::Publication<actuator_controls_s>	_actuator_controls_pub{ORB_ID(actuator_controls_1)};
 	uORB::Publication<debug_value_s>	_debug_value_pub{ORB_ID(debug_value)};
 
+	// send mavlink command inside system to control pitch during transition
+	uORB::Publication<vehicle_command_s>	_vehicle_command{ORB_ID(vehicle_command)};
+
+	// direct actuator control
+	uORB::Publication<actuator_outputs_s>	_actuator_out_pub{ORB_ID(actuator_outputs)};
 
 	// Subscriptions
 	uORB::SubscriptionCallbackWorkItem _sensor_accel_sub{this, ORB_ID(sensor_accel)};        // subscription that schedules WorkItemExample when updated
 	uORB::SubscriptionInterval         _parameter_update_sub{ORB_ID(parameter_update), 1_s}; // subscription limited to 1 Hz updates
+	// Subscribe to vehicle status topic to get system_id and other
 	uORB::Subscription                 _vehicle_status_sub{ORB_ID(vehicle_status)};          // regular subscription for additional data
 
 
@@ -97,6 +112,8 @@ private:
 
 	// Variables
 	actuator_controls_s 	_flap_command{};
+	vehicle_command_s	_mav_vehicle_command{};
+	vehicle_status_s	_vehicle_status{};
 
 	// Debug Variables
 	debug_value_s		_debug_value{};
