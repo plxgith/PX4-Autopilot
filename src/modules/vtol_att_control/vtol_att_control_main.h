@@ -216,6 +216,8 @@ private:
 	vtol_vehicle_status_s			_vtol_trans_status{};
 	float					_flap_max_angle{};
 
+	// flag whether to copy to flap
+
 	float _air_density{CONSTANTS_AIR_DENSITY_SEA_LEVEL_15C};	// [kg/m^3]
 
 	Params _params{};	// struct holding the parameters
