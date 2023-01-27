@@ -26,13 +26,24 @@ inPend::~inPend()
 
 bool inPend::init()
 {
-
+	PX4_INFO("In init");
+	// register callback
 	if(!_vehicle_angular_velocity_sub.registerCallback()) {
 		PX4_ERR("vehicle_angualar_velocity callback registration failed");
 		PX4_INFO("CallBack Error");
 
 		return false;
 	}
+	PX4_INFO("Registered angular velocity sub");
+
+	if(!_vehicle_acceleration_sub.registerCallback()) {
+		PX4_ERR("vehicle_acceleartion callback registration failed");
+		PX4_INFO("CallBack Error");
+		return false;
+	}
+
+	PX4_INFO("Registered vehilce acceleration sub");
+
 
 	//ScheduleOnInterval(1000000_us);
 	//SCHED_PRIORITY_POSITION_CONTROL;
@@ -44,6 +55,7 @@ void inPend::Run()
 {
 
 	PX4_INFO("In Run");
+
 	if(should_exit()) {
 		_vehicle_angular_velocity_sub.unregisterCallback();
 		exit_and_cleanup();
@@ -63,7 +75,20 @@ void inPend::Run()
 
 		//px4_delay(1000000);
 
+
 	}
+
+	vehicle_acceleration_s vehicle_acceleration;
+	if(_vehicle_acceleration_sub.updated()) {
+
+		if(_vehicle_acceleration_sub.copy(&vehicle_acceleration)) {
+
+			PX4_INFO("%f", double(vehicle_acceleration.xyz[0]));
+		}
+	}
+
+
+
 
 	while(!should_exit())
 	{

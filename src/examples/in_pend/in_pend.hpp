@@ -1,9 +1,10 @@
 #pragma once
 
+#include <px4_platform_common/defines.h>
 #include <px4_platform_common/module.h>
-#include <px4_platform_common/module_params.h>						// for module template
+#include <px4_platform_common/module_params.h>
 #include <px4_platform_common/px4_work_queue/ScheduledWorkItem.hpp> 	// for work item
-#include <RateControl.hpp>						// Rate Control class
+#include <px4_platform_common/posix.h>
 
 // uORB stuff
 #include <uORB/Subscription.hpp>
@@ -12,6 +13,8 @@
 
 // uORB Topics
 #include <uORB/topics/vehicle_angular_velocity.h>			// For gyro data
+#include <uORB/topics/vehicle_acceleration.h>
+
 #include <uORB/topics/actuator_controls.h>
 #include <uORB/topics/vehicle_actuator_setpoint.h>
 #include <uORB/topics/vehicle_rates_setpoint.h>
@@ -43,9 +46,6 @@ public:
 private:
 	void Run() override;
 
-	RateControl	_rate_control;	// class for rate control calculations
-
-
 
 
 	/* Subscriptions */
@@ -54,6 +54,7 @@ private:
 	uORB::Subscription				_v_rates_sp_sub{ORB_ID(vehicle_rates_setpoint)};
 
 	uORB::SubscriptionCallbackWorkItem		_vehicle_angular_velocity_sub{this, ORB_ID(vehicle_angular_velocity)};
+	uORB::SubscriptionCallbackWorkItem		_vehicle_acceleration_sub{this, ORB_ID(vehicle_acceleration)};
 
 
 	/* Publications */
