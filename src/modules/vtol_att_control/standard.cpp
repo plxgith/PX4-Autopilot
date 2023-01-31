@@ -354,7 +354,7 @@ void Standard::fill_actuator_outputs()
 	auto &fw_out = _actuators_out_1->control;
 
 	// Debug
-	PX4_INFO("%f", double(_params->flap_ctrl));
+	//PX4_INFO("%f", double(_params->flap_ctrl));
 	// PX4_INFO("Here");
 	const bool elevon_lock = (_params->elevons_mc_lock == 1);
 
@@ -392,7 +392,7 @@ void Standard::fill_actuator_outputs()
 		//fw_out[actuator_controls_s::INDEX_PITCH]	= _params->flap_ctrl * _airspeed_validated->calibrated_airspeed_m_s;
 		//fw_out[actuator_controls_s::INDEX_PITCH]        = 0;
 		if(_airspeed_validated->calibrated_airspeed_m_s >= 0.0f) {
-			// actuator_controls range from 0 to 1; there 0 is minimal servo PWM, and 1 max
+			// actuator_controls range from -1 to 1; there 0 is minimal servo PWM, and 1 max
 			// default parameter is now 0
 			fw_out[actuator_controls_s::INDEX_PITCH]	= 1.0f - _params->flap_ctrl * _airspeed_validated->calibrated_airspeed_m_s;
 
@@ -403,7 +403,20 @@ void Standard::fill_actuator_outputs()
 		}
 		fw_out[actuator_controls_s::INDEX_YAW]          = fw_in[actuator_controls_s::INDEX_YAW];
 		fw_out[actuator_controls_s::INDEX_THROTTLE]     = _pusher_throttle;
-		fw_out[actuator_controls_s::INDEX_FLAPS]        = fw_in[actuator_controls_s::INDEX_FLAPS];
+
+		// Do the same with flaps as you did with pitch for transition
+		if(_airspeed_validated->calibrated_airspeed_m_s >= 0.0f) {
+			// actuator_controls range from -1 to 1; where -1 is minimal servo PWM, and 1 max
+			// default parameter is now 0
+			fw_out[actuator_controls_s::INDEX_FLAPS]	= 1.0f - _params->flap_ctrl * _airspeed_validated->calibrated_airspeed_m_s;
+			//fw_out[actuator_controls_s::INDEX_FLAPS]	= 1.0f ;
+
+		}
+		else {
+			fw_out[actuator_controls_s::INDEX_FLAPS]	= 1.0f;
+
+		}
+		//fw_out[actuator_controls_s::INDEX_FLAPS]        = fw_in[actuator_controls_s::INDEX_FLAPS];
 		fw_out[actuator_controls_s::INDEX_AIRBRAKES]    = _reverse_output;
 		break;
 
@@ -421,7 +434,7 @@ void Standard::fill_actuator_outputs()
 		fw_out[actuator_controls_s::INDEX_PITCH]        = fw_in[actuator_controls_s::INDEX_PITCH];
 		fw_out[actuator_controls_s::INDEX_YAW]          = fw_in[actuator_controls_s::INDEX_YAW];
 		fw_out[actuator_controls_s::INDEX_THROTTLE]     = _pusher_throttle;
-		fw_out[actuator_controls_s::INDEX_FLAPS]        = fw_in[actuator_controls_s::INDEX_FLAPS];
+		//fw_out[actuator_controls_s::INDEX_FLAPS]        = fw_in[actuator_controls_s::INDEX_FLAPS];
 		fw_out[actuator_controls_s::INDEX_AIRBRAKES]    = _reverse_output;
 
 		break;
@@ -439,7 +452,7 @@ void Standard::fill_actuator_outputs()
 		fw_out[actuator_controls_s::INDEX_PITCH]        = fw_in[actuator_controls_s::INDEX_PITCH];
 		fw_out[actuator_controls_s::INDEX_YAW]          = fw_in[actuator_controls_s::INDEX_YAW];
 		fw_out[actuator_controls_s::INDEX_THROTTLE]     = fw_in[actuator_controls_s::INDEX_THROTTLE];
-		fw_out[actuator_controls_s::INDEX_FLAPS]        = fw_in[actuator_controls_s::INDEX_FLAPS];
+		//fw_out[actuator_controls_s::INDEX_FLAPS]        = fw_in[actuator_controls_s::INDEX_FLAPS];
 		fw_out[actuator_controls_s::INDEX_AIRBRAKES]    = 0;
 		break;
 	}

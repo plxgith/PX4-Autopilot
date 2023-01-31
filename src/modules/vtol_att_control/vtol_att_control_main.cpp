@@ -408,6 +408,8 @@ VtolAttitudeControl::Run()
 
 #endif // !ENABLE_LOCKSTEP_SCHEDULER
 
+
+	//PX4_INFO("%ld", (now - _last_run_timestamp));
 	_last_run_timestamp = now;
 
 	if (!_initialized) {
