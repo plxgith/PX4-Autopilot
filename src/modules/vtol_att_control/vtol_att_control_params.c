@@ -384,3 +384,25 @@ PARAM_DEFINE_FLOAT(VT_PTCH_MIN, -5.0f);
  * @group VTOL Attitude Control
  */
 PARAM_DEFINE_FLOAT(VT_LND_PTCH_MIN, -5.0f);
+
+/**
+ *
+ * Parameter for flap controller, Flap Angle = 1.0 - VT_FLAP_CTRL * Airspeed
+ *
+ *
+ * @min 0
+ * @max 1
+ * @group VTOL Attitude Control
+*/
+PARAM_DEFINE_FLOAT(VT_FLAP_CTRL, 0.1f);
+
+
+/**
+ *
+ *
+ * Parameter for enabling the flap controller
+ *
+ * @min 0
+ * @max 1
+*/
+//PARAM_DEFINE_BOOL(VT_FLAP_CTRL_EN, 1);

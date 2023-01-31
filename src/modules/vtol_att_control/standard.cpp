@@ -353,6 +353,9 @@ void Standard::fill_actuator_outputs()
 	auto &mc_out = _actuators_out_0->control;
 	auto &fw_out = _actuators_out_1->control;
 
+	// Debug
+	PX4_INFO("%f", double(_params->flap_ctrl));
+	// PX4_INFO("Here");
 	const bool elevon_lock = (_params->elevons_mc_lock == 1);
 
 	switch (_vtol_schedule.flight_mode) {
@@ -376,6 +379,33 @@ void Standard::fill_actuator_outputs()
 		break;
 
 	case vtol_mode::TRANSITION_TO_FW:
+			// MC out = MC in (weighted)
+		mc_out[actuator_controls_s::INDEX_ROLL]         = mc_in[actuator_controls_s::INDEX_ROLL]     * _mc_roll_weight;
+		mc_out[actuator_controls_s::INDEX_PITCH]        = mc_in[actuator_controls_s::INDEX_PITCH]    * _mc_pitch_weight;
+		mc_out[actuator_controls_s::INDEX_YAW]          = mc_in[actuator_controls_s::INDEX_YAW]      * _mc_yaw_weight;
+		mc_out[actuator_controls_s::INDEX_THROTTLE]     = mc_in[actuator_controls_s::INDEX_THROTTLE] * _mc_throttle_weight;
+		mc_out[actuator_controls_s::INDEX_LANDING_GEAR] = landing_gear_s::GEAR_UP;
+
+		// FW out = FW in, with VTOL transition controlling throttle and airbrakes
+		fw_out[actuator_controls_s::INDEX_ROLL]         = fw_in[actuator_controls_s::INDEX_ROLL];
+		//fw_out[actuator_controls_s::INDEX_PITCH]        = fw_in[actuator_controls_s::INDEX_PITCH];
+		//fw_out[actuator_controls_s::INDEX_PITCH]	= _params->flap_ctrl * _airspeed_validated->calibrated_airspeed_m_s;
+		//fw_out[actuator_controls_s::INDEX_PITCH]        = 0;
+		if(_airspeed_validated->calibrated_airspeed_m_s >= 0.0f) {
+			// actuator_controls range from 0 to 1; there 0 is minimal servo PWM, and 1 max
+			// default parameter is now 0
+			fw_out[actuator_controls_s::INDEX_PITCH]	= 1.0f - _params->flap_ctrl * _airspeed_validated->calibrated_airspeed_m_s;
+
+		}
+		else {
+			fw_out[actuator_controls_s::INDEX_PITCH]	= 1.0f;
+
+		}
+		fw_out[actuator_controls_s::INDEX_YAW]          = fw_in[actuator_controls_s::INDEX_YAW];
+		fw_out[actuator_controls_s::INDEX_THROTTLE]     = _pusher_throttle;
+		fw_out[actuator_controls_s::INDEX_FLAPS]        = fw_in[actuator_controls_s::INDEX_FLAPS];
+		fw_out[actuator_controls_s::INDEX_AIRBRAKES]    = _reverse_output;
+		break;
 
 	// FALLTHROUGH
 	case vtol_mode::TRANSITION_TO_MC:

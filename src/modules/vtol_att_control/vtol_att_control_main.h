@@ -131,6 +131,7 @@ public:
 
 	float getAirDensity() const { return _air_density; }
 
+	// Convenience Functions
 	struct actuator_controls_s 			*get_actuators_fw_in() {return &_actuators_fw_in;}
 	struct actuator_controls_s 			*get_actuators_mc_in() {return &_actuators_mc_in;}
 	struct actuator_controls_s 			*get_actuators_out0() {return &_actuators_out_0;}
@@ -260,6 +261,7 @@ private:
 		param_t mpc_land_alt1;
 		param_t mpc_land_alt2;
 		param_t sys_ctrl_alloc;
+		param_t flap_ctrl;
 	} _params_handles{};
 
 	hrt_abstime _last_run_timestamp{0};

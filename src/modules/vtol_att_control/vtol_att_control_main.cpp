@@ -109,6 +109,10 @@ VtolAttitudeControl::VtolAttitudeControl() :
 
 	_params_handles.land_pitch_min_rad = param_find("VT_LND_PTCH_MIN");
 
+	// fetch flap controller parameters
+	_params_handles.flap_ctrl = param_find("VT_FLAP_CTRL");
+	//_params_handles.en_flap_ctrl = param_find("VT_FLAP_CTRL_EN");
+
 	/* fetch initial parameter values */
 	parameters_update();
 
@@ -372,6 +376,9 @@ VtolAttitudeControl::parameters_update()
 	param_get(_params_handles.mpc_land_alt1, &_params.mpc_land_alt1);
 	param_get(_params_handles.mpc_land_alt2, &_params.mpc_land_alt2);
 
+	// Get the custom parameter
+	param_get(_params_handles.flap_ctrl, &_params.flap_ctrl);
+
 	// update the parameters of the instances of base VtolType
 	if (_vtol_type != nullptr) {
 		_vtol_type->parameters_update();
@@ -466,6 +473,8 @@ VtolAttitudeControl::Run()
 			_air_density = air_data.rho;
 		}
 
+		// print just to check if it updates the parameter
+		//PX4_INFO("%f", double(_params.flap_ctrl));
 		// check if mc and fw sp were updated
 		bool mc_att_sp_updated = _mc_virtual_att_sp_sub.update(&_mc_virtual_att_sp);
 		bool fw_att_sp_updated = _fw_virtual_att_sp_sub.update(&_fw_virtual_att_sp);
@@ -546,8 +555,8 @@ VtolAttitudeControl::Run()
 
 		// if in transition
 		// 	Copy Flap Angle into _actuators_out_1 struct
-		if(_vtol_vehicle_status.in_transition_to_fw)
-			_actuators_out_1.control[actuator_controls_s::INDEX_PITCH] = _flap_angle;
+		//if(_vtol_vehicle_status.in_transition_to_fw)
+		//	_actuators_out_1.control[actuator_controls_s::INDEX_PITCH] = _flap_angle;
 
 		//PX4_INFO("%f",(double)_actuators_out_1.control[actuator_controls_s::INDEX_PITCH]);
 		_actuators_1_pub.publish(_actuators_out_1);
