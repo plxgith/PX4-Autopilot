@@ -178,20 +178,6 @@ struct gpsMessage {
 	float       pdop{};             ///< position dilution of precision
 };
 
-struct outputSample {
-	uint64_t    time_us{};          ///< timestamp of the measurement (uSec)
-	Quatf       quat_nominal{};     ///< nominal quaternion describing vehicle attitude
-	Vector3f    vel{};              ///< NED velocity estimate in earth frame (m/sec)
-	Vector3f    pos{};              ///< NED position estimate in earth frame (m/sec)
-};
-
-struct outputVert {
-	uint64_t    time_us{};          ///< timestamp of the measurement (uSec)
-	float       vert_vel{};         ///< Vertical velocity calculated using alternative algorithm (m/sec)
-	float       vert_vel_integ{};   ///< Integral of vertical velocity (m)
-	float       dt{};               ///< delta time (sec)
-};
-
 struct imuSample {
 	uint64_t    time_us{};                ///< timestamp of the measurement (uSec)
 	Vector3f    delta_ang{};              ///< delta angle in body frame (integrated gyro measurements) (rad)
@@ -222,6 +208,7 @@ struct magSample {
 struct baroSample {
 	uint64_t    time_us{};  ///< timestamp of the measurement (uSec)
 	float       hgt{};      ///< pressure altitude above sea level (m)
+	bool        reset{false};
 };
 
 struct rangeSample {
@@ -360,7 +347,6 @@ struct parameters {
 	int32_t mag_fusion_type{0};             ///< integer used to specify the type of magnetometer fusion used
 	float mag_acc_gate{0.5f};               ///< when in auto select mode, heading fusion will be used when manoeuvre accel is lower than this (m/sec**2)
 	float mag_yaw_rate_gate{0.25f};         ///< yaw rate threshold used by mode select logic (rad/sec)
-	const float quat_max_variance{0.0001f}; ///< zero innovation yaw measurements will not be fused when the sum of quaternion variance is less than this
 
 	// GNSS heading fusion
 	float gps_heading_noise{0.1f};          ///< measurement noise standard deviation used for GNSS heading fusion (rad)
@@ -424,15 +410,13 @@ struct parameters {
 	Vector3f flow_pos_body{};               ///< xyz position of range sensor focal point in body frame (m)
 	Vector3f ev_pos_body{};                 ///< xyz position of VI-sensor focal point in body frame (m)
 
-	// output complementary filter tuning
-	float vel_Tau{0.25f};                   ///< velocity state correction time constant (1/sec)
-	float pos_Tau{0.25f};                   ///< position state correction time constant (1/sec)
-
 	// accel bias learning control
 	float acc_bias_lim{0.4f};               ///< maximum accel bias magnitude (m/sec**2)
 	float acc_bias_learn_acc_lim{25.0f};    ///< learning is disabled if the magnitude of the IMU acceleration vector is greater than this (m/sec**2)
 	float acc_bias_learn_gyr_lim{3.0f};     ///< learning is disabled if the magnitude of the IMU angular rate vector is greater than this (rad/sec)
 	float acc_bias_learn_tc{0.5f};          ///< time constant used to control the decaying envelope filters applied to the accel and gyro magnitudes (sec)
+
+	float gyro_bias_lim{0.4f};              ///< maximum gyro bias magnitude (rad/sec)
 
 	const unsigned reset_timeout_max{7'000'000};      ///< maximum time we allow horizontal inertial dead reckoning before attempting to reset the states to the measurement or change _control_status if the data is unavailable (uSec)
 	const unsigned no_aid_timeout_max{1'000'000};     ///< maximum lapsed time from last fusion of a measurement that constrains horizontal velocity drift before the EKF will determine that the sensor is no longer contributing to aiding (uSec)
@@ -639,9 +623,9 @@ union warning_event_status_u {
 		bool stopping_navigation                : 1; ///< 5 - true when the filter has insufficient data to estimate velocity and position and is falling back to an attitude, height and height rate mode of operation
 		bool invalid_accel_bias_cov_reset       : 1; ///< 6 - true when the filter has detected bad acceerometer bias state estimates and has reset the corresponding covariance matrix elements
 		bool bad_yaw_using_gps_course           : 1; ///< 7 - true when the filter has detected an invalid yaw estimate and has reset the yaw angle to the GPS ground course
-		bool stopping_mag_use                   : 1; ///< 8 - true when the filter has detected bad magnetometer data and is stopping further use of the magnetomer data
+		bool stopping_mag_use                   : 1; ///< 8 - true when the filter has detected bad magnetometer data and is stopping further use of the magnetometer data
 		bool vision_data_stopped                : 1; ///< 9 - true when the vision system data has stopped for a significant time period
-		bool emergency_yaw_reset_mag_stopped    : 1; ///< 10 - true when the filter has detected bad magnetometer data, has reset the yaw to anothter source of data and has stopped further use of the magnetomer data
+		bool emergency_yaw_reset_mag_stopped    : 1; ///< 10 - true when the filter has detected bad magnetometer data, has reset the yaw to anothter source of data and has stopped further use of the magnetometer data
 		bool emergency_yaw_reset_gps_yaw_stopped: 1; ///< 11 - true when the filter has detected bad GNSS yaw data, has reset the yaw to anothter source of data and has stopped further use of the GNSS yaw data
 	} flags;
 	uint32_t value;

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (C) 2022 ModalAI, Inc. All rights reserved.
+ * Copyright (C) 2022-2023 ModalAI, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -39,7 +39,9 @@
 
 __BEGIN_DECLS
 
-//Defining hap_debug
+extern void qurt_log_to_apps(int level, const char *message);
+
+// Defining hap_debug
 void HAP_debug(const char *msg, int level, const char *filename, int line);
 
 static __inline void qurt_log(int level, const char *file, int line,
@@ -51,6 +53,8 @@ static __inline void qurt_log(int level, const char *file, int line,
 	vsnprintf(buf, sizeof(buf), format, args);
 	va_end(args);
 	HAP_debug(buf, level, file, line);
+
+	qurt_log_to_apps(level, buf);
 }
 
 __END_DECLS

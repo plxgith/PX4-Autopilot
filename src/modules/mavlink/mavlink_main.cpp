@@ -476,7 +476,7 @@ Mavlink::forward_message(const mavlink_message_t *msg, Mavlink *self)
 	LockGuard lg{mavlink_module_mutex};
 
 	for (Mavlink *inst : mavlink_module_instances) {
-		if (inst && (inst != self) && (inst->_forwarding_on)) {
+		if (inst && (inst != self) && (inst->get_forwarding_on())) {
 			// Pass message only if target component was seen before
 			if (inst->_receiver.component_was_seen(target_system_id, target_component_id)) {
 				inst->pass_message(msg);
@@ -2119,6 +2119,9 @@ Mavlink::task_main(int argc, char *argv[])
 		_ftp_on = true;
 		_is_usb_uart = true;
 
+		// Always forward messages to/from the USB instance.
+		_forwarding_on = true;
+
 		set_telemetry_status_type(telemetry_status_s::LINK_TYPE_USB);
 	}
 
@@ -2183,7 +2186,7 @@ Mavlink::task_main(int argc, char *argv[])
 	pthread_mutex_init(&_radio_status_mutex, nullptr);
 
 	/* if we are passing on mavlink messages, we need to prepare a buffer for this instance */
-	if (_forwarding_on) {
+	if (get_forwarding_on()) {
 		/* initialize message buffer if multiplexing is on.
 		 * make space for two messages plus off-by-one space as we use the empty element
 		 * marker ring buffer approach.
@@ -2397,7 +2400,12 @@ Mavlink::task_main(int argc, char *argv[])
 							_vehicle_command_ack_sub.get_last_generation());
 					}
 
-					if (!command_ack.from_external && command_ack.command < vehicle_command_s::VEHICLE_CMD_PX4_INTERNAL_START) {
+					const bool is_target_known = _receiver.component_was_seen(command_ack.target_system, command_ack.target_component);
+
+					if (!command_ack.from_external
+					    && command_ack.command < vehicle_command_s::VEHICLE_CMD_PX4_INTERNAL_START
+					    && is_target_known) {
+
 						mavlink_command_ack_t msg{};
 						msg.result = command_ack.result;
 						msg.command = command_ack.command;
@@ -2406,11 +2414,7 @@ Mavlink::task_main(int argc, char *argv[])
 						msg.target_system = command_ack.target_system;
 						msg.target_component = command_ack.target_component;
 
-						// TODO: always transmit the acknowledge once it is only sent over the instance the command is received
-						//bool _transmitting_enabled_temp = _transmitting_enabled;
-						//_transmitting_enabled = true;
 						mavlink_msg_command_ack_send_struct(get_channel(), &msg);
-						//_transmitting_enabled = _transmitting_enabled_temp;
 
 						if (command_ack.command == vehicle_command_s::VEHICLE_CMD_LOGGING_START) {
 							cmd_logging_start_acknowledgement = true;
@@ -2536,7 +2540,7 @@ Mavlink::task_main(int argc, char *argv[])
 		_events.update(t);
 
 		/* pass messages from other UARTs */
-		if (_forwarding_on) {
+		if (get_forwarding_on()) {
 
 			bool is_part;
 			uint8_t *read_ptr;
@@ -2628,7 +2632,7 @@ Mavlink::task_main(int argc, char *argv[])
 		_socket_fd = -1;
 	}
 
-	if (_forwarding_on) {
+	if (get_forwarding_on()) {
 		message_buffer_destroy();
 		pthread_mutex_destroy(&_message_buffer_mutex);
 	}
@@ -2948,6 +2952,7 @@ Mavlink::display_status()
 	       _ftp_on ? "YES" : "NO",
 	       _transmitting_enabled ? "YES" : "NO");
 	printf("\tmode: %s\n", mavlink_mode_str(_mode));
+	printf("\tForwarding: %s\n", get_forwarding_on() ? "On" : "Off");
 	printf("\tMAVLink version: %" PRId32 "\n", _protocol_version);
 
 	printf("\ttransport protocol: ");
