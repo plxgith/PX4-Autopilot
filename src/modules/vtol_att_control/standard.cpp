@@ -353,6 +353,8 @@ void Standard::fill_actuator_outputs()
 	auto &mc_out = _actuators_out_0->control;
 	auto &fw_out = _actuators_out_1->control;
 
+	auto &fw_out_0_flaps = _actuators_out_0->control[actuator_controls_s::INDEX_FLAPS];
+
 	// Debug
 	//PX4_INFO("%f", double(_params->flap_ctrl));
 	// PX4_INFO("Here");
@@ -376,6 +378,8 @@ void Standard::fill_actuator_outputs()
 		fw_out[actuator_controls_s::INDEX_FLAPS]        = 0;
 		fw_out[actuator_controls_s::INDEX_AIRBRAKES]    = 0;
 
+		fw_out_0_flaps					= 0;
+
 		break;
 
 	case vtol_mode::TRANSITION_TO_FW:
@@ -394,11 +398,11 @@ void Standard::fill_actuator_outputs()
 		if(_airspeed_validated->calibrated_airspeed_m_s >= 0.0f) {
 			// actuator_controls range from -1 to 1; there 0 is minimal servo PWM, and 1 max
 			// default parameter is now 0
-			fw_out[actuator_controls_s::INDEX_PITCH]	= 1.0f - _params->flap_ctrl * _airspeed_validated->calibrated_airspeed_m_s;
+			//fw_out[actuator_controls_s::INDEX_PITCH]	= 1.0f - _params->flap_ctrl * _airspeed_validated->calibrated_airspeed_m_s;
 
 		}
 		else {
-			fw_out[actuator_controls_s::INDEX_PITCH]	= 1.0f;
+			//fw_out[actuator_controls_s::INDEX_PITCH]	= 1.0f;
 
 		}
 		fw_out[actuator_controls_s::INDEX_YAW]          = fw_in[actuator_controls_s::INDEX_YAW];
@@ -408,15 +412,16 @@ void Standard::fill_actuator_outputs()
 		if(_airspeed_validated->calibrated_airspeed_m_s >= 0.0f) {
 			// actuator_controls range from -1 to 1; where -1 is minimal servo PWM, and 1 max
 			// default parameter is now 0
-			fw_out[actuator_controls_s::INDEX_FLAPS]	= 1.0f - _params->flap_ctrl * _airspeed_validated->calibrated_airspeed_m_s;
+			fw_out_0_flaps				= 1.0f - _params->flap_ctrl * _airspeed_validated->calibrated_airspeed_m_s;
 			//fw_out[actuator_controls_s::INDEX_FLAPS]	= 1.0f ;
 
 		}
 		else {
-			fw_out[actuator_controls_s::INDEX_FLAPS]	= 1.0f;
+			fw_out_0_flaps				= 1.0f;
 
 		}
 		//fw_out[actuator_controls_s::INDEX_FLAPS]        = fw_in[actuator_controls_s::INDEX_FLAPS];
+		//fw_out[actuator_controls_s::INDEX_FLAPS]	= 1.0f;
 		fw_out[actuator_controls_s::INDEX_AIRBRAKES]    = _reverse_output;
 		break;
 
@@ -434,9 +439,11 @@ void Standard::fill_actuator_outputs()
 		fw_out[actuator_controls_s::INDEX_PITCH]        = fw_in[actuator_controls_s::INDEX_PITCH];
 		fw_out[actuator_controls_s::INDEX_YAW]          = fw_in[actuator_controls_s::INDEX_YAW];
 		fw_out[actuator_controls_s::INDEX_THROTTLE]     = _pusher_throttle;
-		//fw_out[actuator_controls_s::INDEX_FLAPS]        = fw_in[actuator_controls_s::INDEX_FLAPS];
+		fw_out[actuator_controls_s::INDEX_FLAPS]        = fw_in[actuator_controls_s::INDEX_FLAPS];
 		fw_out[actuator_controls_s::INDEX_AIRBRAKES]    = _reverse_output;
 
+
+		fw_out_0_flaps 					= 0;
 		break;
 
 	case vtol_mode::FW_MODE:
@@ -446,14 +453,20 @@ void Standard::fill_actuator_outputs()
 		mc_out[actuator_controls_s::INDEX_YAW]          = 0;
 		mc_out[actuator_controls_s::INDEX_THROTTLE]     = 0;
 		mc_out[actuator_controls_s::INDEX_LANDING_GEAR] = landing_gear_s::GEAR_UP;
+		mc_out[actuator_controls_s::INDEX_LANDING_GEAR] = landing_gear_s::GEAR_UP;
+
 
 		// FW out = FW in
 		fw_out[actuator_controls_s::INDEX_ROLL]         = fw_in[actuator_controls_s::INDEX_ROLL];
 		fw_out[actuator_controls_s::INDEX_PITCH]        = fw_in[actuator_controls_s::INDEX_PITCH];
 		fw_out[actuator_controls_s::INDEX_YAW]          = fw_in[actuator_controls_s::INDEX_YAW];
 		fw_out[actuator_controls_s::INDEX_THROTTLE]     = fw_in[actuator_controls_s::INDEX_THROTTLE];
-		//fw_out[actuator_controls_s::INDEX_FLAPS]        = fw_in[actuator_controls_s::INDEX_FLAPS];
+		fw_out[actuator_controls_s::INDEX_FLAPS]        = fw_in[actuator_controls_s::INDEX_FLAPS];
+		//fw_out[actuator_controls_s::INDEX_FLAPS]        = 0;
+
 		fw_out[actuator_controls_s::INDEX_AIRBRAKES]    = 0;
+
+		fw_out_0_flaps 					= 0;
 		break;
 	}
 
