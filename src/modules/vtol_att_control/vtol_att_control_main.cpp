@@ -110,8 +110,9 @@ VtolAttitudeControl::VtolAttitudeControl() :
 	_params_handles.land_pitch_min_rad = param_find("VT_LND_PTCH_MIN");
 
 	// fetch flap controller parameters
-	_params_handles.flap_ctrl = param_find("VT_FLAP_CTRL");
-	//_params_handles.en_flap_ctrl = param_find("VT_FLAP_CTRL_EN");
+	_params_handles.vt_flap_coeff = param_find("VT_FLAP_COEFF");
+	_params_handles.vt_flap_trans_en = param_find("VT_FLAP_TRANS_EN");
+	_params_handles.vt_flap_on = param_find("VT_FLAP_ON");
 
 	/* fetch initial parameter values */
 	parameters_update();
@@ -377,7 +378,10 @@ VtolAttitudeControl::parameters_update()
 	param_get(_params_handles.mpc_land_alt2, &_params.mpc_land_alt2);
 
 	// Get the custom parameter
-	param_get(_params_handles.flap_ctrl, &_params.flap_ctrl);
+	param_get(_params_handles.vt_flap_coeff, &_params.vt_flap_coeff);
+	param_get(_params_handles.vt_flap_trans_en, &_params.vt_flap_trans_en);
+	param_get(_params_handles.vt_flap_on, &_params.vt_flap_on);
+
 
 	// update the parameters of the instances of base VtolType
 	if (_vtol_type != nullptr) {

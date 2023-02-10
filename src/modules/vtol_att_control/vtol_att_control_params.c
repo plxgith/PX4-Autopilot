@@ -387,36 +387,36 @@ PARAM_DEFINE_FLOAT(VT_LND_PTCH_MIN, -5.0f);
 
 /**
  *
- * Parameter for flap controller, Flap Angle = 1.0 - VT_FLAP_CTRL * Airspeed
+ * Coefficient for flap controller, Flap Angle = 1.0 - VT_FLAP_COEFF * Airspeed
  *
  *
  * @min 0
  * @max 1
+ * @decimal 2
+ * @increment 0.01
  * @group VTOL Attitude Control
 */
-PARAM_DEFINE_FLOAT(VT_FLAP_CTRL, 0.1f);
-
+PARAM_DEFINE_FLOAT(VT_FLAP_COEFF, 0.1f);
 
 /**
  *
  *
- * Parameter for enabling the flap controller in transition.
+ * Enable flap controller in transition
  *
  * @min 0
  * @max 1
+ * @boolean
 */
-PARAM_DEFINE_FLOAT(VT_FLAP_CTRL_EN, 1);
-
-
+PARAM_DEFINE_INT32(VT_FLAP_TRANS_EN, 0);
 
 /**
  *
- * Parameter for enabling flap controller in MC position mode.
+ * Enable flap controller in VTOL modes
  *
  *
  * @min 0
  * @max 1
- * @group VTOL Attitude Control
+ * @boolean
 */
-PARAM_DEFINE_FLOAT(VT_FLAP_CTRL_POS, 0.1f);
+PARAM_DEFINE_INT32(VT_FLAP_ON, 0);
 

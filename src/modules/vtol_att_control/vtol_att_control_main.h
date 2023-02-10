@@ -262,8 +262,10 @@ private:
 		param_t mpc_land_alt1;
 		param_t mpc_land_alt2;
 		param_t sys_ctrl_alloc;
-		param_t flap_ctrl;
-		param_t flap_ctrl_en;
+		param_t vt_flap_coeff;
+		param_t vt_flap_trans_en;
+		param_t vt_flap_on;
+		param_t test_param;
 	} _params_handles{};
 
 	hrt_abstime _last_run_timestamp{0};

@@ -378,8 +378,25 @@ void Standard::fill_actuator_outputs()
 		fw_out[actuator_controls_s::INDEX_FLAPS]        = 0;
 		fw_out[actuator_controls_s::INDEX_AIRBRAKES]    = 0;
 
-		fw_out_0_flaps					= 0;
+		// if flaps disabled
+		if(!_params->vt_flap_on) {
+			// output zero flap command
+			fw_out_0_flaps				= 0;
+		}
+		// else output flaps command
+		else {
+			// if positive airspeed readings ( avoid airspeed noise)
+			if(_airspeed_validated->calibrated_airspeed_m_s >= 0.0f) {
+			// actuator_controls range from -1 to 1; where -1 is minimal servo PWM, and 1 max
+			// default parameter is now 0
+				fw_out_0_flaps				= 1.0f - _params->vt_flap_coeff * _airspeed_validated->calibrated_airspeed_m_s;
+			}
+			// else zero flap command
+			else {
+				fw_out_0_flaps				= 1.0f;
 
+			}
+		}
 		break;
 
 	case vtol_mode::TRANSITION_TO_FW:
@@ -392,33 +409,23 @@ void Standard::fill_actuator_outputs()
 
 		// FW out = FW in, with VTOL transition controlling throttle and airbrakes
 		fw_out[actuator_controls_s::INDEX_ROLL]         = fw_in[actuator_controls_s::INDEX_ROLL];
-		//fw_out[actuator_controls_s::INDEX_PITCH]        = fw_in[actuator_controls_s::INDEX_PITCH];
-		//fw_out[actuator_controls_s::INDEX_PITCH]	= _params->flap_ctrl * _airspeed_validated->calibrated_airspeed_m_s;
-		//fw_out[actuator_controls_s::INDEX_PITCH]        = 0;
-		if(_airspeed_validated->calibrated_airspeed_m_s >= 0.0f) {
-			// actuator_controls range from -1 to 1; there 0 is minimal servo PWM, and 1 max
-			// default parameter is now 0
-			//fw_out[actuator_controls_s::INDEX_PITCH]	= 1.0f - _params->flap_ctrl * _airspeed_validated->calibrated_airspeed_m_s;
-
-		}
-		else {
-			//fw_out[actuator_controls_s::INDEX_PITCH]	= 1.0f;
-
-		}
+		fw_out[actuator_controls_s::INDEX_PITCH]        = fw_in[actuator_controls_s::INDEX_PITCH];
 		fw_out[actuator_controls_s::INDEX_YAW]          = fw_in[actuator_controls_s::INDEX_YAW];
 		fw_out[actuator_controls_s::INDEX_THROTTLE]     = _pusher_throttle;
 
-		// Do the same with flaps as you did with pitch for transition
-		if(_airspeed_validated->calibrated_airspeed_m_s >= 0.0f) {
-			// actuator_controls range from -1 to 1; where -1 is minimal servo PWM, and 1 max
-			// default parameter is now 0
-			fw_out_0_flaps				= 1.0f - _params->flap_ctrl * _airspeed_validated->calibrated_airspeed_m_s;
-			//fw_out[actuator_controls_s::INDEX_FLAPS]	= 1.0f ;
+		// If flaps enabled in transition
+		if(_params->vt_flap_trans_en) {
+			// if positive airspeed readings ( avoid airspeed noise)
+			if(_airspeed_validated->calibrated_airspeed_m_s >= 0.0f) {
+				// actuator_controls range from -1 to 1; where -1 is minimal servo PWM, and 1 max
+				// default parameter is now 0
+				fw_out_0_flaps				= 1.0f - _params->vt_flap_coeff * _airspeed_validated->calibrated_airspeed_m_s;
 
-		}
-		else {
-			fw_out_0_flaps				= 1.0f;
-
+			}
+			// else zero flap command
+			else {
+				fw_out_0_flaps				= 1.0;
+			}
 		}
 		//fw_out[actuator_controls_s::INDEX_FLAPS]        = fw_in[actuator_controls_s::INDEX_FLAPS];
 		//fw_out[actuator_controls_s::INDEX_FLAPS]	= 1.0f;
@@ -439,7 +446,7 @@ void Standard::fill_actuator_outputs()
 		fw_out[actuator_controls_s::INDEX_PITCH]        = fw_in[actuator_controls_s::INDEX_PITCH];
 		fw_out[actuator_controls_s::INDEX_YAW]          = fw_in[actuator_controls_s::INDEX_YAW];
 		fw_out[actuator_controls_s::INDEX_THROTTLE]     = _pusher_throttle;
-		fw_out[actuator_controls_s::INDEX_FLAPS]        = fw_in[actuator_controls_s::INDEX_FLAPS];
+		//fw_out[actuator_controls_s::INDEX_FLAPS]        = fw_in[actuator_controls_s::INDEX_FLAPS];
 		fw_out[actuator_controls_s::INDEX_AIRBRAKES]    = _reverse_output;
 
 
