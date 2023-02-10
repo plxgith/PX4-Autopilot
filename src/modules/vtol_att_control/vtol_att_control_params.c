@@ -400,9 +400,23 @@ PARAM_DEFINE_FLOAT(VT_FLAP_CTRL, 0.1f);
 /**
  *
  *
- * Parameter for enabling the flap controller
+ * Parameter for enabling the flap controller in transition.
  *
  * @min 0
  * @max 1
 */
-//PARAM_DEFINE_BOOL(VT_FLAP_CTRL_EN, 1);
+PARAM_DEFINE_FLOAT(VT_FLAP_CTRL_EN, 1);
+
+
+
+/**
+ *
+ * Parameter for enabling flap controller in MC position mode.
+ *
+ *
+ * @min 0
+ * @max 1
+ * @group VTOL Attitude Control
+*/
+PARAM_DEFINE_FLOAT(VT_FLAP_CTRL_POS, 0.1f);
+

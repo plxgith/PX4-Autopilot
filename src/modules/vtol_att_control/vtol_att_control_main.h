@@ -218,7 +218,8 @@ private:
 	airspeed_validated_s			_flap_airspeed{};
 	float					_flap_angle{};
 	vtol_vehicle_status_s			_vtol_trans_status{};
-	float					_flap_max_angle{};
+	//float					_flap_max_angle{};	// not used yet
+
 
 	// flag whether to copy to flap
 
@@ -262,6 +263,7 @@ private:
 		param_t mpc_land_alt2;
 		param_t sys_ctrl_alloc;
 		param_t flap_ctrl;
+		param_t flap_ctrl_en;
 	} _params_handles{};
 
 	hrt_abstime _last_run_timestamp{0};

@@ -83,8 +83,9 @@ struct Params {
 	float mpc_land_alt2;
 
 	// Added for flaps
-	float flap_ctrl;
-	bool en_flap_ctrl;
+	float flap_ctrl;		// scale flap command depending on airspeed
+	bool en_trans_flap_ctrl;	// enable flaps during transition
+	bool en_mc_pos_flaps;		// enable flaps during MC mode
 };
 
 // Has to match 1:1 msg/vtol_vehicle_status.msg
