@@ -114,6 +114,9 @@ VtolAttitudeControl::VtolAttitudeControl() :
 	_params_handles.vt_flap_trans_en = param_find("VT_FLAP_TRANS_EN");
 	_params_handles.vt_flap_on = param_find("VT_FLAP_ON");
 
+	// fetch VTOL negative pitch param
+	_params_handles.vt_neg_pitch = param_find("VT_NEG_PITCH");
+
 	/* fetch initial parameter values */
 	parameters_update();
 
@@ -378,9 +381,10 @@ VtolAttitudeControl::parameters_update()
 	param_get(_params_handles.mpc_land_alt2, &_params.mpc_land_alt2);
 
 	// Get the custom parameter
-	param_get(_params_handles.vt_flap_coeff, &_params.vt_flap_coeff);
-	param_get(_params_handles.vt_flap_trans_en, &_params.vt_flap_trans_en);
-	param_get(_params_handles.vt_flap_on, &_params.vt_flap_on);
+	param_get(_params_handles.vt_flap_coeff, 	&_params.vt_flap_coeff);
+	param_get(_params_handles.vt_flap_trans_en, 	&_params.vt_flap_trans_en);
+	param_get(_params_handles.vt_flap_on, 		&_params.vt_flap_on);
+	param_get(_params_handles.vt_neg_pitch,		&_params.vt_neg_pitch_enable);
 
 
 	// update the parameters of the instances of base VtolType
@@ -492,9 +496,9 @@ VtolAttitudeControl::Run()
 		switch (_vtol_type->get_mode()) {
 		case mode::TRANSITION_TO_FW:
 			// copy validated airspeed into temp struct
-			_airspeed_validated_sub.copy(&_flap_airspeed);
+			//_airspeed_validated_sub.copy(&_flap_airspeed);
 			// calculate wanted flap angle depending on airspeed
-			_flap_angle = _flap_airspeed.true_airspeed_m_s * 1;
+			//_flap_angle = _flap_airspeed.true_airspeed_m_s * 1;
 			//PX4_INFO("%f", double(_flap_angle));
 			// want to stop publishing to the pitch command
 			//_actuators_1_pub.unadvertise()
@@ -514,7 +518,7 @@ VtolAttitudeControl::Run()
 		case mode::TRANSITION_TO_MC:
 			// vehicle is doing a transition
 			/***** Custmize sstart*/
-			// Try to stop publishing the topix to see whether
+			// Try to stop publishing the topic to see whether
 			// that's what blocks the flap_controller
 			//_actuators_1_pub.unadvertise();
 			/********* END */
