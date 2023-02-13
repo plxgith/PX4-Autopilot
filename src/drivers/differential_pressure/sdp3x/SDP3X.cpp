@@ -178,6 +178,9 @@ SDP3X::collect()
 		report.timestamp = hrt_absolute_time();
 
 		_airspeed_pub.publish(report);
+
+		_debug_data.data[6] = report.differential_pressure_filtered_pa;
+		_debug_airspeed_pub.publish(_debug_data);
 	}
 
 	perf_end(_sample_perf);

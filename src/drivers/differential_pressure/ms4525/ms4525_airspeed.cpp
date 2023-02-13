@@ -56,6 +56,8 @@
 
 #include <drivers/airspeed/airspeed.h>
 
+
+
 enum MS_DEVICE_TYPE {
 	DEVICE_TYPE_MS4515	= 4515,
 	DEVICE_TYPE_MS4525	= 4525
@@ -86,6 +88,11 @@ public:
 	void	RunImpl();
 
 	int	init() override;
+
+private:
+	debug_array_s		_debug_data{};
+	uORB::Publication<debug_array_s>	_debug_airspeed_pub{ORB_ID(debug_array)};
+
 
 protected:
 
@@ -218,6 +225,14 @@ MEASAirspeed::collect()
 		report.timestamp = hrt_absolute_time();
 
 		_airspeed_pub.publish(report);
+
+
+
+		// publish data to debug array topic; not really useful
+		//_second_airspeed_pub.publish(report);
+		_debug_data.data[5] = report.differential_pressure_filtered_pa;
+		_debug_airspeed_pub.publish(_debug_data);
+
 	}
 
 	ret = OK;

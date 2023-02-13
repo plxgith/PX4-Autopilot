@@ -420,3 +420,14 @@ PARAM_DEFINE_INT32(VT_FLAP_TRANS_EN, 0);
 */
 PARAM_DEFINE_INT32(VT_FLAP_ON, 0);
 
+/**
+ *
+ * Enable negative pitch setpoint for VTOL
+ *
+ *
+ * @min 0
+ * @max 1
+ * @boolean
+*/
+PARAM_DEFINE_INT32(VT_NEG_PITCH, 0);
+

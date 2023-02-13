@@ -43,6 +43,9 @@
 #include <uORB/topics/differential_pressure.h>
 #include <uORB/PublicationMulti.hpp>
 
+// Addon
+#include <uORB/topics/debug_array.h>
+
 class __EXPORT Airspeed : public device::I2C
 {
 public:
@@ -73,6 +76,8 @@ protected:
 	float			_diff_pres_offset;
 
 	uORB::PublicationMulti<differential_pressure_s>	_airspeed_pub{ORB_ID(differential_pressure)};
+
+
 
 	int			_airspeed_orb_class_instance;
 

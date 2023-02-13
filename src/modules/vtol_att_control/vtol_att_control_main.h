@@ -265,7 +265,7 @@ private:
 		param_t vt_flap_coeff;
 		param_t vt_flap_trans_en;
 		param_t vt_flap_on;
-		param_t test_param;
+		param_t vt_neg_pitch;
 	} _params_handles{};
 
 	hrt_abstime _last_run_timestamp{0};

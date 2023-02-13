@@ -65,6 +65,10 @@
 #include <uORB/topics/vtol_vehicle_status.h>
 #include <uORB/topics/airspeed_wind.h>
 
+// Added for debug topic
+#include <uORB/topics/debug_array.h>
+
+
 using namespace time_literals;
 
 static constexpr uint32_t SCHEDULE_INTERVAL{100_ms};	/**< The schedule interval in usec (10 Hz) */
@@ -109,6 +113,9 @@ private:
 	uORB::PublicationMulti<airspeed_wind_s> _wind_est_pub[MAX_NUM_AIRSPEED_SENSORS + 1] {{ORB_ID(airspeed_wind)}, {ORB_ID(airspeed_wind)}, {ORB_ID(airspeed_wind)}, {ORB_ID(airspeed_wind)}}; /**< wind estimate topic (for each airspeed validator + purely sideslip fusion) */
 	orb_advert_t 	_mavlink_log_pub {nullptr}; 						/**< mavlink log topic*/
 
+	// Added debug topic for sensing second sensor data from
+	uORB::Publication<debug_array_s> _airspeed_debug_pub {ORB_ID(debug_array)};
+
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 
 	uORB::Subscription _estimator_selector_status_sub{ORB_ID(estimator_selector_status)};
@@ -133,6 +140,9 @@ private:
 	vehicle_status_s _vehicle_status {};
 	vtol_vehicle_status_s _vtol_vehicle_status {};
 	position_setpoint_s _position_setpoint {};
+
+	// Debug
+	debug_array_s	_to_debug {};
 
 	WindEstimator	_wind_estimator_sideslip; /**< wind estimator instance only fusing sideslip */
 	airspeed_wind_s _wind_estimate_sideslip {}; /**< wind estimate message for wind estimator instance only fusing sideslip */
@@ -278,6 +288,8 @@ AirspeedModule::check_for_connected_airspeed_sensors()
 			}
 
 			detected_airspeed_sensors = i + 1;
+
+
 		}
 
 	} else {
@@ -360,6 +372,8 @@ AirspeedModule::Run()
 		// iterate through all airspeed sensors, poll new data from them and update their validators
 		for (int i = 0; i < _number_of_airspeed_sensors; i++) {
 
+
+
 			// poll raw airspeed topic of the i-th sensor
 			airspeed_s airspeed_raw;
 
@@ -388,6 +402,11 @@ AirspeedModule::Run()
 				_airspeed_validator[i].update_airspeed_validator(input_data);
 
 				_time_last_airspeed_update[i] = _time_now_usec;
+
+				// Raw data to debug topic
+				//_airspeed_debug_pub.publish[]
+				_to_debug.data[i+1] = input_data.airspeed_indicated_raw;
+
 
 			} else if (_time_now_usec - _time_last_airspeed_update[i] > 1_s) {
 				// declare airspeed invalid if more then 1s since last raw airspeed update
@@ -664,7 +683,22 @@ void AirspeedModule::select_airspeed_and_publish()
 		break;
 	}
 
+	// Added to send muiltiple sources to GCS
 	_airspeed_validated_pub.publish(airspeed_validated);
+
+	_to_debug.data[0] = _number_of_airspeed_sensors;
+	/*
+	to_debug.data[1] = _airspeed_validator[0].get_F_aIAS();
+	to_debug.data[0] = _airspeed_validator[1].get_IAS();
+	to_debug.data[2] = _airspeed_validator[2].get_IAS();
+	// Number of airspeed sensors in the system
+	to_debug.data[3] = _number_of_airspeed_sensors;
+	to_debug.data[4] = _airspeed_subs.size();
+
+	*/
+
+
+	_airspeed_debug_pub.publish(_to_debug);
 
 	_wind_est_pub[0].publish(_wind_estimate_sideslip);
 

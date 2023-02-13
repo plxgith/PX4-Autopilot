@@ -625,7 +625,16 @@ float VtolType::pusher_assist()
 
 		// Set the pitch to 0 if the pitch limit is negative (pitch down), but allow a positive (pitch up) pitch.
 		// This can be used for tiltrotor to make them hover with a positive angle of attack
-		const float pitch_new = pitch_setpoint_min > 0.f ? pitch_setpoint_min : 0.f;
+		// if the parameter for negatove pitch setpoint is not enabled
+		float pitch_new{};
+		if(!_params->vt_neg_pitch_enable) {
+			pitch_new = pitch_setpoint_min > 0.f ? pitch_setpoint_min : 0.f;
+		}
+
+		else {
+		// try to make the negative pitch limit
+			pitch_new = pitch_setpoint_min;
+		}
 
 		// create corrected desired body z axis in heading frame
 		const Dcmf R_tmp = Eulerf(roll_new, pitch_new, 0.0f);

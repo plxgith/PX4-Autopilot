@@ -115,4 +115,8 @@ private:
 	uint16_t _scale{0};
 	const bool _keep_retrying;
 	State _state{State::RequireConfig};
+
+	// for debug
+	debug_array_s		_debug_data{};
+	uORB::Publication<debug_array_s>	_debug_airspeed_pub{ORB_ID(debug_array)};
 };

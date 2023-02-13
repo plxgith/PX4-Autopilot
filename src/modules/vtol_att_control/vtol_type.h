@@ -86,6 +86,9 @@ struct Params {
 	float 	vt_flap_coeff;			// scale flap command depending on airspeed
 	int32_t vt_flap_trans_en;		// enable flaps during transition
 	int32_t vt_flap_on;			// enable flaps in MC mode
+
+	// Added for negative pitch
+	int32_t vt_neg_pitch_enable;
 };
 
 // Has to match 1:1 msg/vtol_vehicle_status.msg
