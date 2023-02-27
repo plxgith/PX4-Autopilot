@@ -408,7 +408,7 @@ PARAM_DEFINE_FLOAT(VT_FLAP_COEFF, 0.1f);
  * @increment 0.01
  * @group VTOL Attitude Control
 */
-PARAM_DEFINE_FLOAT(VT_FLAPS_FILT, 0.1f);
+PARAM_DEFINE_FLOAT(VT_FLAP_FILT, 0.1f);
 /**
  *
  *
@@ -485,7 +485,7 @@ PARAM_DEFINE_INT32(VT_MC_RUDDER_EN, 0);
  * @max 1
  * @boolean
 */
-PARAM_DEFINE_INT32(VT_FLAP_INV, 0);
+//PARAM_DEFINE_INT32(VT_YAW_INV, 0);
 /**
  *
  * Enable use of Flaps to attitude control
@@ -496,3 +496,27 @@ PARAM_DEFINE_INT32(VT_FLAP_INV, 0);
  * @boolean
 */
 PARAM_DEFINE_INT32(VT_FLAP_CTRL_ATT, 0);
+
+/**
+ *
+ * Reverse FW Yaw actuators in VTOL MC Mode
+ *
+ *
+ * @min 0
+ * @max 1
+ * @boolean
+*/
+PARAM_DEFINE_INT32(VT_MC_RUDDER_REV, 0);
+
+/**
+ *
+ * Airspeed at which to start moving the flap to 0
+ *
+ *
+ * @min 0
+ * @max 30
+ * @decimal 2
+ * @increment 0.01
+ * @group VTOL Attitude Control
+*/
+PARAM_DEFINE_FLOAT(VT_FLAP_ASPD, 0);

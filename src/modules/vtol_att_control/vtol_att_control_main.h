@@ -271,6 +271,10 @@ private:
 		param_t vt_max_flap_angle;
 		param_t vt_mc_rudder_en;
 		param_t vt_flap_control_attitude;
+		param_t vt_flap_aspd_filter;
+		param_t vt_flap_start_min_max;
+		param_t vt_mc_rudder_rev;
+		param_t vt_flap_blend_airspeed;
 
 	} _params_handles{};
 

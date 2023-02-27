@@ -99,6 +99,10 @@ private:
 	float _reverse_output{0.0f};
 	float _airspeed_trans_blend_margin{0.0f};
 
+
+	// Added
+	float _filtered {0.0f};
+
 	void parameters_update() override;
 };
 #endif

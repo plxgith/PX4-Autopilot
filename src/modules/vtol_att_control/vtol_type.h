@@ -86,13 +86,20 @@ struct Params {
 	float 	vt_flap_coeff;			// scale flap command depending on airspeed
 	int32_t vt_flap_trans_en;		// enable flaps during transition
 	int32_t vt_flap_on;			// enable flaps in MC mode
-	float  	vt_max_flap_angle;	// maximum flap angle deflection
+	float  	vt_max_flap_angle;		// maximum flap angle deflection
+	float 	vt_flap_aspd_filter;		// coefficient for filtering airspeed data
+	int32_t	vt_flap_start_min_max;		// Enable starting from 0 or 100% deflection
+	float	vt_flap_blend_airspeed;		// airspeed at which to start blending flap
+
+
 
 	// Added for negative pitch
 	int32_t vt_neg_pitch_enable;
 
 	// Added for enabling FW Yaw Commands and actuators in MC mode
 	int32_t vt_mc_rudder_enable;
+	// Reverse rudder actuation direction
+	int32_t vt_mc_rudder_rev;
 
 	// Added for extra attitude control from flaps
 	int32_t vt_flap_control_attitude;
