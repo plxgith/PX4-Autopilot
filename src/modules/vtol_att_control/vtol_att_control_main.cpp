@@ -110,12 +110,18 @@ VtolAttitudeControl::VtolAttitudeControl() :
 	_params_handles.land_pitch_min_rad = param_find("VT_LND_PTCH_MIN");
 
 	// fetch flap controller parameters
-	_params_handles.vt_flap_coeff = param_find("VT_FLAP_COEFF");
-	_params_handles.vt_flap_trans_en = param_find("VT_FLAP_TRANS_EN");
-	_params_handles.vt_flap_on = param_find("VT_FLAP_ON");
+	_params_handles.vt_flap_coeff = param_find("VT_FLAP_COEFF");			// coefficient
+	_params_handles.vt_flap_trans_en = param_find("VT_FLAP_TRANS_EN");		// enable in transition
+	_params_handles.vt_flap_on = param_find("VT_FLAP_ON");				// enable in MC mode
+	_params_handles.vt_max_flap_angle = param_find("VT_MAX_FLAP");			// max deflection
+	_params_handles.vt_flap_control_attitude = param_find("VT_FLAP_CTRL_ATT");	// additianal attitude control
+
 
 	// fetch VTOL negative pitch param
 	_params_handles.vt_neg_pitch = param_find("VT_NEG_PITCH");
+
+	// fetch enable rudder in MC mode param
+	_params_handles.vt_mc_rudder_en = param_find("VT_MC_RUDDER_EN");
 
 	/* fetch initial parameter values */
 	parameters_update();
@@ -385,6 +391,9 @@ VtolAttitudeControl::parameters_update()
 	param_get(_params_handles.vt_flap_trans_en, 	&_params.vt_flap_trans_en);
 	param_get(_params_handles.vt_flap_on, 		&_params.vt_flap_on);
 	param_get(_params_handles.vt_neg_pitch,		&_params.vt_neg_pitch_enable);
+	param_get(_params_handles.vt_max_flap_angle,	&_params.vt_max_flap_angle);
+	param_get(_params_handles.vt_mc_rudder_en,	&_params.vt_mc_rudder_enable);
+	param_get(_params_handles.vt_flap_control_attitude, &_params.vt_flap_control_attitude);
 
 
 	// update the parameters of the instances of base VtolType

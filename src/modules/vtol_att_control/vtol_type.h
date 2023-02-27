@@ -86,9 +86,16 @@ struct Params {
 	float 	vt_flap_coeff;			// scale flap command depending on airspeed
 	int32_t vt_flap_trans_en;		// enable flaps during transition
 	int32_t vt_flap_on;			// enable flaps in MC mode
+	float  	vt_max_flap_angle;	// maximum flap angle deflection
 
 	// Added for negative pitch
 	int32_t vt_neg_pitch_enable;
+
+	// Added for enabling FW Yaw Commands and actuators in MC mode
+	int32_t vt_mc_rudder_enable;
+
+	// Added for extra attitude control from flaps
+	int32_t vt_flap_control_attitude;
 };
 
 // Has to match 1:1 msg/vtol_vehicle_status.msg

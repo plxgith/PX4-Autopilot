@@ -47,6 +47,9 @@
 #include <float.h>
 #include <uORB/topics/landing_gear.h>
 
+// Added for
+#include <uORB/topics/debug_array.h>
+
 using namespace matrix;
 
 Standard::Standard(VtolAttitudeControl *attc) :
@@ -354,6 +357,7 @@ void Standard::fill_actuator_outputs()
 	auto &fw_out = _actuators_out_1->control;
 
 	auto &fw_out_0_flaps = _actuators_out_0->control[actuator_controls_s::INDEX_FLAPS];
+	//auto &mc_out_flaps   = _actuators_out_0->control[actuator_controls_s::INDEX_YAW];
 
 	// Debug
 	//PX4_INFO("%f", double(_params->flap_ctrl));
@@ -373,10 +377,24 @@ void Standard::fill_actuator_outputs()
 		// FW out = 0, other than roll and pitch depending on elevon lock
 		fw_out[actuator_controls_s::INDEX_ROLL]         = elevon_lock ? 0 : fw_in[actuator_controls_s::INDEX_ROLL];
 		fw_out[actuator_controls_s::INDEX_PITCH]        = elevon_lock ? 0 : fw_in[actuator_controls_s::INDEX_PITCH];
-		fw_out[actuator_controls_s::INDEX_YAW]          = 0;
+
+		// Enable FW Yaw control in Multicopter Mode
+		if(!_params->vt_mc_rudder_enable) {
+
+			fw_out[actuator_controls_s::INDEX_YAW]          = 0;
+
+		}
+
+		else {
+			//fw_out[actuator_controls_s::INDEX_YAW]          = fw_in[actuator_controls_s::INDEX_YAW];
+			fw_out[actuator_controls_s::INDEX_YAW]          = mc_in[actuator_controls_s::INDEX_YAW];
+		}
 		fw_out[actuator_controls_s::INDEX_THROTTLE]     = _pusher_throttle;
 		fw_out[actuator_controls_s::INDEX_FLAPS]        = 0;
 		fw_out[actuator_controls_s::INDEX_AIRBRAKES]    = 0;
+
+		// For debug
+		//PX4_INFO("%f", _params->vt_flap_control_attitude);
 
 		// if flaps disabled
 		if(!_params->vt_flap_on) {
@@ -389,15 +407,29 @@ void Standard::fill_actuator_outputs()
 			if(_airspeed_validated->calibrated_airspeed_m_s >= 0.0f) {
 			// actuator_controls range from -1 to 1; where -1 is minimal servo PWM, and 1 max
 			// default parameter is now 0
-				fw_out_0_flaps				= 1.0f - _params->vt_flap_coeff * _airspeed_validated->calibrated_airspeed_m_s;
+				fw_out_0_flaps				= _params->vt_max_flap_angle - _params->vt_flap_coeff * _airspeed_validated->calibrated_airspeed_m_s;
 			}
 			// else zero flap command
 			else {
-				fw_out_0_flaps				= 1.0f;
+				fw_out_0_flaps				= _params->vt_max_flap_angle;
 
 			}
 		}
 		break;
+
+	/**
+	 *
+	 *  Function testing start
+	*/
+
+	/*
+		if(_params->vt_flap_on && _airspeed_validated->calibrated_airspeed_m_s >= 0) {
+
+			fw_out_0_flaps = _airspeed_validated->calibrated_airspeed_m_s * vt_flap_coeff
+		}
+
+	*/
+	// End
 
 	case vtol_mode::TRANSITION_TO_FW:
 			// MC out = MC in (weighted)

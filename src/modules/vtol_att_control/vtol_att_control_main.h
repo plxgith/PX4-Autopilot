@@ -87,6 +87,8 @@
 // Add Debug Topic and Array
 #include <uORB/topics/debug_value.h>
 #include <uORB/topics/debug_array.h>
+
+
 #include "standard.h"
 #include "tailsitter.h"
 #include "tiltrotor.h"
@@ -266,6 +268,10 @@ private:
 		param_t vt_flap_trans_en;
 		param_t vt_flap_on;
 		param_t vt_neg_pitch;
+		param_t vt_max_flap_angle;
+		param_t vt_mc_rudder_en;
+		param_t vt_flap_control_attitude;
+
 	} _params_handles{};
 
 	hrt_abstime _last_run_timestamp{0};
