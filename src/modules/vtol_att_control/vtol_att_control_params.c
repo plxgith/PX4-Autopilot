@@ -403,12 +403,10 @@ PARAM_DEFINE_FLOAT(VT_FLAP_COEFF, 0.1f);
  *
  *
  * @min 0
- * @max 1
- * @decimal 2
- * @increment 0.01
+ * @max 20
  * @group VTOL Attitude Control
 */
-PARAM_DEFINE_FLOAT(VT_FLAP_FILT, 0.1f);
+PARAM_DEFINE_INT32(VT_FLAP_FILT, 3);
 /**
  *
  *

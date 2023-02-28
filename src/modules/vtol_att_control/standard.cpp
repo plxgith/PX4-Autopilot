@@ -47,11 +47,8 @@
 #include <float.h>
 #include <uORB/topics/landing_gear.h>
 
-// Added for flaps and stuff
-#include <uORB/topics/debug_array.h>
-#include <lib/mathlib/math/filter/MedianFilter.hpp>
 
-//MedianFilter<float,  f> ;
+
 
 using namespace matrix;
 
@@ -72,6 +69,7 @@ Standard::Standard(VtolAttitudeControl *attc) :
 	_params_handles_standard.pitch_setpoint_offset = param_find("FW_PSP_OFF");
 	_params_handles_standard.reverse_output = param_find("VT_B_REV_OUT");
 	_params_handles_standard.reverse_delay = param_find("VT_B_REV_DEL");
+	_params_handles_standard.airspeed_filter = param_find("VT_FLAP_FILT");
 }
 
 void
@@ -100,6 +98,11 @@ Standard::parameters_update()
 	/* reverse output */
 	param_get(_params_handles_standard.reverse_delay, &v);
 	_params_standard.reverse_delay = math::constrain(v, 0.0f, 10.0f);
+
+	// airspeed filter
+	param_get(_params_handles_standard.airspeed_filter, &v);
+	_params_standard.airspeed_filter = math::constrain(v, 0.0f, 20.0f);
+
 
 }
 
@@ -362,6 +365,10 @@ void Standard::fill_actuator_outputs()
 	auto &fw_out_0_flaps = _actuators_out_0->control[actuator_controls_s::INDEX_FLAPS];
 	//auto &mc_out_flaps   = _actuators_out_0->control[actuator_controls_s::INDEX_YAW];
 
+
+	_filtered_airspeed = _median_airspeed.apply(_airspeed_validated->calibrated_airspeed_m_s);
+
+
 	// Debug
 	//PX4_INFO("%f", double(_params->flap_ctrl));
 	// PX4_INFO("Here");
@@ -408,6 +415,7 @@ void Standard::fill_actuator_outputs()
 		//PX4_INFO("%f", _params->vt_flap_control_attitude);
 
 		// if flaps disabled
+
 		if(!_params->vt_flap_on) {
 			// output zero flap command
 			fw_out_0_flaps				= 0;
@@ -416,11 +424,18 @@ void Standard::fill_actuator_outputs()
 		else if(_params->vt_flap_on && _params->vt_flap_start_min_max) {
 			// if positive airspeed readings ( avoid airspeed noise)
 			if(_airspeed_validated->calibrated_airspeed_m_s >=  _params->vt_flap_blend_airspeed) {
-			// actuator_controls range from -1 to 1; where -1 is minimal servo PWM, and 1 max
-			// default parameter is now 0
-				fw_out_0_flaps	= _params->vt_max_flap_angle - _params->vt_flap_coeff * _airspeed_validated->calibrated_airspeed_m_s;
+
+				// Filter data
+				//_filtered_airspeed = _median_airspeed.apply(_airspeed_validated->calibrated_airspeed_m_s);
+				// actuator_controls range from -1 to 1; where -1 is minimal servo PWM, and 1 max
+				// default parameter is now 0
+				fw_out_0_flaps	= _params->vt_max_flap_angle - _params->vt_flap_coeff * _filtered_airspeed;
 				//fw_out_0_flaps	= _params->vt_max_flap_angle - _params->vt_flap_coeff * true_airspeed_filtered;
+
+
+
 			}
+
 			// else if negative airspeed readings, set to full deflection
 			else {
 				fw_out_0_flaps	= _params->vt_max_flap_angle;
@@ -551,6 +566,13 @@ void Standard::fill_actuator_outputs()
 
 	_actuators_out_0->timestamp_sample = _actuators_mc_in->timestamp_sample;
 	_actuators_out_1->timestamp_sample = _actuators_fw_in->timestamp_sample;
+
+	// Added
+	// Publish to debug array on every fill_actuator_outputs
+					// Copy to debug array
+	_filtered.data[0] = _filtered_airspeed;
+	_filtered.timestamp = hrt_absolute_time();
+	_debug_pub.publish(_filtered);
 
 	_actuators_out_0->timestamp = _actuators_out_1->timestamp = hrt_absolute_time();
 }

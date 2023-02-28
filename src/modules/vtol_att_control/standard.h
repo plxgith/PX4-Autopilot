@@ -49,6 +49,11 @@
 #include <parameters/param.h>
 #include <drivers/drv_hrt.h>
 
+// Added for flaps and stuff
+#include <uORB/topics/debug_array.h>
+#include <uORB/Publication.hpp>
+#include <lib/mathlib/math/filter/MedianFilter.hpp>
+
 class Standard : public VtolType
 {
 
@@ -73,6 +78,7 @@ private:
 		float pitch_setpoint_offset;
 		float reverse_output;
 		float reverse_delay;
+		float airspeed_filter;
 	} _params_standard;
 
 	struct {
@@ -81,6 +87,7 @@ private:
 		param_t pitch_setpoint_offset;
 		param_t reverse_output;
 		param_t reverse_delay;
+		param_t airspeed_filter;
 	} _params_handles_standard;
 
 	enum class vtol_mode {
@@ -101,7 +108,12 @@ private:
 
 
 	// Added
-	float _filtered {0.0f};
+	debug_array_s _filtered {};
+	float  _filtered_airspeed{};
+	//static int num_samples = 5;
+	math::MedianFilter<float, 7> _median_airspeed{};	// 5 samples
+	//math::LowPassFilter2p
+	uORB::Publication<debug_array_s>	_debug_pub{ORB_ID(debug_array)};
 
 	void parameters_update() override;
 };
