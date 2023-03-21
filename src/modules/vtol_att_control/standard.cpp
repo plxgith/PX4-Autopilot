@@ -50,10 +50,13 @@
 // Added for flaps and stuff
 #include <uORB/topics/debug_array.h>
 #include <lib/mathlib/math/filter/MedianFilter.hpp>
+#include <matrix/math.hpp>
 
-//MedianFilter<float,  f> ;
+
+
 
 using namespace matrix;
+
 
 Standard::Standard(VtolAttitudeControl *attc) :
 	VtolType(attc)
@@ -381,6 +384,8 @@ void Standard::fill_actuator_outputs()
 		fw_out[actuator_controls_s::INDEX_ROLL]         = elevon_lock ? 0 : fw_in[actuator_controls_s::INDEX_ROLL];
 		fw_out[actuator_controls_s::INDEX_PITCH]        = elevon_lock ? 0 : fw_in[actuator_controls_s::INDEX_PITCH];
 
+
+
 		// Enable FW Yaw control in Multicopter Mode
 		if(!_params->vt_mc_rudder_enable) {
 
@@ -402,7 +407,7 @@ void Standard::fill_actuator_outputs()
 		}
 		fw_out[actuator_controls_s::INDEX_THROTTLE]     = _pusher_throttle;
 		//fw_out[actuator_controls_s::INDEX_FLAPS]        = 0;
-		fw_out[actuator_controls_s::INDEX_AIRBRAKES]    = 0;
+		//fw_out[actuator_controls_s::INDEX_AIRBRAKES]    = fw_in[actuator_control_s::INDEX_AIRBRAKES];
 
 		// For debug
 		//PX4_INFO("%f", _params->vt_flap_control_attitude);
@@ -418,8 +423,19 @@ void Standard::fill_actuator_outputs()
 			if(_airspeed_validated->calibrated_airspeed_m_s >=  _params->vt_flap_blend_airspeed) {
 			// actuator_controls range from -1 to 1; where -1 is minimal servo PWM, and 1 max
 			// default parameter is now 0
-				fw_out_0_flaps	= _params->vt_max_flap_angle - _params->vt_flap_coeff * _airspeed_validated->calibrated_airspeed_m_s;
+
+				if(_params->vt_flap_control_attitude) {
+					//_pitch = VtolAttitudeControl::get_att();
+					//_pitch_setpoint= VtolAttitudeControl::get_att_setpoint();
+					//_pitch_error= _pitch_setpoint.pitch_body - pitch;
+					fw_out_0_flaps	= _params->vt_max_flap_angle - _params->vt_flap_coeff * _airspeed_validated->calibrated_airspeed_m_s ;
 				//fw_out_0_flaps	= _params->vt_max_flap_angle - _params->vt_flap_coeff * true_airspeed_filtered;
+
+				}
+
+				else {
+					fw_out_0_flaps	= _params->vt_max_flap_angle - _params->vt_flap_coeff * _airspeed_validated->calibrated_airspeed_m_s;
+				}
 			}
 			// else if negative airspeed readings, set to full deflection
 			else {
@@ -553,6 +569,37 @@ void Standard::fill_actuator_outputs()
 	_actuators_out_1->timestamp_sample = _actuators_fw_in->timestamp_sample;
 
 	_actuators_out_0->timestamp = _actuators_out_1->timestamp = hrt_absolute_time();
+	// add for debug
+	_debug_data.data[0] = _torque_setpoint_0->xyz[1];
+	_debug_data.data[1] = fw_out_0_flaps;
+
+
+
+
+	// copy attitude and setpoint
+	_attitude_sub.copy(&_attitude);
+	_attitude_setpoint_sub.copy(&_attitude_setpoint);
+
+	// transform
+	matrix::Eulerf att_euler = matrix::Quatf(_attitude.q);
+	//matrix::Eulerf att_sp_euler = matrix::Quatf(_attitude_setpoint.q);
+
+
+
+	//Quatf q(Eulerf(_attitude));
+	//bool a = copyTo(_attitude);
+
+	_pitch_error = att_euler.phi() - _attitude_setpoint.pitch_body;
+
+	//pitch_v_att_sp.qd;
+	//_v_att->q_d;
+	//_debug_data.data[2] = _pitch:
+	_debug_data.data[3] = att_euler.theta();
+	_debug_data.data[4] = _attitude_setpoint.pitch_body;
+
+	_debug_data.timestamp = hrt_absolute_time();
+	_debug_pub.publish(_debug_data);
+
 }
 
 void

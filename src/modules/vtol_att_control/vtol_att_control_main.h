@@ -89,6 +89,7 @@
 #include <uORB/topics/debug_array.h>
 
 
+
 #include "standard.h"
 #include "tailsitter.h"
 #include "tiltrotor.h"
@@ -190,6 +191,11 @@ private:
 	uORB::PublicationMulti<vehicle_thrust_setpoint_s>	_vehicle_thrust_setpoint1_pub{ORB_ID(vehicle_thrust_setpoint)};
 	uORB::PublicationMulti<vehicle_torque_setpoint_s>	_vehicle_torque_setpoint1_pub{ORB_ID(vehicle_torque_setpoint)};
 
+	// debug
+	uORB::Publication<debug_array_s>		_debug_pub{ORB_ID(debug_array)};	// debug
+
+
+
 	orb_advert_t	_mavlink_log_pub{nullptr};	// mavlink log uORB handle
 
 	vehicle_attitude_setpoint_s		_v_att_sp{};			//vehicle attitude setpoint
@@ -275,6 +281,7 @@ private:
 		param_t vt_flap_start_min_max;
 		param_t vt_mc_rudder_rev;
 		param_t vt_flap_blend_airspeed;
+		param_t vt_flap_control_p;
 
 	} _params_handles{};
 

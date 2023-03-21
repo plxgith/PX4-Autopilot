@@ -62,7 +62,7 @@ bool FailureDetector::update(const vehicle_status_s &vehicle_status, const vehic
 		_status.flags.roll = false;
 		_status.flags.pitch = false;
 		_status.flags.alt = false;
-		_status.flags.ext = false;
+		//_status.flags.ext = false;
 	}
 
 	if (_param_escs_en.get()) {

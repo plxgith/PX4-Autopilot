@@ -129,6 +129,11 @@ VtolAttitudeControl::VtolAttitudeControl() :
 	_params_handles.vt_mc_rudder_en = param_find("VT_MC_RUDDER_EN");
 	// reverse rudder action
 	_params_handles.vt_mc_rudder_rev = param_find("VT_MC_RUDDER_REV");
+
+	// P gain for flaps
+	_params_handles.vt_flap_control_p = param_find("VT_FLAP_CTRL_P");
+
+
 	/* fetch initial parameter values */
 	parameters_update();
 
@@ -404,6 +409,7 @@ VtolAttitudeControl::parameters_update()
 	param_get(_params_handles.vt_flap_start_min_max, &_params.vt_flap_start_min_max);
 	param_get(_params_handles.vt_mc_rudder_rev, 	 &_params.vt_mc_rudder_rev);
 	param_get(_params_handles.vt_flap_blend_airspeed,&_params.vt_flap_blend_airspeed);
+	param_get(_params_handles.vt_flap_control_p,	&_params.vt_flap_control_p);
 
 
 

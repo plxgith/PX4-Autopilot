@@ -496,6 +496,19 @@ PARAM_DEFINE_INT32(VT_MC_RUDDER_EN, 0);
  * @boolean
 */
 PARAM_DEFINE_INT32(VT_FLAP_CTRL_ATT, 0);
+/**
+ *
+ * P gain for flap controller
+ *
+ * @min 0
+ * @max 2
+ * @decimal 2
+ * @increment 0.1
+ * @group VTOL Attitude Control
+ * @
+*/
+PARAM_DEFINE_FLOAT(VT_FLAP_CTRL_P, 0.0f);
+
 
 /**
  *

@@ -49,6 +49,11 @@
 #include <parameters/param.h>
 #include <drivers/drv_hrt.h>
 
+
+// Added for debug
+#include <uORB/topics/debug_array.h>
+#include "vtol_att_control_main.h"
+#include <uORB/Subscription.hpp>
 class Standard : public VtolType
 {
 
@@ -102,6 +107,21 @@ private:
 
 	// Added
 	float _filtered {0.0f};
+	debug_array_s _debug_data{0};
+
+	// control attitude
+	vehicle_attitude_setpoint_s	_attitude_setpoint{};
+	vehicle_attitude_s		_attitude{};
+	float 				_pitch_error{0.0f};
+	float				_pitch{};
+
+	// subscribe to topics
+	uORB::Subscription	 _attitude_sub{ORB_ID(vehicle_attitude)};
+	uORB::Subscription 	 _attitude_setpoint_sub{ORB_ID(vehicle_attitude_setpoint)};
+
+	uORB::Publication<debug_array_s> _debug_pub{ORB_ID(debug_array)};
+
+
 
 	void parameters_update() override;
 };
