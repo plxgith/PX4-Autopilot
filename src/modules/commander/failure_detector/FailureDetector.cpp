@@ -51,7 +51,9 @@ bool FailureDetector::update(const vehicle_status_s &vehicle_status, const vehic
 {
 	failure_detector_status_u status_prev = _status;
 
-	if (vehicle_control_mode.flag_control_attitude_enabled) {
+	// default -> if in manual or acro mode, aka no attitude control mode
+	// modified -> proceed with failures anyway
+	if (vehicle_control_mode.flag_control_attitude_enabled || !vehicle_control_mode.flag_control_attitude_enabled) {
 		updateAttitudeStatus();
 
 		if (_param_fd_ext_ats_en.get()) {
