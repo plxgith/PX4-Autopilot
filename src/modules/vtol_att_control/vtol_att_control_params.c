@@ -503,12 +503,11 @@ PARAM_DEFINE_INT32(VT_FLAP_CTRL_ATT, 0);
  * @min 0
  * @max 2
  * @decimal 2
- * @increment 0.1
+ * @increment 0.01
  * @group VTOL Attitude Control
  * @
 */
-PARAM_DEFINE_FLOAT(VT_FLAP_CTRL_P, 0.0f);
-
+PARAM_DEFINE_FLOAT(VT_FLAP_CTRL_P, 0);
 
 /**
  *

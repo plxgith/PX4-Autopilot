@@ -372,6 +372,7 @@ void Standard::fill_actuator_outputs()
 
 	switch (_vtol_schedule.flight_mode) {
 	case vtol_mode::MC_MODE:
+		//PX4_INFO("In MC Mode");
 
 		// MC out = MC in
 		mc_out[actuator_controls_s::INDEX_ROLL]         = mc_in[actuator_controls_s::INDEX_ROLL];
@@ -419,26 +420,41 @@ void Standard::fill_actuator_outputs()
 		}
 		// else if flaps enabled and flap start is set to 1, start from full deflection
 		else if(_params->vt_flap_on && _params->vt_flap_start_min_max) {
+			//PX4_INFO("Flaps Enabled");
 			// if positive airspeed readings ( avoid airspeed noise)
 			if(_airspeed_validated->calibrated_airspeed_m_s >=  _params->vt_flap_blend_airspeed) {
 			// actuator_controls range from -1 to 1; where -1 is minimal servo PWM, and 1 max
 			// default parameter is now 0
-
+				//PX4_INFO("VT_FLAP_BLEND_AISPEED larger than calibrated airspeed");
 				if(_params->vt_flap_control_attitude) {
-					//_pitch = VtolAttitudeControl::get_att();
-					//_pitch_setpoint= VtolAttitudeControl::get_att_setpoint();
-					//_pitch_error= _pitch_setpoint.pitch_body - pitch;
-					fw_out_0_flaps	= _params->vt_max_flap_angle - _params->vt_flap_coeff * _airspeed_validated->calibrated_airspeed_m_s ;
+					//PX4_INFO("Flap Attitude Control Enabled");
+					// copy attitude and setpoint
+					_attitude_sub.copy(&_attitude);
+
+					_attitude_setpoint_sub.copy(&_attitude_setpoint);
+
+					// transform
+					matrix::Eulerf att_euler = matrix::Quatf(_attitude.q);
+					//matrix::Eulerf att_sp_euler = matrix::Quatf(_attitude_setpoint.q);
+
+
+					_pitch_error = att_euler.theta() - _attitude_setpoint.pitch_body;
+
+					fw_out_0_flaps	= _params->vt_max_flap_angle - _params->vt_flap_coeff * _airspeed_validated->calibrated_airspeed_m_s
+								+ _params->vt_flap_control_p * _pitch_error  ;
+					//fw_out_0_flaps = 1.0f;
 				//fw_out_0_flaps	= _params->vt_max_flap_angle - _params->vt_flap_coeff * true_airspeed_filtered;
 
 				}
 
 				else {
+					//PX4_INFO("Flap Out = 0");
 					fw_out_0_flaps	= _params->vt_max_flap_angle - _params->vt_flap_coeff * _airspeed_validated->calibrated_airspeed_m_s;
 				}
 			}
 			// else if negative airspeed readings, set to full deflection
 			else {
+				//PX4_INFO("Airspeed Reading negative");
 				fw_out_0_flaps	= _params->vt_max_flap_angle;
 
 			}
@@ -589,13 +605,22 @@ void Standard::fill_actuator_outputs()
 	//Quatf q(Eulerf(_attitude));
 	//bool a = copyTo(_attitude);
 
-	_pitch_error = att_euler.phi() - _attitude_setpoint.pitch_body;
+	_pitch_error = att_euler.theta() - _attitude_setpoint.pitch_body;
 
 	//pitch_v_att_sp.qd;
 	//_v_att->q_d;
-	//_debug_data.data[2] = _pitch:
+	//_debug_data.data[2] = _pitc
 	_debug_data.data[3] = att_euler.theta();
 	_debug_data.data[4] = _attitude_setpoint.pitch_body;
+	_debug_data.data[5] = _pitch_error;
+
+	//char *name_3 = "pitch";
+	//char *name_4 = "pitch_setpoint";
+	//strncpy(_debug_data.name[3], "pitch", 10);
+	//_debug_data.name[3] 	= *name_3;
+	//_debug_data.name[4]	= *name_4;
+	//_debug_data.name [4] 	= char("Pitch Setpoint");
+	//_debug_data.name[5]  	= char("Pitch Error");
 
 	_debug_data.timestamp = hrt_absolute_time();
 	_debug_pub.publish(_debug_data);

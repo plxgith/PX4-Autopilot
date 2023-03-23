@@ -103,7 +103,7 @@ struct Params {
 
 	// Added for extra attitude control from flaps
 	int32_t vt_flap_control_attitude;
-	int32_t vt_flap_control_p;
+	float vt_flap_control_p;
 };
 
 // Has to match 1:1 msg/vtol_vehicle_status.msg
