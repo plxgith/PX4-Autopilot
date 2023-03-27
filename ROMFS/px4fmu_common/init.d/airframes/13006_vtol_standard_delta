@@ -42,7 +42,9 @@ param set-default VT_F_TRANS_THR 0.75
 param set-default VT_IDLE_PWM_MC 1080
 param set-default VT_TYPE 2
 
-set MIXER quad_x
+#test
+#set MIXER quad_x
+set MIXER quad_x_rw
 set MIXER_AUX vtol_delta
 
 set PWM_OUT 1234
