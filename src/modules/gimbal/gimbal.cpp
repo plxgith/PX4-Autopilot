@@ -1,6 +1,10 @@
 /****************************************************************************
  *
+<<<<<<< HEAD
  *   Copyright (c) 2013-2024 PX4 Development Team. All rights reserved.
+=======
+ *   Copyright (c) 2013-2023 PX4 Development Team. All rights reserved.
+>>>>>>> 0afd93a9e9... gimbal: add control setter and status
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -207,6 +211,15 @@ static int gimbal_thread_main(int argc, char *argv[])
 			update_params(param_handles, params);
 		}
 
+<<<<<<< HEAD
+=======
+		if (thread_data.last_input_active == -1) {
+			// Reset control as no one is active anymore, or yet.
+			thread_data.control_data.sysid_primary_control = 0;
+			thread_data.control_data.compid_primary_control = 0;
+		}
+
+>>>>>>> 0afd93a9e9... gimbal: add control setter and status
 		InputBase::UpdateResult update_result = InputBase::UpdateResult::NoUpdate;
 
 		if (thread_data.input_objs_len > 0) {
@@ -272,7 +285,11 @@ static int gimbal_thread_main(int argc, char *argv[])
 			// Update output
 			thread_data.output_obj->update(
 				thread_data.control_data,
+<<<<<<< HEAD
 				update_result != InputBase::UpdateResult::NoUpdate, thread_data.control_data.device_compid);
+=======
+				update_result != InputBase::UpdateResult::NoUpdate);
+>>>>>>> 0afd93a9e9... gimbal: add control setter and status
 
 			// Only publish the mount orientation if the mode is not mavlink v1 or v2
 			// If the gimbal speaks mavlink it publishes its own orientation.
@@ -440,6 +457,33 @@ int gimbal_main(int argc, char *argv[])
 					usage();
 					return -1;
 				}
+			}
+
+		} else {
+			PX4_WARN("not running");
+			usage();
+			return 1;
+		}
+	}
+
+	else if (!strcmp(argv[1], "primary-control")) {
+
+		if (thread_running.load() && g_thread_data && g_thread_data->test_input) {
+
+			if (argc == 4) {
+				g_thread_data->control_data.sysid_primary_control = (uint8_t)strtol(argv[2], nullptr, 0);
+				g_thread_data->control_data.compid_primary_control = (uint8_t)strtol(argv[3], nullptr, 0);
+
+				PX4_INFO("Control set to: %d/%d",
+					 g_thread_data->control_data.sysid_primary_control,
+					 g_thread_data->control_data.compid_primary_control);
+
+				return 0;
+
+			} else {
+				PX4_ERR("not enough arguments");
+				usage();
+				return 1;
 			}
 
 		} else {
