@@ -48,7 +48,7 @@ OutputRC::OutputRC(const Parameters &parameters)
 {
 }
 
-void OutputRC::update(ControlData &control_data, bool new_setpoints)
+void OutputRC::update(const ControlData &control_data, bool new_setpoints, uint8_t &gimbal_device_id)
 {
 	if (new_setpoints) {
 		_retract_gimbal = control_data.gimbal_shutter_retract;
