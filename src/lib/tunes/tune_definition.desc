@@ -85,8 +85,8 @@
 
 //           ordinal name                  tune                                        interruptable*     hint
 //  * Repeated tunes should always be defined as interruptable, if not an explict 'tone_control stop' is needed
-PX4_DEFINE_TUNE(0,  CUSTOM,                "",                                              true  /*  empty to align with the index */)
-PX4_DEFINE_TUNE(1,  STARTUP,               "MFT240L8 O4aO5dc O4aO5dc O4aO5dc L16dcdcdcdc",  true  /*  startup tune */)
+PX4_DEFINE_TUNE(0,  CUSTOM,                "MFNT240L2o1gggl8e-.P4a#p8l2gl8e-.P4a#P8l1g",                                              true  /*  empty to align with the index */)
+PX4_DEFINE_TUNE(1,  STARTUP,               "MFNT240L2o1gggl4e-.l8a#l2gl4e-.l8a#l1g o2l2dddl4e-.l8o1a#l2f#l4e-.l8a#l1g",  true  /*  startup tune */)
 PX4_DEFINE_TUNE(2,  ERROR_TUNE,            "MBT200a8a8a8PaaaP",                             true  /*  ERROR tone */)
 PX4_DEFINE_TUNE(3,  NOTIFY_POSITIVE,       "MFT200e8a8a",                                   true  /*  Notify Positive tone */)
 PX4_DEFINE_TUNE(4,  NOTIFY_NEUTRAL,        "MFT200e8e",                                     true  /*  Notify Neutral tone */)
@@ -105,3 +105,5 @@ PX4_DEFINE_TUNE(16, PROG_PX4IO,            "MLL32CP8MB",                        
 PX4_DEFINE_TUNE(17, PROG_PX4IO_OK,         "MLL8CDE",                                       false /*  Program PX4IO success */)
 PX4_DEFINE_TUNE(18, PROG_PX4IO_ERR,        "ML<<CP4CP4CP4CP4CP4",                           true  /*  Program PX4IO fail */)
 PX4_DEFINE_TUNE(19, POWER_OFF,             "MFT255a8g8f8e8c8<b8a8g4",                       true  /*  When pressing off button */)
+PX4_DEFINE_TUNE(20,  CUSTOM1,                "O3L16EFGEFDCO4L8EFGEFDCO4L8EFGEFDCO4L16AB>AGFEFDC",                                              true  /*  empty to align with the index */)
+PX4_DEFINE_TUNE(21,  CUSTOM2,                "T240O2L4P8L8A#4P8A#4P8A#4P8F4P8F4P8F4P8L16A#4P8A#4P8A#4P8F4P8F4P8F4P8L16C4P8C4P8C4P8C4P8D4P8D4P8D4P8",                                              true  /*  empty to align with the index */)
