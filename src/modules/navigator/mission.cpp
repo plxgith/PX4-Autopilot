@@ -852,20 +852,20 @@ Mission::set_mission_items()
 				    !_navigator->get_land_detected()->landed) {
 
 					/* disable weathervane before front transition for allowing yaw to align */
-					pos_sp_triplet->current.disable_weather_vane = true;
+					//pos_sp_triplet->current.disable_weather_vane = true;
 
 					/* set yaw setpoint to heading of VTOL_TAKEOFF wp against current position */
-					_mission_item.yaw = get_bearing_to_next_waypoint(
-								    _navigator->get_global_position()->lat, _navigator->get_global_position()->lon,
-								    _mission_item.lat, _mission_item.lon);
+					//_mission_item.yaw = get_bearing_to_next_waypoint(
+					//			    _navigator->get_global_position()->lat, _navigator->get_global_position()->lon,
+					//			    _mission_item.lat, _mission_item.lon);
 
-					_mission_item.force_heading = true;
-
+					//_mission_item.force_heading = true;
+					PX4_INFO("Preparing Transition");
 					new_work_item_type = WORK_ITEM_TYPE_ALIGN;
 
 					/* set position setpoint to current while aligning */
-					_mission_item.lat = _navigator->get_global_position()->lat;
-					_mission_item.lon = _navigator->get_global_position()->lon;
+					//_mission_item.lat = _navigator->get_global_position()->lat;
+					//_mission_item.lon = _navigator->get_global_position()->lon;
 				}
 
 				/* heading is aligned now, prepare transition */
@@ -875,7 +875,7 @@ Mission::set_mission_items()
 				    !_navigator->get_land_detected()->landed) {
 
 					/* re-enable weather vane again after alignment */
-					pos_sp_triplet->current.disable_weather_vane = false;
+					//pos_sp_triplet->current.disable_weather_vane = false;
 
 					/* check if the vtol_takeoff waypoint is on top of us */
 					if (do_need_move_to_takeoff()) {
@@ -883,10 +883,10 @@ Mission::set_mission_items()
 					}
 
 					set_vtol_transition_item(&_mission_item, vtol_vehicle_status_s::VEHICLE_VTOL_STATE_FW);
-					_mission_item.yaw = _navigator->get_local_position()->heading;
+					//_mission_item.yaw = _navigator->get_local_position()->heading;
 
 					// keep current setpoints (FW position controller generates wp to track during transition)
-					pos_sp_triplet->current.type = position_setpoint_s::SETPOINT_TYPE_POSITION;
+					//pos_sp_triplet->current.type = position_setpoint_s::SETPOINT_TYPE_POSITION;
 				}
 
 				/* takeoff completed and transitioned, move to takeoff wp as fixed wing */
