@@ -189,6 +189,10 @@ void MixingOutput::updateParams()
 
 		_mixers->set_thrust_factor(_param_thr_mdl_fac.get());
 		_mixers->set_airmode((Mixer::Airmode)_param_mc_airmode.get());
+
+		// get parachute parameters
+		chute_delay_time = _param_chute_delay_time.get();
+		chute_servo_number = _param_chute_pin_number.get();
 	}
 
 	if (_use_dynamic_mixing) {
@@ -718,8 +722,37 @@ bool MixingOutput::updateStaticMixer()
 
 	/* overwrite outputs in case of force_failsafe with _failsafe_value values */
 	if (_armed.force_failsafe) {
-		for (size_t i = 0; i < mixed_num_outputs; i++) {
-			_current_output_value[i] = _failsafe_value[i];
+		//PX4_INFO("Failsafe values commanded");
+		// start a timer for delaying parachute servo
+		if(!chute_deployed){
+			parachute_delay_start = hrt_absolute_time();
+			//PX4_INFO("Current time = %d", parachute_delay_start);
+			chute_deployed = true;
+		}
+
+		// if delay time elapsed
+		if(chute_deployed && ((hrt_absolute_time() - parachute_delay_start) > chute_delay_time * 1000000) )
+		{
+			// now the chute servo can be actuated
+			//PX4_INFO("One second elapsed");
+			//PX4_INFO("Result in uSeconds is: %l", hrt_absolute_time() - parachute_delay_start);
+			//printf("Result in uSeconds is: %f", float(hrt_absolute_time() - parachute_delay_start));
+			// main 6 is chute
+			can_actuate_servo = true;
+		}
+
+
+
+		// go though all actuators
+		for (size_t i = 0; i < mixed_num_outputs ; i++) {
+			// if on current servo number and time had not yet elapsed, skip
+			if(i == chute_servo_number && !can_actuate_servo) {
+				// start
+				continue;
+			}
+			else {	// else, put to failsafe value
+				_current_output_value[i] = _failsafe_value[i];
+			}
 		}
 	}
 

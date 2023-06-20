@@ -341,6 +341,12 @@ private:
 	ActuatorTest _actuator_test{_function_assignment};
 	uint32_t _reversible_mask{0}; ///< per-output bits. If set, the output is configured to be reversible (motors only)
 
+	uint32_t parachute_delay_start{0};
+	bool chute_deployed = false;
+	uint32_t chute_delay_time{2};	// 2s delay
+	uint8_t chute_servo_number{1};
+	bool can_actuate_servo{false};
+
 	uORB::SubscriptionCallbackWorkItem *_subscription_callback{nullptr}; ///< current scheduling callback
 
 
@@ -349,7 +355,9 @@ private:
 		(ParamFloat<px4::params::MOT_SLEW_MAX>) _param_mot_slew_max,
 		(ParamFloat<px4::params::THR_MDL_FAC>) _param_thr_mdl_fac, ///< thrust to motor control signal modelling factor
 		(ParamInt<px4::params::MOT_ORDERING>) _param_mot_ordering,
-		(ParamBool<px4::params::SYS_CTRL_ALLOC>) _param_sys_ctrl_alloc
+		(ParamBool<px4::params::SYS_CTRL_ALLOC>) _param_sys_ctrl_alloc,
+		(ParamFloat<px4::params::CHUTE_DELAY_TIME>) _param_chute_delay_time,
+		(ParamInt<px4::params::CHUTE_PIN_NUMBER>) _param_chute_pin_number
 
 	)
 };

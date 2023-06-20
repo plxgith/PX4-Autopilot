@@ -33,3 +33,29 @@ PARAM_DEFINE_INT32(MC_AIRMODE, 0);
  * @group Mixer Output
  */
 PARAM_DEFINE_INT32(MOT_ORDERING, 0);
+
+/**
+ *
+ *
+ * Delay parachute servo actutation time
+ *
+ * @min 0.0
+ * @max 10.0
+ * @decimal 1
+ * @group PWM Outputs
+*/
+PARAM_DEFINE_FLOAT(CHUTE_DELAY_TIME, 1.0f);
+
+
+/**
+ *
+ *
+ * Servo pin number; has to be set properly
+ *
+ * @min 0
+ * @max 16
+ *
+ * @group PWM Outputs
+*/
+PARAM_DEFINE_INT32(CHUTE_PIN_NUMBER, 1);
+
