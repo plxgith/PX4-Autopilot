@@ -77,6 +77,9 @@ CameraFeedback::Run()
 		vehicle_attitude_s att{};
 		_att_sub.copy(&att);
 
+		sensor_gps_s gps_raw{};
+		_gps_raw_sub.copy(&gps_raw);
+
 		if (trig.timestamp == 0 ||
 		    gpos.timestamp == 0 ||
 		    att.timestamp == 0) {
@@ -102,7 +105,10 @@ CameraFeedback::Run()
 		// Fill position data
 		capture.lat = gpos.lat;
 		capture.lon = gpos.lon;
-		capture.alt = gpos.alt;
+		capture.alt = gpos.alt_ellipsoid;
+
+		//capture.alt = gps_raw.alt_ellipsoid / 1000.0;
+
 
 		//capture.alt = gps_raw.alt_ellipsoid / 1000.0;
 
