@@ -68,3 +68,5 @@ PARAM_DEFINE_FLOAT(BAT_V_LOAD_DROP, 0.3f);
  * @category system
  */
 PARAM_DEFINE_INT32(BAT_N_CELLS, 3);
+
+
