@@ -42,7 +42,7 @@
 
 #pragma once
 
-#include <math.h>
+#include <lib/mathlib/mathlib.h>
 #include <float.h>
 
 #include <board_config.h>

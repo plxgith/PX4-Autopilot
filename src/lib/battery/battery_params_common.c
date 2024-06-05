@@ -99,3 +99,18 @@ PARAM_DEFINE_FLOAT(BAT_EMERGEN_THR, 0.05f);
  * @increment 0.1
  */
 PARAM_DEFINE_FLOAT(BAT_AVRG_CURRENT, 15.0f);
+
+/**
+ * Expected CAN battery voltage.
+ *
+ * This value is used to initialize the in-flight average current estimation,
+ * which in turn is used for estimating remaining flight time and RTL triggering.
+ *
+ * @group Battery Calibration
+ * @unit A
+ * @min 0
+ * @max 100
+ * @increment 0.1
+ */
+PARAM_DEFINE_FLOAT(BAT1_FULL_V, 50.4f);
+//PARAM_DEFINE_FLOAT(BAT1_FULL_WH, 25000.0f);

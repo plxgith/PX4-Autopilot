@@ -107,7 +107,8 @@ CameraFeedback::Run()
 		capture.lon = gpos.lon;
 		capture.alt = gpos.alt_ellipsoid;
 
-		//capture.alt = gps_raw.alt_ellipsoid / 1000.0;
+		capture.alt = gps_raw.alt_ellipsoid / 1000.0;
+		capture.lat = gps_raw.lat;
 
 
 		if (gpos.terrain_alt_valid) {

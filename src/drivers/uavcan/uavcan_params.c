@@ -343,3 +343,22 @@ PARAM_DEFINE_INT32(UAVCAN_SUB_RNG, 0);
  * @group UAVCAN
  */
 PARAM_DEFINE_INT32(UAVCAN_SUB_BTN, 0);
+
+
+/**
+ * CAN Battery Voltage Drop
+ *
+ * UAVCAN battery one.
+ *
+ *
+ * @unit V
+ * @min 0
+ * @max 0.3
+ * @reboot_required true
+ *
+ * @group UAVCAN
+ */
+
+PARAM_DEFINE_FLOAT(UAVCAN_BAT1_V_D, 0.2);
+
+
