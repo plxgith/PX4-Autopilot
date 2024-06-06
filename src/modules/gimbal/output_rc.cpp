@@ -62,6 +62,8 @@ void OutputRC::update(const ControlData &control_data, bool new_setpoints, uint8
 
 	_stream_device_attitude_status();
 
+
+	gimbal_device_id = 1;
 	// _angle_outputs are in radians, actuator_controls are in [-1, 1]
 	actuator_controls_s actuator_controls{};
 	actuator_controls.control[0] = constrain(
@@ -81,6 +83,7 @@ void OutputRC::update(const ControlData &control_data, bool new_setpoints, uint8
 					       -1.f, 1.f);
 	actuator_controls.timestamp = hrt_absolute_time();
 	_actuator_controls_pub.publish(actuator_controls);
+
 
 	_last_update = t;
 }
