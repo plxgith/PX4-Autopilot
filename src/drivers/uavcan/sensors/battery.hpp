@@ -129,10 +129,11 @@ private:
 	float _bat1_full_voltage{50.0f};
 	float _test{0.0f};
 	float _bat1_v_drop{0.3f};
-	float _bat1_capacity{25000.0f};
-	float _bat1_num_of_cells{12.0f};
-	float _bat1_v_empty{3.5f};
-	float _bat1_v_charged{4.0f};
+	float _bat1_capacity{1600.0f};	// 90% of nominal
+	// float _bat_capacity(1699.0f);
+	float _bat1_num_of_cells{3.0f};
+	float _bat1_v_empty{3.6f};	//
+	float _bat1_v_charged{4.05f};	// slightly less
 
 	int _count = 1;
 	debug_array_s _temp_array{0};

@@ -137,7 +137,7 @@ UavcanBatteryBridge::battery_sub_cb(const uavcan::ReceivedDataStructure<uavcan::
 	// battery_status[instance].priority = msg.;
 	// battery_status[instance].capacity = msg.;
 	battery_status[instance].full_charge_capacity_wh = msg.full_charge_capacity_wh;
-	battery_status[instance].remaining_capacity_wh = 28000.0f;
+	// battery_status[instance].remaining_capacity_wh = 28000.0f;
 	// battery_status[instance].cycle_count = msg.;
 	//time_remaining  = calculate_time_remaining(msg.current);
 	battery_status[instance].time_remaining_s = calculate_time_remaining(msg.current);
