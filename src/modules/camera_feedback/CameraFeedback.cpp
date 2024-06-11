@@ -42,6 +42,19 @@ CameraFeedback::CameraFeedback() :
 	if (_p_cam_cap_fback != PARAM_INVALID) {
 		param_get(_p_cam_cap_fback, (int32_t *)&_cam_cap_fback);
 	}
+
+	// fetch custom parameter
+	_cam_gps_raw = param_find("CAM_CAP_GPS_RAW");
+	if (_cam_gps_raw != PARAM_INVALID) {
+		param_get(_cam_gps_raw, (int32_t *)&_cam_gps_raw);
+	}
+
+	// _cam_gps_x = param_find("CAM_CAP_FBACK");
+
+	// if (_p_cam_cap_fback != PARAM_INVALID) {
+	// 	param_get(_p_cam_cap_fback, (int32_t *)&_cam_cap_fback);
+	// }
+
 }
 
 bool
@@ -68,6 +81,10 @@ CameraFeedback::Run()
 
 	camera_trigger_s trig{};
 
+	// debug
+	debug_array_s debug{};
+	// debug.name = "Camera";
+
 	while (_trigger_sub.update(&trig)) {
 
 		// update geotagging subscriptions
@@ -77,8 +94,8 @@ CameraFeedback::Run()
 		vehicle_attitude_s att{};
 		_att_sub.copy(&att);
 
-		sensor_gps_s gps_raw{};
-		_gps_raw_sub.copy(&gps_raw);
+		sensor_gps_s sensor_gps{};
+		_gps_raw_sub.copy(&sensor_gps);
 
 		if (trig.timestamp == 0 ||
 		    gpos.timestamp == 0 ||
@@ -105,12 +122,43 @@ CameraFeedback::Run()
 		// Fill position data
 		capture.lat = gpos.lat;
 		capture.lon = gpos.lon;
-		capture.alt = gpos.alt_ellipsoid;
 
-		//capture.alt = gps_raw.alt_ellipsoid / 1000.0;
+		if(_cam_gps_raw){
 
 
-		//capture.alt = gps_raw.alt_ellipsoid / 1000.0;
+			// gps data is just long numbers, so divide
+			//capture.alt = sensor_gps.alt_ellipsoid / 1000.0;
+
+
+			// convert to Euler
+			matrix::Eulerf att_euler = matrix::Quatf(att.q);
+
+			// get RPY in radians
+			float roll = att_euler.phi();
+			float pitch = att_euler.theta();
+			float yaw = att_euler.psi();
+
+			// calculate altitude based on Roll and Pitch
+			// positive roll -> roll right
+			// positive pitch -> nose up
+			float roll_offset = _cam_gps_y * tanf(roll);
+			float pitch_offset = _cam_gps_x * tanf(pitch);
+
+
+			capture.alt = (sensor_gps.alt_ellipsoid / 1000) + roll_offset + pitch_offset;
+
+			debug.data[0] = roll;
+			debug.data[1] = pitch;
+			debug.data[2] = yaw;
+
+
+
+		}
+		else {
+			capture.alt = gpos.alt_ellipsoid;
+		}
+
+
 
 
 		if (gpos.terrain_alt_valid) {
@@ -129,6 +177,7 @@ CameraFeedback::Run()
 		capture.result = 1;
 
 		_capture_pub.publish(capture);
+		_debug_pub.publish(debug);
 	}
 }
 

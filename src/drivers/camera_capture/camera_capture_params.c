@@ -85,3 +85,26 @@ PARAM_DEFINE_INT32(CAM_CAP_MODE, 0);
  * @reboot_required true
  */
 PARAM_DEFINE_INT32(CAM_CAP_EDGE, 0);
+
+/**
+ * Camera capture raw gps
+ *
+ * Enables logging raw GPS
+ *
+ * @boolean
+ * @group Camera Control
+ * @reboot_required true
+ */
+PARAM_DEFINE_INT32(CAM_CAP_GPS_RAW, 0);
+/**
+ * GPS antena X offset
+ *
+ * Parameter for calculating height offset
+ *
+ * @unit m
+ * @min -1.0
+ * @max 1.0
+ * @decimal 1
+ * @group Camera Capture
+ */
+// PARAM_DEFINE_FLOAT(CAM_GPS_OFF_X, -0.525f);

@@ -55,8 +55,12 @@
 #include <uORB/topics/camera_trigger.h>
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_global_position.h>
-// try using gps instead of EKF2 prediction
+// try using raw gps instead of EKF2 prediction
 #include <uORB/topics/sensor_gps.h>
+// for debug topic
+#include <uORB/topics/debug_array.h>
+// for converting quaternions to euler angles
+#include <matrix/math.hpp>
 
 class CameraFeedback : public ModuleBase<CameraFeedback>, public ModuleParams, public px4::WorkItem
 {
@@ -83,10 +87,22 @@ private:
 
 	uORB::Subscription	_gpos_sub{ORB_ID(vehicle_global_position)};
 	uORB::Subscription	_att_sub{ORB_ID(vehicle_attitude)};
+
+	// add gps position subscription
 	uORB::Subscription	_gps_raw_sub{ORB_ID(sensor_gps)};
 
 	uORB::Publication<camera_capture_s>	_capture_pub{ORB_ID(camera_capture)};
 
+	// add debug publication
+	uORB::Publication<debug_array_s>	_debug_pub{ORB_ID(debug_array)};
+
 	param_t _p_cam_cap_fback;
 	int32_t _cam_cap_fback{0};
+
+	// add parameter to enable raw gps sensor reading or use default
+	int32_t _cam_gps_raw{0};
+	// add parameters for gps position in the vehicle
+	float _cam_gps_x{-0.525f};
+	float _cam_gps_y{0.39f};
+	float _cam_gps_z{-0.135f};
 };
