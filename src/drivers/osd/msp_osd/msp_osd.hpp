@@ -43,7 +43,6 @@
 #include <uORB/Subscription.hpp>
 #include <uORB/topics/airspeed_validated.h>
 #include <uORB/topics/battery_status.h>
-#include <uORB/topics/estimator_status.h>
 #include <uORB/topics/home_position.h>
 #include <uORB/topics/input_rc.h>
 #include <uORB/topics/log_message.h>
@@ -145,7 +144,6 @@ private:
 	// subscriptions to desired vehicle display information
 	uORB::Subscription _airspeed_validated_sub{ORB_ID(airspeed_validated)};
 	uORB::Subscription _battery_status_sub{ORB_ID(battery_status)};
-	uORB::Subscription _estimator_status_sub{ORB_ID(estimator_status)};
 	uORB::Subscription _home_position_sub{ORB_ID(home_position)};
 	uORB::Subscription _input_rc_sub{ORB_ID(input_rc)};
 	uORB::Subscription _log_message_sub{ORB_ID(log_message)};
@@ -164,6 +162,7 @@ private:
 	// parameters
 	DEFINE_PARAMETERS(
 		(ParamInt<px4::params::OSD_SYMBOLS>) _param_osd_symbols,
+		(ParamInt<px4::params::OSD_CH_HEIGHT>) _param_osd_ch_height,
 		(ParamInt<px4::params::OSD_SCROLL_RATE>) _param_osd_scroll_rate,
 		(ParamInt<px4::params::OSD_DWELL_TIME>) _param_osd_dwell_time,
 		(ParamInt<px4::params::OSD_LOG_LEVEL>) _param_osd_log_level

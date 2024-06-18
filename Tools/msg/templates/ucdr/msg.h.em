@@ -124,8 +124,9 @@ static inline constexpr int ucdr_topic_size_@(topic)()
 	return @(struct_size);
 }
 
-bool ucdr_serialize_@(topic)(const @(uorb_struct)& topic, ucdrBuffer& buf, int64_t time_offset = 0)
+static inline bool ucdr_serialize_@(topic)(const void* data, ucdrBuffer& buf, int64_t time_offset = 0)
 {
+	const @(uorb_struct)& topic = *static_cast<const @(uorb_struct)*>(data);
 @{
 for field_type, field_name, field_size, padding in fields:
 	if padding > 0:
@@ -152,7 +153,7 @@ for field_type, field_name, field_size, padding in fields:
 	return true;
 }
 
-bool ucdr_deserialize_@(topic)(ucdrBuffer& buf, @(uorb_struct)& topic, int64_t time_offset = 0)
+static inline bool ucdr_deserialize_@(topic)(ucdrBuffer& buf, @(uorb_struct)& topic, int64_t time_offset = 0)
 {
 @{
 for field_type, field_name, field_size, padding in fields:
@@ -164,7 +165,8 @@ for field_type, field_name, field_size, padding in fields:
 	print('\tmemcpy(&topic.{0}, buf.iterator, sizeof(topic.{0}));'.format(field_name))
 
 	if field_type == 'uint64' and (field_name == 'timestamp' or field_name == 'timestamp_sample'):
-		print('\ttopic.{0} -= time_offset;'.format(field_name))
+		print('\tif (topic.{0} == 0) topic.{0} = hrt_absolute_time();'.format(field_name, field_name))
+		print('\telse topic.{0} = math::min(topic.{0} - time_offset, hrt_absolute_time());'.format(field_name, field_name))
 
 	print('\tbuf.iterator += sizeof(topic.{:});'.format(field_name))
 	print('\tbuf.offset += sizeof(topic.{:});'.format(field_name))

@@ -44,13 +44,13 @@
  */
 
 /**
- * Take-off altitude
+ * Default take-off altitude
  *
- * This is the minimum altitude the system will take off to.
+ * This is the relative altitude the system will take off to
+ * if not otherwise specified.
  *
  * @unit m
  * @min 0
- * @max 80
  * @decimal 1
  * @increment 0.5
  * @group Mission
@@ -68,41 +68,26 @@ PARAM_DEFINE_FLOAT(MIS_TAKEOFF_ALT, 2.5f);
  * @value 2 Require a landing
  * @value 3 Require a takeoff and a landing
  * @value 4 Require both a takeoff and a landing, or neither
+ * @value 5 Same as previous when landed, in-air require landing only if no valid VTOL approach is present
  * @group Mission
  */
 PARAM_DEFINE_INT32(MIS_TKO_LAND_REQ, 0);
 
 /**
- * Maximal horizontal distance from home to first waypoint
+ * Maximal horizontal distance from current position to first waypoint
  *
  * Failsafe check to prevent running mission stored from previous flight at a new takeoff location.
  * Set a value of zero or less to disable. The mission will not be started if the current
- * waypoint is more distant than MIS_DIST_1WP from the home position.
+ * waypoint is more distant than MIS_DIST_1WP from the current position.
  *
  * @unit m
- * @min 0
+ * @min -1
  * @max 10000
  * @decimal 1
  * @increment 100
  * @group Mission
  */
-PARAM_DEFINE_FLOAT(MIS_DIST_1WP, 900);
-
-/**
- * Maximal horizontal distance between waypoint
- *
- * Failsafe check to prevent running missions which are way too big.
- * Set a value of zero or less to disable. The mission will not be started if any distance between
- * two subsequent waypoints is greater than MIS_DIST_WPS.
- *
- * @unit m
- * @min 0
- * @max 10000
- * @decimal 1
- * @increment 100
- * @group Mission
- */
-PARAM_DEFINE_FLOAT(MIS_DIST_WPS, 900);
+PARAM_DEFINE_FLOAT(MIS_DIST_1WP, 10000);
 
 /**
 * Enable yaw control of the mount. (Only affects multicopters and ROI mission items)

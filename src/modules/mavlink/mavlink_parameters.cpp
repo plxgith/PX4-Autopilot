@@ -46,7 +46,7 @@
 #include "mavlink_main.h"
 #include <lib/systemlib/mavlink_log.h>
 
-MavlinkParametersManager::MavlinkParametersManager(Mavlink *mavlink) :
+MavlinkParametersManager::MavlinkParametersManager(Mavlink &mavlink) :
 	_mavlink(mavlink)
 {
 }
@@ -77,6 +77,8 @@ MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 				}
 			}
 
+#if defined(CONFIG_MAVLINK_UAVCAN_PARAMETERS)
+
 			if (req_list.target_system == mavlink_system.sysid && req_list.target_component < 127 &&
 			    (req_list.target_component != mavlink_system.compid || req_list.target_component == MAV_COMP_ID_ALL)) {
 				// publish list request to UAVCAN driver via uORB.
@@ -88,6 +90,7 @@ MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 				_uavcan_parameter_request_pub.publish(req);
 			}
 
+#endif // CONFIG_MAVLINK_UAVCAN_PARAMETERS
 			break;
 		}
 
@@ -108,7 +111,7 @@ MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 				/* Whatever the value is, we're being told to stop sending */
 				if (strncmp(name, "_HASH_CHECK", sizeof(name)) == 0) {
 
-					if (_mavlink->hash_check_enabled()) {
+					if (_mavlink.hash_check_enabled()) {
 						_send_all_index = -1;
 					}
 
@@ -132,6 +135,8 @@ MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 					send_param(param);
 				}
 			}
+
+#if defined(CONFIG_MAVLINK_UAVCAN_PARAMETERS)
 
 			if (set.target_system == mavlink_system.sysid && set.target_component < 127 &&
 			    (set.target_component != mavlink_system.compid || set.target_component == MAV_COMP_ID_ALL)) {
@@ -158,6 +163,7 @@ MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 				_uavcan_parameter_request_pub.publish(req);
 			}
 
+#endif // CONFIG_MAVLINK_UAVCAN_PARAMETERS
 			break;
 		}
 
@@ -183,7 +189,7 @@ MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 						strncpy(param_value.param_id, HASH_PARAM, MAVLINK_MSG_PARAM_VALUE_FIELD_PARAM_ID_LEN);
 						param_value.param_type = MAV_PARAM_TYPE_UINT32;
 						memcpy(&param_value.param_value, &hash, sizeof(hash));
-						mavlink_msg_param_value_send_struct(_mavlink->get_channel(), &param_value);
+						mavlink_msg_param_value_send_struct(_mavlink.get_channel(), &param_value);
 
 					} else {
 						/* local name buffer to enforce null-terminated string */
@@ -208,6 +214,8 @@ MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 				}
 			}
 
+#if defined(CONFIG_MAVLINK_UAVCAN_PARAMETERS)
+
 			if (req_read.target_system == mavlink_system.sysid && req_read.target_component < 127 &&
 			    (req_read.target_component != mavlink_system.compid || req_read.target_component == MAV_COMP_ID_ALL)) {
 				// publish set request to UAVCAN driver via uORB.
@@ -224,6 +232,7 @@ MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 				request_next_uavcan_parameter();
 			}
 
+#endif // CONFIG_MAVLINK_UAVCAN_PARAMETERS
 			break;
 		}
 
@@ -240,7 +249,7 @@ MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 				size_t i = map_rc.parameter_rc_channel_index;
 
 				if (i >= sizeof(_rc_param_map.param_index) / sizeof(_rc_param_map.param_index[0])) {
-					mavlink_log_warning(_mavlink->get_mavlink_log_pub(), "parameter_rc_channel_index out of bounds\t");
+					mavlink_log_warning(_mavlink.get_mavlink_log_pub(), "parameter_rc_channel_index out of bounds\t");
 					events::send(events::ID("mavlink_param_rc_chan_out_of_bounds"), events::Log::Warning,
 						     "parameter_rc_channel_index out of bounds");
 					break;
@@ -283,10 +292,6 @@ MavlinkParametersManager::send()
 		param_find("BAT_CRIT_THR");
 		param_find("BAT_EMERGEN_THR");
 		param_find("BAT_LOW_THR");
-		param_find("BAT_N_CELLS");     // deprecated
-		param_find("BAT_V_CHARGED");   // deprecated
-		param_find("BAT_V_EMPTY");     // deprecated
-		param_find("BAT_V_LOAD_DROP"); // deprecated
 		param_find("CAL_ACC0_ID");
 		param_find("CAL_GYRO0_ID");
 		param_find("CAL_MAG0_ID");
@@ -310,7 +315,7 @@ MavlinkParametersManager::send()
 
 	int max_num_to_send;
 
-	if (_mavlink->get_protocol() == Protocol::SERIAL && !_mavlink->is_usb_uart()) {
+	if (_mavlink.get_protocol() == Protocol::SERIAL && !_mavlink.is_usb_uart()) {
 		max_num_to_send = 3;
 
 	} else {
@@ -321,25 +326,29 @@ MavlinkParametersManager::send()
 	int i = 0;
 
 	// Send while burst is not exceeded, we still have buffer space and still something to send
-	while ((i++ < max_num_to_send) && (_mavlink->get_free_tx_buf() >= get_size()) && !_mavlink->radio_status_critical()
+	while ((i++ < max_num_to_send) && (_mavlink.get_free_tx_buf() >= get_size()) && !_mavlink.radio_status_critical()
 	       && send_params()) {}
 }
 
 bool
 MavlinkParametersManager::send_params()
 {
+#if defined(CONFIG_MAVLINK_UAVCAN_PARAMETERS)
+
 	if (send_uavcan()) {
 		return true;
+	}
 
-	} else if (send_one()) {
+#endif // CONFIG_MAVLINK_UAVCAN_PARAMETERS
+
+	if (send_one()) {
 		return true;
 
 	} else if (send_untransmitted()) {
 		return true;
-
-	} else {
-		return false;
 	}
+
+	return false;
 }
 
 bool
@@ -381,7 +390,7 @@ MavlinkParametersManager::send_untransmitted()
 					break;
 				}
 			}
-		} while ((_mavlink->get_free_tx_buf() >= get_size()) && !_mavlink->radio_status_critical()
+		} while ((_mavlink.get_free_tx_buf() >= get_size()) && !_mavlink.radio_status_critical()
 			 && (_param_update_index < (int) param_count()));
 
 		// Flag work as done once all params have been sent
@@ -391,63 +400,6 @@ MavlinkParametersManager::send_untransmitted()
 	}
 
 	return sent_one;
-}
-
-bool
-MavlinkParametersManager::send_uavcan()
-{
-	/* Send parameter values received from the UAVCAN topic */
-	uavcan_parameter_value_s value{};
-
-	if (_uavcan_parameter_value_sub.update(&value)) {
-
-		// Check if we received a matching parameter, drop it from the list and request the next
-		if ((_uavcan_open_request_list != nullptr)
-		    && (value.param_index == _uavcan_open_request_list->req.param_index)
-		    && (value.node_id == _uavcan_open_request_list->req.node_id)) {
-
-			dequeue_uavcan_request();
-			request_next_uavcan_parameter();
-		}
-
-		mavlink_param_value_t msg{};
-		msg.param_count = value.param_count;
-		msg.param_index = value.param_index;
-#if defined(__GNUC__) && __GNUC__ >= 8
-#pragma GCC diagnostic ignored "-Wstringop-truncation"
-#endif
-		/*
-		 * coverity[buffer_size_warning : FALSE]
-		 *
-		 * The MAVLink spec does not require the string to be NUL-terminated if it
-		 * has length 16. In this case the receiving end needs to terminate it
-		 * when copying it.
-		 */
-		strncpy(msg.param_id, value.param_id, MAVLINK_MSG_PARAM_VALUE_FIELD_PARAM_ID_LEN);
-#if defined(__GNUC__) && __GNUC__ >= 8
-#pragma GCC diagnostic pop
-#endif
-
-		if (value.param_type == MAV_PARAM_TYPE_REAL32) {
-			msg.param_type = MAVLINK_TYPE_FLOAT;
-			msg.param_value = value.real_value;
-
-		} else {
-			int32_t val = (int32_t)value.int_value;
-			memcpy(&msg.param_value, &val, sizeof(int32_t));
-			msg.param_type = MAVLINK_TYPE_INT32_T;
-		}
-
-		// Re-pack the message with the UAVCAN node ID
-		mavlink_message_t mavlink_packet{};
-		mavlink_msg_param_value_encode_chan(mavlink_system.sysid, value.node_id, _mavlink->get_channel(), &mavlink_packet,
-						    &msg);
-		_mavlink_resend_uart(_mavlink->get_channel(), &mavlink_packet);
-
-		return true;
-	}
-
-	return false;
 }
 
 bool
@@ -470,7 +422,7 @@ MavlinkParametersManager::send_one()
 			strncpy(msg.param_id, HASH_PARAM, MAVLINK_MSG_PARAM_VALUE_FIELD_PARAM_ID_LEN);
 			msg.param_type = MAV_PARAM_TYPE_UINT32;
 			memcpy(&msg.param_value, &hash, sizeof(hash));
-			mavlink_msg_param_value_send_struct(_mavlink->get_channel(), &msg);
+			mavlink_msg_param_value_send_struct(_mavlink.get_channel(), &msg);
 
 			/* after this we should start sending all params */
 			_send_all_index = 0;
@@ -512,7 +464,7 @@ MavlinkParametersManager::send_param(param_t param, int component_id)
 	}
 
 	/* no free TX buf to send this param */
-	if (_mavlink->get_free_tx_buf() < MAVLINK_MSG_ID_PARAM_VALUE_LEN) {
+	if (_mavlink.get_free_tx_buf() < MAVLINK_MSG_ID_PARAM_VALUE_LEN) {
 		return 1;
 	}
 
@@ -579,16 +531,74 @@ MavlinkParametersManager::send_param(param_t param, int component_id)
 
 	/* default component ID */
 	if (component_id < 0) {
-		mavlink_msg_param_value_send_struct(_mavlink->get_channel(), &msg);
+		mavlink_msg_param_value_send_struct(_mavlink.get_channel(), &msg);
 
 	} else {
 		// Re-pack the message with a different component ID
 		mavlink_message_t mavlink_packet;
-		mavlink_msg_param_value_encode_chan(mavlink_system.sysid, component_id, _mavlink->get_channel(), &mavlink_packet, &msg);
-		_mavlink_resend_uart(_mavlink->get_channel(), &mavlink_packet);
+		mavlink_msg_param_value_encode_chan(mavlink_system.sysid, component_id, _mavlink.get_channel(), &mavlink_packet, &msg);
+		_mavlink_resend_uart(_mavlink.get_channel(), &mavlink_packet);
 	}
 
 	return 0;
+}
+
+#if defined(CONFIG_MAVLINK_UAVCAN_PARAMETERS)
+
+bool MavlinkParametersManager::send_uavcan()
+{
+	/* Send parameter values received from the UAVCAN topic */
+	uavcan_parameter_value_s value{};
+
+	if (_uavcan_parameter_value_sub.update(&value)) {
+
+		// Check if we received a matching parameter, drop it from the list and request the next
+		if ((_uavcan_open_request_list != nullptr)
+		    && (value.param_index == _uavcan_open_request_list->req.param_index)
+		    && (value.node_id == _uavcan_open_request_list->req.node_id)) {
+
+			dequeue_uavcan_request();
+			request_next_uavcan_parameter();
+		}
+
+		mavlink_param_value_t msg{};
+		msg.param_count = value.param_count;
+		msg.param_index = value.param_index;
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+#endif
+		/*
+		 * coverity[buffer_size_warning : FALSE]
+		 *
+		 * The MAVLink spec does not require the string to be NUL-terminated if it
+		 * has length 16. In this case the receiving end needs to terminate it
+		 * when copying it.
+		 */
+		strncpy(msg.param_id, value.param_id, MAVLINK_MSG_PARAM_VALUE_FIELD_PARAM_ID_LEN);
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic pop
+#endif
+
+		if (value.param_type == MAV_PARAM_TYPE_REAL32) {
+			msg.param_type = MAVLINK_TYPE_FLOAT;
+			msg.param_value = value.real_value;
+
+		} else {
+			int32_t val = (int32_t)value.int_value;
+			memcpy(&msg.param_value, &val, sizeof(int32_t));
+			msg.param_type = MAVLINK_TYPE_INT32_T;
+		}
+
+		// Re-pack the message with the UAVCAN node ID
+		mavlink_message_t mavlink_packet{};
+		mavlink_msg_param_value_encode_chan(mavlink_system.sysid, value.node_id, _mavlink.get_channel(), &mavlink_packet,
+						    &msg);
+		_mavlink_resend_uart(_mavlink.get_channel(), &mavlink_packet);
+
+		return true;
+	}
+
+	return false;
 }
 
 void MavlinkParametersManager::request_next_uavcan_parameter()
@@ -643,3 +653,5 @@ void MavlinkParametersManager::dequeue_uavcan_request()
 		_uavcan_waiting_for_request_response = false;
 	}
 }
+
+#endif // CONFIG_MAVLINK_UAVCAN_PARAMETERS

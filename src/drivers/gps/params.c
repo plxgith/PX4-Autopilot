@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2016 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2016-2024 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -147,16 +147,23 @@ PARAM_DEFINE_INT32(GPS_UBX_CFG_INTF, 0);
  *
  * Heading offset angle for dual antenna GPS setups that support heading estimation.
  *
- * Set this to 0 if the antennas are parallel to the forward-facing direction of the vehicle and the rover antenna is in
- * front. The offset angle increases clockwise.
+ * Set this to 0 if the antennas are parallel to the forward-facing direction
+ * of the vehicle and the rover (or Unicore primary) antenna is in front.
  *
- * Set this to 90 if the rover antenna is placed on the right side of the vehicle and the moving base antenna is on the left side.
+ * The offset angle increases clockwise.
+ *
+ * Set this to 90 if the rover (or Unicore primary, or Septentrio Mosaic Aux)
+ * antenna is placed on the right side of the vehicle and the moving base
+ * antenna is on the left side.
+ *
+ * (Note: the Unicore primary antenna is the one connected on the right as seen
+ *        from the top).
  *
  * @min 0
  * @max 360
  * @unit deg
  * @reboot_required true
- * @decimal 0
+ * @decimal 3
  *
  * @group GPS
  */
@@ -170,7 +177,7 @@ PARAM_DEFINE_FLOAT(GPS_YAW_OFFSET, 0.f);
  * Auto-detection will probe all protocols, and thus is a bit slower.
  *
  * @min 0
- * @max 5
+ * @max 7
  * @value 0 Auto detect
  * @value 1 u-blox
  * @value 2 MTK
@@ -192,7 +199,7 @@ PARAM_DEFINE_INT32(GPS_1_PROTOCOL, 1);
  * Auto-detection will probe all protocols, and thus is a bit slower.
  *
  * @min 0
- * @max 5
+ * @max 6
  * @value 0 Auto detect
  * @value 1 u-blox
  * @value 2 MTK
@@ -222,14 +229,16 @@ PARAM_DEFINE_INT32(GPS_2_PROTOCOL, 1);
  * 2 : Use Galileo
  * 3 : Use BeiDou
  * 4 : Use GLONASS
+ * 5 : Use NAVIC
  *
  * @min 0
- * @max 31
+ * @max 63
  * @bit 0 GPS (with QZSS)
  * @bit 1 SBAS
  * @bit 2 Galileo
  * @bit 3 BeiDou
  * @bit 4 GLONASS
+ * @bit 5 NAVIC
  *
  * @reboot_required true
  * @group GPS
@@ -252,14 +261,16 @@ PARAM_DEFINE_INT32(GPS_1_GNSS, 0);
  * 2 : Use Galileo
  * 3 : Use BeiDou
  * 4 : Use GLONASS
+ * 5 : Use NAVIC
  *
  * @min 0
- * @max 31
+ * @max 63
  * @bit 0 GPS (with QZSS)
  * @bit 1 SBAS
  * @bit 2 Galileo
  * @bit 3 BeiDou
  * @bit 4 GLONASS
+ * @bit 5 NAVIC
  *
  * @reboot_required true
  * @group GPS

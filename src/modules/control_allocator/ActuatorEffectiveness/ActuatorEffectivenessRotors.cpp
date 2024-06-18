@@ -79,8 +79,6 @@ ActuatorEffectivenessRotors::ActuatorEffectivenessRotors(ModuleParams *parent, A
 		}
 	}
 
-	_count_handle = param_find("CA_ROTOR_COUNT");
-
 	updateParams();
 }
 
@@ -88,14 +86,7 @@ void ActuatorEffectivenessRotors::updateParams()
 {
 	ModuleParams::updateParams();
 
-	int32_t count = 0;
-
-	if (param_get(_count_handle, &count) != 0) {
-		PX4_ERR("param_get failed");
-		return;
-	}
-
-	_geometry.num_rotors = math::min(NUM_ROTORS_MAX, (int)count);
+	_geometry.num_rotors = math::min(NUM_ROTORS_MAX, static_cast<int>(_param_ca_rotor_count.get()));
 
 	for (int i = 0; i < _geometry.num_rotors; ++i) {
 		Vector3f &position = _geometry.rotors[i].position;
@@ -226,7 +217,7 @@ ActuatorEffectivenessRotors::computeEffectivenessMatrix(const Geometry &geometry
 
 			effectiveness(0 + 3, i + actuator_start_index) = 0.f;
 			effectiveness(1 + 3, i + actuator_start_index) = 0.f;
-			effectiveness(2 + 3, i + actuator_start_index) = ct;
+			effectiveness(2 + 3, i + actuator_start_index) = -ct;
 		}
 	}
 
@@ -265,6 +256,17 @@ Vector3f ActuatorEffectivenessRotors::tiltedAxis(float tilt_angle, float tilt_di
 	return Dcmf{Eulerf{0.f, -tilt_angle, tilt_direction}} * axis;
 }
 
+uint32_t ActuatorEffectivenessRotors::getMotors() const
+{
+	uint32_t motors = 0;
+
+	for (int i = 0; i < _geometry.num_rotors; ++i) {
+		motors |= 1u << i;
+	}
+
+	return motors;
+}
+
 uint32_t ActuatorEffectivenessRotors::getUpwardsMotors() const
 {
 	uint32_t upwards_motors = 0;
@@ -278,6 +280,21 @@ uint32_t ActuatorEffectivenessRotors::getUpwardsMotors() const
 	}
 
 	return upwards_motors;
+}
+
+uint32_t ActuatorEffectivenessRotors::getForwardsMotors() const
+{
+	uint32_t forward_motors = 0;
+
+	for (int i = 0; i < _geometry.num_rotors; ++i) {
+		const Vector3f &axis = _geometry.rotors[i].axis;
+
+		if (axis(0) > 0.5f && fabsf(axis(1)) < 0.1f && fabsf(axis(2)) < 0.1f) {
+			forward_motors |= 1u << i;
+		}
+	}
+
+	return forward_motors;
 }
 
 bool

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2015 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2015-2023 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -48,6 +48,15 @@
 #include <drivers/drv_hrt.h>
 #include <matrix/matrix/math.hpp>
 
+// [rad] Pitch threshold required for completing transition to fixed-wing in automatic transitions
+static constexpr float PITCH_THRESHOLD_AUTO_TRANSITION_TO_FW = -1.05f; // -60°
+
+// [rad] Pitch threshold required for completing transition to hover in automatic transitions
+static constexpr float PITCH_THRESHOLD_AUTO_TRANSITION_TO_MC = -0.26f; // -15°
+
+// [s] Thrust blending duration from fixed-wing to back transition throttle
+static constexpr float B_TRANS_THRUST_BLENDING_DURATION = 0.5f;
+
 class Tailsitter : public VtolType
 {
 
@@ -60,6 +69,8 @@ public:
 	void update_fw_state() override;
 	void fill_actuator_outputs() override;
 	void waiting_on_tecs() override;
+	void blendThrottleAfterFrontTransition(float scale) override;
+	void blendThrottleBeginningBackTransition(float scale);
 
 private:
 	enum class vtol_mode {
@@ -78,6 +89,8 @@ private:
 	matrix::Vector3f _trans_rot_axis;
 
 	void parameters_update() override;
+
+	bool isFrontTransitionCompletedBase() override;
 
 	DEFINE_PARAMETERS_CUSTOM_PARENT(VtolType,
 					(ParamFloat<px4::params::FW_PSP_OFF>) _param_fw_psp_off

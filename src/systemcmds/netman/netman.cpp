@@ -53,8 +53,8 @@
 
 constexpr char DEFAULT_NETMAN_CONFIG[] = "/fs/microsd/net.cfg";
 #if defined(CONFIG_NETINIT_DHCPC)
-#  define DEFAULT_PROTO    IPv4PROTO_FALLBACK
-#  define DEFAULT_IP      0XC0A80003  // 192.168.0.3
+#  define DEFAULT_PROTO   IPv4PROTO_FALLBACK
+#  define DEFAULT_IP      CONFIG_NETMAN_FALLBACK_IPADDR
 #else
 #  define DEFAULT_PROTO   IPv4PROTO_STATIC
 #  define DEFAULT_IP      CONFIG_NETINIT_IPADDR
@@ -201,7 +201,7 @@ public:
 		struct ipv4cfg_s ipcfg;
 		int rv = ipcfg_read(netdev, (FAR struct ipcfg_s *) &ipcfg, AF_INET);
 
-		if (rv == -EINVAL ||
+		if (rv == -EINVAL || rv == -ENOENT ||
 		    (rv == OK  && (ipcfg.proto > IPv4PROTO_FALLBACK || ipcfg.ipaddr == 0xffffffff))) {
 			// Build a default
 			ipcfg.ipaddr  = HTONL(DEFAULT_IP);
@@ -375,7 +375,7 @@ write_reboot:
 
 	sleep(1);
 
-	px4_reboot_request(false);
+	px4_reboot_request(REBOOT_REQUEST);
 
 	while (1) { px4_usleep(1); } // this command should not return on success
 
@@ -405,12 +405,25 @@ static void usage(const char *reason)
   memory. On boot the `update` option will be run. If a network configuration
   does not exist. The default setting will be saved in non-volatile and the
   system rebooted.
-  On Subsequent boots, the `update` option will check for the existence of
-  `net.cfg` in the root of the SD Card.  It will saves the network settings
-  from `net.cfg` in non-volatile memory, delete the file and reboot the system.
 
-  The `save` option will `net.cfg` on the SD Card. Use this to edit the settings.
-  The  `show` option will display the network settings  to the console.
+  #### update
+
+  `netman update` is run automatically by [a startup script](../concept/system_startup.md#system-startup).
+  When run, the `update` option will check for the existence of `net.cfg` in the root of the SD Card.
+  It then saves the network settings from `net.cfg` in non-volatile memory,
+  deletes the file and reboots the system.
+
+  #### save
+
+  The `save` option will save settings from non-volatile memory to a file named
+  `net.cfg` on the SD Card filesystem for editing. Use this to edit the settings.
+  Save does not immediately apply the network settings; the user must reboot the flight stack.
+  By contrast, the `update` command is run by the start-up script, commits the settings to non-volatile memory,
+  and reboots the flight controller (which will then use the new settings).
+
+  #### show
+
+  The `show` option will display the network settings in `net.cfg` to the console.
 
   ### Examples
   $ netman save           # Save the parameters to the SD card.

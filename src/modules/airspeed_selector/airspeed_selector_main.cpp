@@ -128,7 +128,6 @@ private:
 	estimator_status_s _estimator_status {};
 	vehicle_acceleration_s _accel {};
 	vehicle_air_data_s _vehicle_air_data {};
-	vehicle_attitude_s _vehicle_attitude {};
 	vehicle_land_detected_s _vehicle_land_detected {};
 	vehicle_local_position_s _vehicle_local_position {};
 	vehicle_status_s _vehicle_status {};
@@ -142,11 +141,12 @@ private:
 	int32_t _prev_number_of_airspeed_sensors{0}; /**<  number of airspeed sensors in previous loop (to detect a new added sensor)*/
 	AirspeedValidator _airspeed_validator[MAX_NUM_AIRSPEED_SENSORS] {}; /**< airspeedValidator instances (one for each sensor) */
 
+	matrix::Quatf _q_att;
 	hrt_abstime _time_now_usec{0};
 	int _valid_airspeed_index{-2}; /**< index of currently chosen (valid) airspeed sensor */
 	int _prev_airspeed_index{-2}; /**< previously chosen airspeed sensor index */
 	bool _initialized{false}; /**< module initialized*/
-	bool _vehicle_local_position_valid{false}; /**< local position (from GPS) valid */
+	bool _gnss_lpos_valid{false}; /**< local position (from GNSS) valid */
 	bool _in_takeoff_situation{true}; /**< in takeoff situation (defined as not yet stall speed reached) */
 	float _ground_minus_wind_TAS{NAN}; /**< true airspeed from groundspeed minus windspeed */
 	float _ground_minus_wind_CAS{NAN}; /**< calibrated airspeed from groundspeed minus windspeed */
@@ -182,8 +182,8 @@ private:
 
 		(ParamFloat<px4::params::ASPD_FS_INNOV>) _tas_innov_threshold, /**< innovation check threshold */
 		(ParamFloat<px4::params::ASPD_FS_INTEG>) _tas_innov_integ_threshold, /**< innovation check integrator threshold */
-		(ParamInt<px4::params::ASPD_FS_T_STOP>) _checks_fail_delay, /**< delay to declare airspeed invalid */
-		(ParamInt<px4::params::ASPD_FS_T_START>) _checks_clear_delay, /**<  delay to declare airspeed valid again */
+		(ParamFloat<px4::params::ASPD_FS_T_STOP>) _checks_fail_delay, /**< delay to declare airspeed invalid */
+		(ParamFloat<px4::params::ASPD_FS_T_START>) _checks_clear_delay, /**<  delay to declare airspeed valid again */
 
 		(ParamFloat<px4::params::FW_AIRSPD_STALL>) _param_fw_airspd_stall,
 		(ParamFloat<px4::params::ASPD_WERR_THR>) _param_wind_sigma_max_synth_tas
@@ -347,13 +347,10 @@ AirspeedModule::Run()
 		struct airspeed_validator_update_data input_data = {};
 		input_data.timestamp = _time_now_usec;
 		input_data.ground_velocity = vI;
-		input_data.lpos_valid = _vehicle_local_position_valid;
+		input_data.gnss_valid = _gnss_lpos_valid;
 		input_data.lpos_evh = _vehicle_local_position.evh;
 		input_data.lpos_evv = _vehicle_local_position.evv;
-		input_data.att_q[0] = _vehicle_attitude.q[0];
-		input_data.att_q[1] = _vehicle_attitude.q[1];
-		input_data.att_q[2] = _vehicle_attitude.q[2];
-		input_data.att_q[3] = _vehicle_attitude.q[3];
+		input_data.q_att = _q_att;
 		input_data.air_pressure_pa = _vehicle_air_data.baro_pressure_pa;
 		input_data.accel_z = _accel.xyz[2];
 		input_data.vel_test_ratio = _estimator_status.vel_test_ratio;
@@ -498,18 +495,30 @@ void AirspeedModule::poll_topics()
 	_estimator_status_sub.update(&_estimator_status);
 	_vehicle_acceleration_sub.update(&_accel);
 	_vehicle_air_data_sub.update(&_vehicle_air_data);
-	_vehicle_attitude_sub.update(&_vehicle_attitude);
 	_vehicle_land_detected_sub.update(&_vehicle_land_detected);
 	_vehicle_status_sub.update(&_vehicle_status);
 	_vtol_vehicle_status_sub.update(&_vtol_vehicle_status);
 	_vehicle_local_position_sub.update(&_vehicle_local_position);
 	_position_setpoint_sub.update(&_position_setpoint);
 
+	if (_vehicle_attitude_sub.updated()) {
+		vehicle_attitude_s vehicle_attitude;
+		_vehicle_attitude_sub.update(&vehicle_attitude);
 
-	_vehicle_local_position_valid = (_time_now_usec - _vehicle_local_position.timestamp < 1_s)
-					&& (_vehicle_local_position.timestamp > 0)
-					&& _vehicle_local_position.v_xy_valid
-					&& !_vehicle_local_position.dead_reckoning;
+		if (_vehicle_status.is_vtol_tailsitter && _vehicle_status.vehicle_type == vehicle_status_s::VEHICLE_TYPE_FIXED_WING) {
+
+			// if the vehicle is a tailsitter we have to rotate the attitude by 90° to get to the airspeed frame
+			_q_att = Quatf(vehicle_attitude.q) * Quatf(matrix::Eulerf(0.f, M_PI_2_F, 0.f));
+
+		} else {
+			_q_att = Quatf(vehicle_attitude.q);
+		}
+	}
+
+	_gnss_lpos_valid = (_time_now_usec - _vehicle_local_position.timestamp < 1_s)
+			   && (_vehicle_local_position.timestamp > 0)
+			   && _vehicle_local_position.v_xy_valid
+			   && _estimator_status.control_mode_flags & (1 << estimator_status_s::CS_GPS);
 }
 
 void AirspeedModule::update_wind_estimator_sideslip()
@@ -517,15 +526,13 @@ void AirspeedModule::update_wind_estimator_sideslip()
 	// update wind and airspeed estimator
 	_wind_estimator_sideslip.update(_time_now_usec);
 
-	if (_vehicle_local_position_valid
+	if (_gnss_lpos_valid
 	    && _vehicle_status.vehicle_type == vehicle_status_s::VEHICLE_TYPE_FIXED_WING
 	    && !_vehicle_land_detected.landed) {
 		Vector3f vI(_vehicle_local_position.vx, _vehicle_local_position.vy, _vehicle_local_position.vz);
-		Quatf q(_vehicle_attitude.q);
 
 		const float hor_vel_variance =  _vehicle_local_position.evh * _vehicle_local_position.evh;
-
-		_wind_estimator_sideslip.fuse_beta(_time_now_usec, vI, hor_vel_variance, q);
+		_wind_estimator_sideslip.fuse_beta(_time_now_usec, vI, hor_vel_variance, _q_att);
 	}
 
 	_wind_estimate_sideslip.timestamp = _time_now_usec;
@@ -593,12 +600,11 @@ void AirspeedModule::select_airspeed_and_publish()
 	}
 
 	// check if airspeed based on ground-wind speed is valid and can be published
-	if (_param_airspeed_primary_index.get() > airspeed_index::DISABLED_INDEX &&
-	    (_valid_airspeed_index < airspeed_index::FIRST_SENSOR_INDEX
-	     || _param_airspeed_primary_index.get() == airspeed_index::GROUND_MINUS_WIND_INDEX)) {
+	if (_valid_airspeed_index < airspeed_index::FIRST_SENSOR_INDEX
+	    || _param_airspeed_primary_index.get() == airspeed_index::GROUND_MINUS_WIND_INDEX) {
 
-		// _vehicle_local_position_valid determines if ground-wind estimate is valid
-		if (_vehicle_local_position_valid &&
+		// _gnss_lpos_valid determines if ground-wind estimate is valid
+		if (_gnss_lpos_valid &&
 		    (_param_airspeed_fallback_gw.get() || _param_airspeed_primary_index.get() == airspeed_index::GROUND_MINUS_WIND_INDEX)) {
 			_valid_airspeed_index = airspeed_index::GROUND_MINUS_WIND_INDEX;
 

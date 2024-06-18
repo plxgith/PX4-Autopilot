@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2022 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2022-2023 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -41,6 +41,13 @@
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/failsafe_flags.h>
 
+static constexpr int kHomePositionGPSRequiredFixType = 2;
+static constexpr float kHomePositionGPSRequiredEPH = 5.f;
+static constexpr float kHomePositionGPSRequiredEPV = 10.f;
+static constexpr float kHomePositionGPSRequiredEVH = 1.f;
+static constexpr float kMinHomePositionChangeEPH = 1.f;
+static constexpr float kMinHomePositionChangeEPV = 1.5f;
+
 class HomePosition
 {
 public:
@@ -63,7 +70,7 @@ private:
 	static void fillLocalHomePos(home_position_s &home, const vehicle_local_position_s &lpos);
 	static void fillLocalHomePos(home_position_s &home, float x, float y, float z, float heading);
 	static void fillGlobalHomePos(home_position_s &home, const vehicle_global_position_s &gpos);
-	static void fillGlobalHomePos(home_position_s &home, double lat, double lon, float alt);
+	static void fillGlobalHomePos(home_position_s &home, double lat, double lon, double alt);
 
 	uORB::Subscription					_vehicle_gps_position_sub{ORB_ID(vehicle_gps_position)};
 
@@ -75,4 +82,10 @@ private:
 	uint8_t							_heading_reset_counter{0};
 	bool							_valid{false};
 	const failsafe_flags_s					&_failsafe_flags;
+	bool							_gps_position_for_home_valid{false};
+	double							_gps_lat{0};
+	double							_gps_lon{0};
+	double							_gps_alt{0};
+	float							_gps_eph{0.f};
+	float							_gps_epv{0.f};
 };

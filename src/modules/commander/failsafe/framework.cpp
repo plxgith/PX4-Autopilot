@@ -70,7 +70,14 @@ uint8_t FailsafeBase::update(const hrt_abstime &time_us, const State &state, boo
 		removeActions(ClearCondition::OnModeChangeOrDisarm);
 	}
 
-	updateDelay(time_us - _last_update);
+	if (_defer_failsafes && _failsafe_defer_started != 0 && _defer_timeout > 0
+	    && time_us > _failsafe_defer_started + _defer_timeout) {
+		_defer_failsafes = false;
+	}
+
+	if (_failsafe_defer_started == 0) {
+		updateDelay(time_us - _last_update);
+	}
 
 	checkStateAndMode(time_us, state, status_flags);
 	removeNonActivatedActions();
@@ -79,7 +86,8 @@ uint8_t FailsafeBase::update(const hrt_abstime &time_us, const State &state, boo
 	SelectedActionState action_state{};
 	getSelectedAction(state, status_flags, user_intended_mode_updated, rc_sticks_takeover_request, action_state);
 
-	updateDelay(time_us - _last_update, action_state.delayed_action != Action::None);
+	updateStartDelay(time_us - _last_update, action_state.delayed_action != Action::None);
+	updateFailsafeDeferState(time_us, action_state.failsafe_deferred);
 
 	// Notify user if the action is worse than before, or a new action got added
 	if (action_state.action > _selected_action || (action_state.action != Action::None && _notification_required)) {
@@ -98,7 +106,19 @@ uint8_t FailsafeBase::update(const hrt_abstime &time_us, const State &state, boo
 	return _last_user_intended_mode;
 }
 
-void FailsafeBase::updateDelay(const hrt_abstime &dt, bool delay_active)
+void FailsafeBase::updateFailsafeDeferState(const hrt_abstime &time_us, bool defer)
+{
+	if (defer) {
+		if (_failsafe_defer_started == 0) {
+			_failsafe_defer_started = time_us;
+		}
+
+	} else {
+		_failsafe_defer_started = 0;
+	}
+}
+
+void FailsafeBase::updateStartDelay(const hrt_abstime &dt, bool delay_active)
 {
 	// Ensure that even with a toggling state the delayed action is executed at some point.
 	// This is done by increasing the delay slower than reducing it.
@@ -175,7 +195,7 @@ void FailsafeBase::notifyUser(uint8_t user_intended_mode, Action action, Action 
 			events::send<uint32_t, events::px4::enums::failsafe_action_t, uint16_t>(
 				events::ID("commander_failsafe_enter_generic_hold"),
 			{events::Log::Critical, events::LogInternal::Warning},
-			"Failsafe activated, triggering {2} in {3} seconds", mavlink_mode, failsafe_action,
+			"Failsafe activated: switching to {2} in {3} seconds", mavlink_mode, failsafe_action,
 			(uint16_t) delay_s);
 
 		} else {
@@ -184,11 +204,11 @@ void FailsafeBase::notifyUser(uint8_t user_intended_mode, Action action, Action 
 			events::send<uint32_t, events::px4::enums::failsafe_action_t, uint16_t, events::px4::enums::failsafe_cause_t>(
 				events::ID("commander_failsafe_enter_hold"),
 			{events::Log::Critical, events::LogInternal::Warning},
-			"Failsafe activated due to {4}, triggering {2} in {3} seconds", mavlink_mode, failsafe_action,
+			"{4}: switching to {2} in {3} seconds", mavlink_mode, failsafe_action,
 			(uint16_t) delay_s, failsafe_cause);
 		}
 
-		mavlink_log_critical(&_mavlink_log_pub, "Failsafe activated, entering Hold for %i seconds\t", delay_s);
+		mavlink_log_critical(&_mavlink_log_pub, "Failsafe activated: entering Hold for %i seconds\t", delay_s);
 
 	} else { // no delay
 		failsafe_action_t failsafe_action = (failsafe_action_t)action;
@@ -202,7 +222,7 @@ void FailsafeBase::notifyUser(uint8_t user_intended_mode, Action action, Action 
 				events::send<uint32_t>(
 					events::ID("commander_failsafe_enter_generic_warn"),
 				{events::Log::Warning, events::LogInternal::Warning},
-				"Failsafe warning triggered", mavlink_mode);
+				"Failsafe warning:", mavlink_mode);
 
 			} else {
 				/* EVENT
@@ -211,7 +231,7 @@ void FailsafeBase::notifyUser(uint8_t user_intended_mode, Action action, Action 
 				events::send<uint32_t, events::px4::enums::failsafe_action_t>(
 					events::ID("commander_failsafe_enter_generic"),
 				{events::Log::Critical, events::LogInternal::Warning},
-				"Failsafe activated, triggering {2}", mavlink_mode, failsafe_action);
+				"Failsafe activated: Autopilot disengaged, switching to {2}", mavlink_mode, failsafe_action);
 			}
 
 		} else {
@@ -230,6 +250,11 @@ void FailsafeBase::notifyUser(uint8_t user_intended_mode, Action action, Action 
 					events::send(events::ID("commander_failsafe_enter_crit_low_bat_warn"), {events::Log::Emergency, events::LogInternal::Info},
 						     "Emergency battery level, land immediately");
 
+				} else if (cause == Cause::RemainingFlightTimeLow) {
+					events::send(events::ID("commander_failsafe_enter_low_flight_time_warn"),
+					{events::Log::Warning, events::LogInternal::Info},
+					"Low remaining flight time, return advised");
+
 				} else {
 					/* EVENT
 					* @description No action is triggered.
@@ -237,7 +262,7 @@ void FailsafeBase::notifyUser(uint8_t user_intended_mode, Action action, Action 
 					events::send<uint32_t, events::px4::enums::failsafe_cause_t>(
 						events::ID("commander_failsafe_enter_warn"),
 					{events::Log::Warning, events::LogInternal::Warning},
-					"Failsafe warning triggered due to {2}", mavlink_mode, failsafe_cause);
+					"Failsafe warning: {2}", mavlink_mode, failsafe_cause);
 
 				}
 
@@ -247,7 +272,7 @@ void FailsafeBase::notifyUser(uint8_t user_intended_mode, Action action, Action 
 				events::send<uint32_t, events::px4::enums::failsafe_action_t, events::px4::enums::failsafe_cause_t>(
 					events::ID("commander_failsafe_enter"),
 				{events::Log::Critical, events::LogInternal::Warning},
-				"Failsafe activated due to {3}, triggering {2}", mavlink_mode, failsafe_action, failsafe_cause);
+				"{3}: switching to {2}", mavlink_mode, failsafe_action, failsafe_cause);
 			}
 		}
 
@@ -411,6 +436,7 @@ void FailsafeBase::getSelectedAction(const State &state, const failsafe_flags_s 
 	returned_state.action = Action::None;
 	Action &selected_action = returned_state.action;
 	UserTakeoverAllowed allow_user_takeover = UserTakeoverAllowed::Always;
+	bool allow_failsafe_to_be_deferred{true};
 
 	// Select the worst action based on the current active actions
 	for (int action_idx = 0; action_idx < max_num_actions; ++action_idx) {
@@ -426,7 +452,17 @@ void FailsafeBase::getSelectedAction(const State &state, const failsafe_flags_s 
 				selected_action = cur_action.action;
 				returned_state.cause = cur_action.cause;
 			}
+
+			if (!cur_action.can_be_deferred) {
+				allow_failsafe_to_be_deferred = false;
+			}
 		}
+	}
+
+	if (_defer_failsafes && allow_failsafe_to_be_deferred && selected_action != Action::None) {
+		returned_state.failsafe_deferred = selected_action > Action::Warn;
+		returned_state.action = Action::None;
+		return;
 	}
 
 	// Check if we should enter delayed Hold
@@ -481,12 +517,16 @@ void FailsafeBase::getSelectedAction(const State &state, const failsafe_flags_s 
 			break;
 		}
 
+		returned_state.cause = Cause::Generic;
+
 	// fallthrough
 	case Action::FallbackAltCtrl:
 		if (modeCanRun(status_flags, vehicle_status_s::NAVIGATION_STATE_ALTCTL)) {
 			selected_action = Action::FallbackAltCtrl;
 			break;
 		}
+
+		returned_state.cause = Cause::Generic;
 
 	// fallthrough
 	case Action::FallbackStab:
@@ -495,12 +535,16 @@ void FailsafeBase::getSelectedAction(const State &state, const failsafe_flags_s 
 			break;
 		} // else: fall through here as well. If stabilized isn't available, we most certainly end up in Terminate
 
+		returned_state.cause = Cause::Generic;
+
 	// fallthrough
 	case Action::Hold:
 		if (modeCanRun(status_flags, vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER)) {
 			selected_action = Action::Hold;
 			break;
 		}
+
+		returned_state.cause = Cause::Generic;
 
 	// fallthrough
 	case Action::RTL:
@@ -509,6 +553,8 @@ void FailsafeBase::getSelectedAction(const State &state, const failsafe_flags_s 
 			break;
 		}
 
+		returned_state.cause = Cause::Generic;
+
 	// fallthrough
 	case Action::Land:
 		if (modeCanRun(status_flags, vehicle_status_s::NAVIGATION_STATE_AUTO_LAND)) {
@@ -516,12 +562,16 @@ void FailsafeBase::getSelectedAction(const State &state, const failsafe_flags_s 
 			break;
 		}
 
+		returned_state.cause = Cause::Generic;
+
 	// fallthrough
 	case Action::Descend:
 		if (modeCanRun(status_flags, vehicle_status_s::NAVIGATION_STATE_DESCEND)) {
 			selected_action = Action::Descend;
 			break;
 		}
+
+		returned_state.cause = Cause::Generic;
 
 	// fallthrough
 	case Action::Terminate:
@@ -615,6 +665,7 @@ bool FailsafeBase::modeCanRun(const failsafe_flags_s &status_flags, uint8_t mode
 {
 	uint32_t mode_mask = 1u << mode;
 	// mode_req_wind_and_flight_time_compliance: does not need to be handled here (these are separate failsafe triggers)
+	// mode_req_manual_control: is handled separately
 	return
 		(!status_flags.angular_velocity_invalid || ((status_flags.mode_req_angular_velocity & mode_mask) == 0)) &&
 		(!status_flags.attitude_invalid || ((status_flags.mode_req_attitude & mode_mask) == 0)) &&
@@ -626,4 +677,24 @@ bool FailsafeBase::modeCanRun(const failsafe_flags_s &status_flags, uint8_t mode
 		(!status_flags.offboard_control_signal_lost || ((status_flags.mode_req_offboard_signal & mode_mask) == 0)) &&
 		(!status_flags.home_position_invalid || ((status_flags.mode_req_home_position & mode_mask) == 0)) &&
 		((status_flags.mode_req_other & mode_mask) == 0);
+}
+
+bool FailsafeBase::deferFailsafes(bool enabled, int timeout_s)
+{
+	if (enabled && _selected_action > Action::Warn) {
+		return false;
+	}
+
+	if (timeout_s == 0) {
+		_defer_timeout = DEFAULT_DEFER_TIMEOUT;
+
+	} else if (timeout_s < 0) {
+		_defer_timeout = 0;
+
+	} else {
+		_defer_timeout = timeout_s * 1_s;
+	}
+
+	_defer_failsafes = enabled;
+	return true;
 }

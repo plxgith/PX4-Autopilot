@@ -44,6 +44,7 @@
 #include <lib/perf/perf_counter.h>
 #include <lib/pid_design/pid_design.hpp>
 #include <lib/system_identification/system_identification.hpp>
+#include <lib/system_identification/signal_generator.hpp>
 #include <px4_platform_common/defines.h>
 #include <px4_platform_common/module.h>
 #include <px4_platform_common/module_params.h>
@@ -52,17 +53,23 @@
 #include <uORB/Publication.hpp>
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionCallback.hpp>
-#include <uORB/topics/actuator_controls.h>
 #include <uORB/topics/actuator_controls_status.h>
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/autotune_attitude_control_status.h>
 #include <uORB/topics/vehicle_angular_velocity.h>
 #include <uORB/topics/vehicle_status.h>
+#include <uORB/topics/vehicle_torque_setpoint.h>
 #include <mathlib/mathlib.h>
 #include <lib/systemlib/mavlink_log.h>
 
 using namespace time_literals;
+
+enum class SignalType : uint8_t {
+	kStep = 0,
+	kLinearSineSweep,
+	kLogSineSweep
+};
 
 class FwAutotuneAttitudeControl : public ModuleBase<FwAutotuneAttitudeControl>, public ModuleParams,
 	public px4::WorkItem
@@ -108,7 +115,7 @@ private:
 
 	const matrix::Vector3f getIdentificationSignal();
 
-	uORB::SubscriptionCallbackWorkItem _actuator_controls_sub;
+	uORB::SubscriptionCallbackWorkItem _vehicle_torque_setpoint_sub;
 	uORB::SubscriptionCallbackWorkItem _parameter_update_sub{this, ORB_ID(parameter_update)};
 
 	uORB::Subscription _actuator_controls_status_sub;
@@ -193,14 +200,23 @@ private:
 		(ParamFloat<px4::params::FW_RR_P>) _param_fw_rr_p,
 		(ParamFloat<px4::params::FW_RR_I>) _param_fw_rr_i,
 		(ParamFloat<px4::params::FW_RR_FF>) _param_fw_rr_ff,
+		(ParamFloat<px4::params::FW_R_RMAX>) _param_fw_r_rmax,
 		(ParamFloat<px4::params::FW_R_TC>) _param_fw_r_tc,
 		(ParamFloat<px4::params::FW_PR_P>) _param_fw_pr_p,
 		(ParamFloat<px4::params::FW_PR_I>) _param_fw_pr_i,
 		(ParamFloat<px4::params::FW_PR_FF>) _param_fw_pr_ff,
+		(ParamFloat<px4::params::FW_P_RMAX_POS>) _param_fw_p_rmax_pos,
+		(ParamFloat<px4::params::FW_P_RMAX_NEG>) _param_fw_p_rmax_neg,
 		(ParamFloat<px4::params::FW_P_TC>) _param_fw_p_tc,
 		(ParamFloat<px4::params::FW_YR_P>) _param_fw_yr_p,
 		(ParamFloat<px4::params::FW_YR_I>) _param_fw_yr_i,
-		(ParamFloat<px4::params::FW_YR_FF>) _param_fw_yr_ff
+		(ParamFloat<px4::params::FW_YR_FF>) _param_fw_yr_ff,
+		(ParamFloat<px4::params::FW_Y_RMAX>) _param_fw_y_rmax,
+
+		(ParamFloat<px4::params::FW_AT_SYSID_F0>) _param_fw_at_sysid_f0,
+		(ParamFloat<px4::params::FW_AT_SYSID_F1>) _param_fw_at_sysid_f1,
+		(ParamFloat<px4::params::FW_AT_SYSID_TIME>) _param_fw_sysid_time,
+		(ParamInt<px4::params::FW_AT_SYSID_TYPE>) _param_fw_sysid_signal_type
 	)
 
 	static constexpr float _publishing_dt_s = 100e-3f;

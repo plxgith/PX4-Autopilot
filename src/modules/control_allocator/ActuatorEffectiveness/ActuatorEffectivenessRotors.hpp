@@ -126,7 +126,9 @@ public:
 
 	void enableThreeDimensionalThrust(bool enable) { _geometry.three_dimensional_thrust_disabled = !enable; }
 
+	uint32_t getMotors() const;
 	uint32_t getUpwardsMotors() const;
+	uint32_t getForwardsMotors() const;
 
 private:
 	void updateParams() override;
@@ -145,7 +147,10 @@ private:
 		param_t tilt_index;
 	};
 	ParamHandles _param_handles[NUM_ROTORS_MAX];
-	param_t _count_handle;
 
 	Geometry _geometry{};
+
+	DEFINE_PARAMETERS(
+		(ParamInt<px4::params::CA_ROTOR_COUNT>) _param_ca_rotor_count
+	)
 };

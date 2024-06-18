@@ -15,13 +15,11 @@
 
 #include <cmath>
 
-#include "math.hpp"
+#include "Scalar.hpp"
+#include "Vector.hpp"
 
 namespace matrix
 {
-
-template <typename Type, size_t M>
-class Vector;
 
 template <typename Scalar, size_t N>
 struct Dual {
@@ -92,6 +90,16 @@ struct Dual {
 		return (*this = *this / a);
 	}
 
+	bool operator==(const Dual<Scalar, N> &other) const
+	{
+		return isEqualF(value, other.value) && (derivative == other.derivative);
+	}
+
+	bool operator!=(const Dual<Scalar, N> &other) const
+	{
+		const Dual<Scalar, N> &self = *this;
+		return !(self == other);
+	}
 };
 
 // operators
@@ -359,23 +367,12 @@ Matrix<Scalar, M, N> collectReals(const Matrix<Dual<Scalar, D>, M, N> &input)
 	return r;
 }
 
-#if defined(SUPPORT_STDIOSTREAM)
-template<typename Type, size_t N>
-std::ostream &operator<<(std::ostream &os,
-			 const matrix::Dual<Type, N> &dual)
+template<typename OStream, typename Type, size_t N>
+OStream &operator<<(OStream &os, const matrix::Dual<Type, N> &dual)
 {
-	os << "[";
-	os << std::setw(10) << dual.value << ";";
-
-	for (size_t j = 0; j < N; ++j) {
-		os << "\t";
-		os << std::setw(10) << static_cast<double>(dual.derivative(j));
-	}
-
-	os << "]";
+	os << "\nValue: " << dual.value << "\nDerivative:" << dual.derivative;
 	return os;
 }
-#endif // defined(SUPPORT_STDIOSTREAM)
 
 }
 

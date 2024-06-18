@@ -36,6 +36,7 @@
 #include "log_writer.h"
 #include "logged_topics.h"
 #include "messages.h"
+#include "watchdog.h"
 #include <containers/Array.hpp>
 #include "util.h"
 #include <px4_platform_common/defines.h>
@@ -91,6 +92,20 @@ public:
 		arm_until_shutdown,
 	};
 
+	enum class PrintLoadReason {
+		Preflight,
+		Postflight,
+		Watchdog
+	};
+
+	struct timer_callback_data_s {
+		px4_sem_t semaphore;
+
+		watchdog_data_t watchdog_data;
+		px4::atomic_bool watchdog_triggered{false};
+	};
+
+
 	Logger(LogWriter::Backend backend, size_t buffer_size, uint32_t log_interval, const char *poll_topic_name,
 	       LogMode log_mode, bool log_name_timestamp, float rate_factor);
 
@@ -131,13 +146,14 @@ public:
 
 	void set_arm_override(bool override) { _manually_logging_override = override; }
 
-private:
+	void trigger_watchdog_now()
+	{
+#ifdef __PX4_NUTTX
+		_timer_callback_data.watchdog_data.manual_watchdog_trigger = true;
+#endif
+	}
 
-	enum class PrintLoadReason {
-		Preflight,
-		Postflight,
-		Watchdog
-	};
+private:
 
 	static constexpr int		MAX_MISSION_TOPICS_NUM = 5; /**< Maximum number of mission topics */
 	static constexpr unsigned	MAX_NO_LOGFILE = 999;	/**< Maximum number of log files */
@@ -220,18 +236,12 @@ private:
 	 */
 	void write_header(LogType type);
 
-	/// Array to store written formats for nested definitions (only)
-	using WrittenFormats = Array < const orb_metadata *, 20 >;
-
-	void write_format(LogType type, const orb_metadata &meta, WrittenFormats &written_formats, ulog_message_format_s &msg,
-			  int subscription_index, int level = 1);
 	void write_formats(LogType type);
 
 	/**
 	 * write performance counters
-	 * @param preflight preflight if true, postflight otherwise
 	 */
-	void write_perf_data(bool preflight);
+	void write_perf_data(PrintLoadReason reason);
 
 	/**
 	 * write bootup console output
@@ -300,6 +310,8 @@ private:
 	void handle_vehicle_command_update();
 	void ack_vehicle_command(vehicle_command_s *cmd, uint32_t result);
 
+	void handle_file_write_error();
+
 	/**
 	 * initialize the output for the process load, so that ~1 second later it will be written to the log
 	 */
@@ -331,7 +343,7 @@ private:
 
 	LogFileName					_file_name[(int)LogType::Count];
 
-	bool						_prev_state{false}; ///< previous state depending on logging mode (arming or aux1 state)
+	bool						_prev_file_log_start_state{false}; ///< previous state depending on logging mode (arming or aux1 state)
 	bool						_manually_logging_override{false};
 
 	Statistics					_statistics[(int)LogType::Count];
@@ -348,7 +360,7 @@ private:
 	uint16_t 					_event_sequence_offset{0}; ///< event sequence offset to account for skipped (not logged) messages
 	uint16_t 					_event_sequence_offset_mission{0};
 
-	uint8_t						_excluded_optional_topic_ids[LoggedTopics::MAX_EXCLUDED_OPTIONAL_TOPICS_NUM];
+	orb_id_size_t  					_excluded_optional_topic_ids[LoggedTopics::MAX_EXCLUDED_OPTIONAL_TOPICS_NUM];
 	int						_num_excluded_optional_topic_ids{0};
 
 	LogWriter					_writer;
@@ -370,6 +382,8 @@ private:
 	int						_lockstep_component{-1};
 
 	uint32_t					_message_gaps{0};
+
+	timer_callback_data_s				_timer_callback_data{};
 
 	uORB::Subscription				_manual_control_setpoint_sub{ORB_ID(manual_control_setpoint)};
 	uORB::Subscription				_vehicle_command_sub{ORB_ID(vehicle_command)};

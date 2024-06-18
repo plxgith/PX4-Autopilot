@@ -75,6 +75,7 @@ add_definitions(
 	-DUAVCAN_${UAVCAN_DRIVER_UPPER}_${OS_UPPER}=1
 	-DUAVCAN_${UAVCAN_DRIVER_UPPER}_NUM_IFACES=${config_uavcan_num_ifaces}
 	-DUAVCAN_${UAVCAN_DRIVER_UPPER}_TIMER_NUMBER=${UAVCAN_TIMER}
+	-DUAVCAN_NUM_IFACES=${config_uavcan_num_ifaces}
 	-DUAVCAN_CPP_VERSION=UAVCAN_CPP03
 	-DUAVCAN_DRIVER=uavcan_${UAVCAN_DRIVER}
 	-DUAVCAN_IMPLEMENT_PLACEMENT_NEW=1
@@ -142,6 +143,8 @@ px4_add_module(
 		${LIBUAVCAN_DIR}/libuavcan_drivers/posix/include
 		${LIBUAVCAN_DIR_DRIVERS}/${UAVCAN_DRIVER}/driver/include
 	SRCS
+		arming_status.cpp
+		arming_status.hpp
 		beep.cpp
 		beep.hpp
 		rgbled.cpp
@@ -165,6 +168,8 @@ px4_add_module(
 		sensors/battery.cpp
 		sensors/airspeed.cpp
 		sensors/flow.cpp
+		sensors/fuel_tank_status.cpp
+		sensors/gnss_relative.cpp
 		sensors/gnss.cpp
 		sensors/mag.cpp
 		sensors/rangefinder.cpp

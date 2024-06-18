@@ -44,7 +44,7 @@ using namespace matrix;
 FwAutotuneAttitudeControl::FwAutotuneAttitudeControl(bool is_vtol) :
 	ModuleParams(nullptr),
 	WorkItem(MODULE_NAME, px4::wq_configurations::hp_default),
-	_actuator_controls_sub(this, is_vtol ? ORB_ID(actuator_controls_1) : ORB_ID(actuator_controls_0)),
+	_vehicle_torque_setpoint_sub(this, ORB_ID(vehicle_torque_setpoint), is_vtol ? 1 : 0),
 	_actuator_controls_status_sub(is_vtol ? ORB_ID(actuator_controls_status_1) : ORB_ID(actuator_controls_status_0))
 {
 	_autotune_attitude_control_status_pub.advertise();
@@ -65,7 +65,7 @@ bool FwAutotuneAttitudeControl::init()
 
 	_signal_filter.setParameters(_publishing_dt_s, .2f); // runs in the slow publishing loop
 
-	if (!_actuator_controls_sub.registerCallback()) {
+	if (!_vehicle_torque_setpoint_sub.registerCallback()) {
 		PX4_ERR("callback registration failed");
 		return false;
 	}
@@ -75,13 +75,14 @@ bool FwAutotuneAttitudeControl::init()
 
 void FwAutotuneAttitudeControl::reset()
 {
+	_param_fw_at_start.reset();
 }
 
 void FwAutotuneAttitudeControl::Run()
 {
 	if (should_exit()) {
 		_parameter_update_sub.unregisterCallback();
-		_actuator_controls_sub.unregisterCallback();
+		_vehicle_torque_setpoint_sub.unregisterCallback();
 		exit_and_cleanup();
 		return;
 	}
@@ -101,7 +102,7 @@ void FwAutotuneAttitudeControl::Run()
 
 	// new control data needed every iteration
 	if ((_state == state::idle && !_aux_switch_en)
-	    || !_actuator_controls_sub.updated()) {
+	    || !_vehicle_torque_setpoint_sub.updated()) {
 
 		return;
 	}
@@ -123,17 +124,17 @@ void FwAutotuneAttitudeControl::Run()
 		}
 	}
 
-	actuator_controls_s controls;
+	vehicle_torque_setpoint_s vehicle_torque_setpoint;
 	vehicle_angular_velocity_s angular_velocity;
 
-	if (!_actuator_controls_sub.copy(&controls)
+	if (!_vehicle_torque_setpoint_sub.copy(&vehicle_torque_setpoint)
 	    || !_vehicle_angular_velocity_sub.copy(&angular_velocity)) {
 		return;
 	}
 
 	perf_begin(_cycle_perf);
 
-	const hrt_abstime timestamp_sample = controls.timestamp;
+	const hrt_abstime timestamp_sample = vehicle_torque_setpoint.timestamp;
 
 	// collect sample interval average for filters
 	if (_last_run > 0) {
@@ -152,15 +153,15 @@ void FwAutotuneAttitudeControl::Run()
 	checkFilters();
 
 	if (_state == state::roll) {
-		_sys_id.update(_input_scale * controls.control[actuator_controls_s::INDEX_ROLL],
+		_sys_id.update(_input_scale * vehicle_torque_setpoint.xyz[0],
 			       angular_velocity.xyz[0]);
 
 	} else if (_state == state::pitch) {
-		_sys_id.update(_input_scale * controls.control[actuator_controls_s::INDEX_PITCH],
+		_sys_id.update(_input_scale * vehicle_torque_setpoint.xyz[1],
 			       angular_velocity.xyz[1]);
 
 	} else if (_state == state::yaw) {
-		_sys_id.update(_input_scale * controls.control[actuator_controls_s::INDEX_YAW],
+		_sys_id.update(_input_scale * vehicle_torque_setpoint.xyz[2],
 			       angular_velocity.xyz[2]);
 	}
 
@@ -180,7 +181,11 @@ void FwAutotuneAttitudeControl::Run()
 		Vector3f kid = pid_design::computePidGmvc(num_design, den, _sample_interval_avg, 0.2f, 0.f, 0.4f);
 		_kiff(0) = kid(0);
 		_kiff(1) = kid(1);
-		_attitude_p = 8.f / (M_PI_F * (_kiff(2) + _kiff(0))); // Maximum control power at an attitude error of pi/8
+
+		// To compute the attitude gain, use the following empirical rule:
+		// "An error of 60 degrees should produce the maximum control output"
+		// or K_att * (K_rate + K_ff) * rad(60) = 1
+		_attitude_p = math::constrain(1.f / (math::radians(60.f) * (_kiff(0) + _kiff(2))), 1.f, 5.f);
 
 		const Vector<float, 5> &coeff_var = _sys_id.getVariances();
 		const Vector3f rate_sp = _sys_id.areFiltersInitialized()
@@ -225,7 +230,7 @@ void FwAutotuneAttitudeControl::checkFilters()
 			reset_filters = true;
 		}
 
-		if (reset_filters) {
+		if (reset_filters || !_are_filters_initialized) {
 			_are_filters_initialized = true;
 			_filter_sample_rate = update_rate_hz;
 			_sys_id.setLpfCutoffFrequency(_filter_sample_rate, _param_imu_gyro_cutoff.get());
@@ -615,22 +620,52 @@ void FwAutotuneAttitudeControl::saveGainsToParams()
 
 const Vector3f FwAutotuneAttitudeControl::getIdentificationSignal()
 {
-	if (_steps_counter > _max_steps) {
-		_signal_sign = (_signal_sign == 1) ? 0 : 1;
-		_steps_counter = 0;
 
-		if (_max_steps > 1) {
-			_max_steps--;
 
-		} else {
-			_max_steps = 5;
+	const hrt_abstime now = hrt_absolute_time();
+	const float t = static_cast<float>(now - _state_start_time) * 1e-6f;
+	float signal = 0.0f;
+
+	switch (_param_fw_sysid_signal_type.get()) {
+	case  static_cast<int32_t>(SignalType::kStep): {
+			if (_steps_counter > _max_steps) {
+				_signal_sign = (_signal_sign == 1) ? 0 : 1;
+				_steps_counter = 0;
+
+				if (_max_steps > 1) {
+					_max_steps--;
+
+				} else {
+					_max_steps = 5;
+				}
+			}
+
+			_steps_counter++;
+			signal = float(_signal_sign);
 		}
+		break;
+
+	case static_cast<int32_t>(SignalType::kLinearSineSweep): {
+
+			signal = signal_generator::getLinearSineSweep(_param_fw_at_sysid_f0.get(),
+					_param_fw_at_sysid_f1.get(),
+					_param_fw_sysid_time.get(), t);
+		}
+		break;
+
+	case static_cast<int32_t>(SignalType::kLogSineSweep): {
+			signal = signal_generator::getLogSineSweep(_param_fw_at_sysid_f0.get(), _param_fw_at_sysid_f1.get(),
+					_param_fw_sysid_time.get(), t);
+		}
+		break;
+
+	default:
+		signal = 0.f;
+		break;
 	}
 
-	_steps_counter++;
 
-	const float signal = float(_signal_sign) * _param_fw_at_sysid_amp.get();
-
+	signal *= _param_fw_at_sysid_amp.get();
 	Vector3f rate_sp{};
 
 	float signal_scaled = 0.f;
@@ -638,19 +673,21 @@ const Vector3f FwAutotuneAttitudeControl::getIdentificationSignal()
 	if (_state == state::roll || _state == state::test) {
 		// Scale the signal such that the attitude controller is
 		// able to cancel it completely at an attitude error of pi/8
-		signal_scaled = signal * M_PI_F / (8.f * _param_fw_r_tc.get());
+		signal_scaled = math::min(signal * M_PI_F / (8.f * _param_fw_r_tc.get()), math::radians(_param_fw_r_rmax.get()));
 		rate_sp(0) = signal_scaled - _signal_filter.getState();
 	}
 
 	if (_state ==  state::pitch || _state == state::test) {
-		signal_scaled = signal * M_PI_F / (8.f * _param_fw_p_tc.get());
+		const float pitch_rate_max_deg = math::min(_param_fw_p_rmax_pos.get(), _param_fw_p_rmax_neg.get());
+		signal_scaled = math::min(signal * M_PI_F / (8.f * _param_fw_p_tc.get()), math::radians(pitch_rate_max_deg));
 		rate_sp(1) = signal_scaled - _signal_filter.getState();
 
 	}
 
 	if (_state ==  state::yaw) {
 		// Do not send a signal that produces more than a full deflection of the rudder
-		signal_scaled = math::min(signal, 1.f / (_param_fw_yr_ff.get() + _param_fw_yr_p.get()));
+		signal_scaled = math::min(signal, 1.f / (_param_fw_yr_ff.get() + _param_fw_yr_p.get()),
+					  math::radians(_param_fw_y_rmax.get()));
 		rate_sp(2) = signal_scaled - _signal_filter.getState();
 	}
 

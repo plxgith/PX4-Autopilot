@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2018 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2018-2023 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -141,9 +141,13 @@ bool FlightTaskAuto::update()
 		_velocity_setpoint(2) = NAN;
 		break;
 
+	case WaypointType::loiter:
+		if (_param_mpc_land_rc_help.get() && _sticks.checkAndUpdateStickInputs()) {
+			rcHelpModifyYaw(_yaw_setpoint);
+		}
+
 	// FALLTHROUGH
 	case WaypointType::takeoff:
-	case WaypointType::loiter:
 	case WaypointType::position:
 	default:
 		// Simple waypoint navigation: go to xyz target, with standard limitations
@@ -166,7 +170,8 @@ bool FlightTaskAuto::update()
 		waypoints[2] = _position_setpoint;
 	}
 
-	const bool should_wait_for_yaw_align = _param_mpc_yaw_mode.get() == 4 && !_yaw_sp_aligned;
+	const bool should_wait_for_yaw_align = _param_mpc_yaw_mode.get() == int32_t(yaw_mode::towards_waypoint_yaw_first)
+					       && !_yaw_sp_aligned;
 	const bool force_zero_velocity_setpoint = should_wait_for_yaw_align || _is_emergency_braking_active;
 	_updateTrajConstraints();
 	PositionSmoothing::PositionSmoothingSetpoints smoothed_setpoints;
@@ -213,6 +218,17 @@ void FlightTaskAuto::overrideCruiseSpeed(const float cruise_speed_m_s)
 	_time_last_cruise_speed_override = hrt_absolute_time();
 }
 
+void FlightTaskAuto::rcHelpModifyYaw(float &yaw_sp)
+{
+	// Only set a yawrate setpoint if weather vane is not active or the yaw stick is out of its dead-zone
+	if (!_weathervane.isActive() || fabsf(_sticks.getYawExpo()) > FLT_EPSILON) {
+		_stick_yaw.generateYawSetpoint(_yawspeed_setpoint, yaw_sp, _sticks.getYawExpo(), _yaw, _deltatime);
+
+		// Hack to make sure the MPC_YAW_MODE 4 alignment doesn't stop the vehicle from descending when there's yaw input
+		_yaw_sp_aligned = true;
+	}
+}
+
 void FlightTaskAuto::_prepareLandSetpoints()
 {
 	_velocity_setpoint.setNaN(); // Don't take over any smoothed velocity setpoint
@@ -229,31 +245,53 @@ void FlightTaskAuto::_prepareLandSetpoints()
 	}
 
 	if (_type_previous != WaypointType::land) {
-		// initialize xy-position and yaw to waypoint such that home is reached exactly without user input
-		_land_position = Vector3f(_target(0), _target(1), NAN);
+		// initialize yaw and xy-position
 		_land_heading = _yaw_setpoint;
 		_stick_acceleration_xy.resetPosition(Vector2f(_target(0), _target(1)));
+		_initial_land_position = Vector3f(_target(0), _target(1), NAN);
 	}
+
+	// Update xy-position in case of landing position changes (etc. precision landing)
+	_land_position = Vector3f(_target(0), _target(1), NAN);
 
 	// User input assisted landing
 	if (_param_mpc_land_rc_help.get() && _sticks.checkAndUpdateStickInputs()) {
 		// Stick full up -1 -> stop, stick full down 1 -> double the speed
-		vertical_speed *= (1 + _sticks.getPositionExpo()(2));
+		vertical_speed *= (1 - _sticks.getThrottleZeroCenteredExpo());
 
-		// Only set a yawrate setpoint if weather vane is not active or the yaw stick is out of its dead-zone
-		if (!_weathervane.isActive() || fabsf(_sticks.getPositionExpo()(3)) > FLT_EPSILON) {
-			_stick_yaw.generateYawSetpoint(_yawspeed_setpoint, _land_heading,
-						       _sticks.getPositionExpo()(3) * math::radians(_param_mpc_man_y_max.get()), _yaw, _is_yaw_good_for_control, _deltatime);
+		rcHelpModifyYaw(_land_heading);
+
+		Vector2f sticks_xy = _sticks.getPitchRollExpo();
+		Vector2f sticks_ne = sticks_xy;
+		Sticks::rotateIntoHeadingFrameXY(sticks_ne, _yaw, _land_heading);
+
+		const float distance_to_circle = math::trajectory::getMaxDistanceToCircle(_position.xy(), _initial_land_position.xy(),
+						 _param_mpc_land_radius.get(), sticks_ne);
+		float max_speed;
+
+		if (PX4_ISFINITE(distance_to_circle)) {
+			max_speed = math::trajectory::computeMaxSpeedFromDistance(_stick_acceleration_xy.getMaxJerk(),
+					_stick_acceleration_xy.getMaxAcceleration(), distance_to_circle, 0.f);
+
+			if (max_speed < 0.5f) {
+				sticks_xy.setZero();
+			}
+
+		} else {
+			max_speed = 0.f;
+			sticks_xy.setZero();
 		}
 
-		_stick_acceleration_xy.generateSetpoints(_sticks.getPositionExpo().slice<2, 1>(0, 0), _yaw, _land_heading, _position,
+		// If ground distance estimate valid (distance sensor) during nudging then limit horizontal speed
+		if (PX4_ISFINITE(_dist_to_bottom)) {
+			// Below 50cm no horizontal speed, above allow per meter altitude 0.5m/s speed
+			max_speed = math::max(0.f, math::min(max_speed, (_dist_to_bottom - .5f) * .5f));
+		}
+
+		_stick_acceleration_xy.setVelocityConstraint(max_speed);
+		_stick_acceleration_xy.generateSetpoints(sticks_xy, _yaw, _land_heading, _position,
 				_velocity_setpoint_feedback.xy(), _deltatime);
 		_stick_acceleration_xy.getSetpoints(_land_position, _velocity_setpoint, _acceleration_setpoint);
-
-		// Hack to make sure the MPC_YAW_MODE 4 alignment doesn't stop the vehicle from descending when there's yaw input
-		if (fabsf(_yawspeed_setpoint) > FLT_EPSILON) {
-			_yaw_sp_aligned = true;
-		}
 
 	} else {
 		// Make sure we have a valid land position even in the case we loose RC while amending it
@@ -289,12 +327,12 @@ void FlightTaskAuto::_limitYawRate()
 		if (!PX4_ISFINITE(_yawspeed_setpoint) && (_deltatime > FLT_EPSILON)) {
 			// Create a feedforward using the filtered derivative
 			_yawspeed_filter.setParameters(_deltatime, .2f);
-			_yawspeed_filter.update(dyaw);
-			_yawspeed_setpoint = _yawspeed_filter.getState() / _deltatime;
+			_yawspeed_filter.update(dyaw / _deltatime);
+			_yawspeed_setpoint = _yawspeed_filter.getState();
 		}
 	}
 
-	_yaw_sp_prev = _yaw_setpoint;
+	_yaw_sp_prev = PX4_ISFINITE(_yaw_setpoint) ? _yaw_setpoint : _yaw;
 
 	if (PX4_ISFINITE(_yawspeed_setpoint)) {
 		// The yaw setpoint is aligned when its rate is not saturated
@@ -435,7 +473,7 @@ bool FlightTaskAuto::_evaluateTriplets()
 	}
 
 	// activation/deactivation of weather vane is based on parameter WV_EN and setting of navigator (allow_weather_vane)
-	_weathervane.setNavigatorForceDisabled(_sub_triplet_setpoint.get().current.disable_weather_vane);
+	_weathervane.setNavigatorForceDisabled(PX4_ISFINITE(_sub_triplet_setpoint.get().current.yaw));
 
 	// Calculate the current vehicle state and check if it has updated.
 	State previous_state = _current_state;
@@ -450,7 +488,7 @@ bool FlightTaskAuto::_evaluateTriplets()
 		_obstacle_avoidance.updateAvoidanceDesiredWaypoints(_triplet_target, _yaw_setpoint, _yawspeed_setpoint,
 				_triplet_next_wp,
 				_sub_triplet_setpoint.get().next.yaw,
-				_sub_triplet_setpoint.get().next.yawspeed_valid ? _sub_triplet_setpoint.get().next.yawspeed : (float)NAN,
+				(float)NAN,
 				_weathervane.isActive(), _sub_triplet_setpoint.get().current.type);
 		_obstacle_avoidance.checkAvoidanceProgress(
 			_position, _triplet_prev_wp, _target_acceptance_radius, Vector2f(_closest_pt));
@@ -478,13 +516,7 @@ bool FlightTaskAuto::_evaluateTriplets()
 			_yaw_setpoint = NAN;
 			_yawspeed_setpoint = 0.f;
 
-		} else if ((_type != WaypointType::takeoff || _sub_triplet_setpoint.get().current.disable_weather_vane)
-			   && _sub_triplet_setpoint.get().current.yaw_valid) {
-			// Use the yaw computed in Navigator except during takeoff because
-			// Navigator is not handling the yaw reset properly.
-			// But: use if from Navigator during takeoff if disable_weather_vane is true,
-			// because we're then aligning to the transition waypoint.
-			// TODO: fix in navigator
+		} else if (PX4_ISFINITE(_sub_triplet_setpoint.get().current.yaw)) {
 			_yaw_setpoint = _sub_triplet_setpoint.get().current.yaw;
 			_yawspeed_setpoint = NAN;
 
@@ -501,32 +533,37 @@ void FlightTaskAuto::_set_heading_from_mode()
 
 	Vector2f v; // Vector that points towards desired location
 
-	switch (_param_mpc_yaw_mode.get()) {
+	switch (yaw_mode(_param_mpc_yaw_mode.get())) {
 
-	case 0: // Heading points towards the current waypoint.
-	case 4: // Same as 0 but yaw first and then go
+	case yaw_mode::towards_waypoint: // Heading points towards the current waypoint.
+	case yaw_mode::towards_waypoint_yaw_first: // Same as 0 but yaw first and then go
 		v = Vector2f(_target) - Vector2f(_position);
 		break;
 
-	case 1: // Heading points towards home.
+	case yaw_mode::towards_home: // Heading points towards home.
 		if (_sub_home_position.get().valid_lpos) {
 			v = Vector2f(&_sub_home_position.get().x) - Vector2f(_position);
 		}
 
 		break;
 
-	case 2: // Heading point away from home.
+	case yaw_mode::away_from_home: // Heading point away from home.
 		if (_sub_home_position.get().valid_lpos) {
 			v = Vector2f(_position) - Vector2f(&_sub_home_position.get().x);
 		}
 
 		break;
 
-	case 3: // Along trajectory.
+	case yaw_mode::along_trajectory: // Along trajectory.
 		// The heading depends on the kind of setpoint generation. This needs to be implemented
 		// in the subclasses where the velocity setpoints are generated.
 		v.setAll(NAN);
 		break;
+
+	case yaw_mode::yaw_fixed: // Yaw fixed.
+		// Yaw is operated via manual control or MAVLINK messages.
+		break;
+
 	}
 
 	if (v.isAllFinite()) {
@@ -605,7 +642,11 @@ State FlightTaskAuto::_getCurrentState()
 
 	State return_state = State::none;
 
-	if (u_prev_to_target_xy * pos_to_target_xy < 0.0f) {
+	if (u_prev_to_target_xy.length() < FLT_EPSILON) {
+		// Previous and target are the same point, so we better don't try to do any special line following
+		return_state = State::none;
+
+	} else if (u_prev_to_target_xy * pos_to_target_xy < 0.0f) {
 		// Target is behind
 		return_state = State::target_behind;
 
@@ -769,14 +810,13 @@ void FlightTaskAuto::_updateTrajConstraints()
 	// Update the constraints of the trajectories
 	_position_smoothing.setMaxAccelerationXY(_param_mpc_acc_hor.get()); // TODO : Should be computed using heading
 	_position_smoothing.setMaxVelocityXY(_param_mpc_xy_vel_max.get());
-	float max_jerk = _param_mpc_jerk_auto.get();
-	_position_smoothing.setMaxJerk({max_jerk, max_jerk, max_jerk}); // TODO : Should be computed using heading
+	_position_smoothing.setMaxJerk(_param_mpc_jerk_auto.get()); // TODO : Should be computed using heading
 
 	if (_is_emergency_braking_active) {
 		// When initializing with large velocity, allow 1g of
 		// acceleration in 1s on all axes for fast braking
-		_position_smoothing.setMaxAcceleration({9.81f, 9.81f, 9.81f});
-		_position_smoothing.setMaxJerk({9.81f, 9.81f, 9.81f});
+		_position_smoothing.setMaxAcceleration({CONSTANTS_ONE_G, CONSTANTS_ONE_G, CONSTANTS_ONE_G});
+		_position_smoothing.setMaxJerk(CONSTANTS_ONE_G);
 
 		// If the current velocity is beyond the usual constraints, tell
 		// the controller to exceptionally increase its saturations to avoid

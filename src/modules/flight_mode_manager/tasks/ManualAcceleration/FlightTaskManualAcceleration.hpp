@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2020 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2020-2023 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,13 +31,6 @@
  *
  ****************************************************************************/
 
-/**
- * @file FlightTaskManualPosition.hpp
- *
- * Flight task for manual position controlled mode.
- *
- */
-
 #pragma once
 
 #include "FlightTaskManualAltitudeSmoothVel.hpp"
@@ -53,12 +46,10 @@ public:
 	bool activate(const trajectory_setpoint_s &last_setpoint) override;
 	bool update() override;
 
-private:
+protected:
 	void _ekfResetHandlerPositionXY(const matrix::Vector2f &delta_xy) override;
 	void _ekfResetHandlerVelocityXY(const matrix::Vector2f &delta_vxy) override;
 
 	StickAccelerationXY _stick_acceleration_xy{this};
-	StickYaw _stick_yaw;
-
 	WeatherVane _weathervane{this}; /**< weathervane library, used to implement a yaw control law that turns the vehicle nose into the wind */
 };

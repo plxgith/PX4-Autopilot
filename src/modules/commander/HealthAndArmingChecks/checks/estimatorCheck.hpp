@@ -66,11 +66,10 @@ private:
 				       const vehicle_local_position_s &lpos);
 
 	void checkGps(const Context &context, Report &reporter, const sensor_gps_s &vehicle_gps_position) const;
-	void gpsNoLongerValid(const Context &context, Report &reporter) const;
 	void lowPositionAccuracy(const Context &context, Report &reporter, const vehicle_local_position_s &lpos) const;
 	void setModeRequirementFlags(const Context &context, bool pre_flt_fail_innov_heading, bool pre_flt_fail_innov_vel_horiz,
 				     const vehicle_local_position_s &lpos, const sensor_gps_s &vehicle_gps_position,
-				     failsafe_flags_s &failsafe_flags);
+				     failsafe_flags_s &failsafe_flags, Report &reporter);
 
 	bool checkPosVelValidity(const hrt_abstime &now, const bool data_valid, const float data_accuracy,
 				 const float required_accuracy,
@@ -100,13 +99,13 @@ private:
 	bool		_nav_test_passed{false};	///< true if the post takeoff navigation test has passed
 	bool		_nav_test_failed{false};	///< true if the post takeoff navigation test has failed
 
-	static constexpr hrt_abstime GPS_VALID_TIME{3_s};
-	systemlib::Hysteresis _vehicle_gps_position_valid{false};
-
 	bool _position_reliant_on_optical_flow{false};
 
+	bool _gps_was_fused{false};
+
+	bool _nav_failure_imminent_warned{false};
+
 	DEFINE_PARAMETERS_CUSTOM_PARENT(HealthAndArmingCheckBase,
-					(ParamInt<px4::params::SYS_MC_EST_GROUP>) _param_sys_mc_est_group,
 					(ParamInt<px4::params::SENS_IMU_MODE>) _param_sens_imu_mode,
 					(ParamInt<px4::params::COM_ARM_MAG_STR>) _param_com_arm_mag_str,
 					(ParamFloat<px4::params::COM_ARM_EKF_HGT>) _param_com_arm_ekf_hgt,
@@ -116,7 +115,6 @@ private:
 					(ParamBool<px4::params::COM_ARM_WO_GPS>) _param_com_arm_wo_gps,
 					(ParamBool<px4::params::SYS_HAS_GPS>) _param_sys_has_gps,
 					(ParamFloat<px4::params::COM_POS_FS_EPH>) _param_com_pos_fs_eph,
-					(ParamFloat<px4::params::COM_POS_FS_EPV>) _param_com_pos_fs_epv,
 					(ParamFloat<px4::params::COM_VEL_FS_EVH>) _param_com_vel_fs_evh,
 					(ParamInt<px4::params::COM_POS_FS_DELAY>) _param_com_pos_fs_delay,
 					(ParamFloat<px4::params::COM_POS_LOW_EPH>) _param_com_low_eph

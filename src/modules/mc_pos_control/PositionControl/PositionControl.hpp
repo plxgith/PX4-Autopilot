@@ -122,9 +122,9 @@ public:
 
 	/**
 	 * Set the normalized hover thrust
-	 * @param thrust [0.1, 0.9] with which the vehicle hovers not acelerating down or up with level orientation
+	 * @param hover_thrust [HOVER_THRUST_MIN, HOVER_THRUST_MAX] with which the vehicle hovers not accelerating down or up with level orientation
 	 */
-	void setHoverThrust(const float hover_thrust) { _hover_thrust = math::constrain(hover_thrust, 0.1f, 0.9f); }
+	void setHoverThrust(const float hover_thrust) { _hover_thrust = math::constrain(hover_thrust, HOVER_THRUST_MIN, HOVER_THRUST_MAX); }
 
 	/**
 	 * Update the hover thrust without immediately affecting the output
@@ -164,6 +164,11 @@ public:
 	void resetIntegral() { _vel_int.setZero(); }
 
 	/**
+	 * If set, the tilt setpoint is computed by assuming no vertical acceleration
+	 */
+	void decoupleHorizontalAndVecticalAcceleration(bool val) { _decouple_horizontal_and_vertical_acceleration = val; }
+
+	/**
 	 * Get the controllers output local position setpoint
 	 * These setpoints are the ones which were executed on including PID output and feed-forward.
 	 * The acceleration or thrust setpoints can be used for attitude control.
@@ -185,6 +190,10 @@ public:
 	static const trajectory_setpoint_s empty_trajectory_setpoint;
 
 private:
+	// The range limits of the hover thrust configuration/estimate
+	static constexpr float HOVER_THRUST_MIN = 0.05f;
+	static constexpr float HOVER_THRUST_MAX = 0.9f;
+
 	bool _inputValid();
 
 	void _positionControl(); ///< Position proportional control
@@ -206,7 +215,8 @@ private:
 	float _lim_thr_xy_margin{}; ///< Margin to keep for horizontal control when saturating prioritized vertical thrust
 	float _lim_tilt{}; ///< Maximum tilt from level the output attitude is allowed to have
 
-	float _hover_thrust{}; ///< Thrust [0.1, 0.9] with which the vehicle hovers not accelerating down or up with level orientation
+	float _hover_thrust{}; ///< Thrust [HOVER_THRUST_MIN, HOVER_THRUST_MAX] with which the vehicle hovers not accelerating down or up with level orientation
+	bool _decouple_horizontal_and_vertical_acceleration{true}; ///< Ignore vertical acceleration setpoint to remove its effect on the tilt setpoint
 
 	// States
 	matrix::Vector3f _pos; /**< current position */

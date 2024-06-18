@@ -43,6 +43,7 @@
 
 #include "batmon.h"
 #include <mathlib/mathlib.h>
+#include <lib/atmosphere/atmosphere.h>
 
 extern "C" __EXPORT int batmon_main(int argc, char *argv[]);
 
@@ -186,7 +187,7 @@ void Batmon::RunImpl()
 
 	// Read battery temperature and covert to Celsius.
 	ret |= _interface->read_word(BATT_SMBUS_TEMP, result);
-	new_report.temperature = ((float)result / 10.0f) + CONSTANTS_ABSOLUTE_NULL_CELSIUS;
+	new_report.temperature = ((float)result / 10.0f) + atmosphere::kAbsoluteNullCelsius;
 
 	// Only publish if no errors.
 	if (ret == PX4_OK) {
@@ -239,7 +240,7 @@ int Batmon::get_batmon_startup_info()
 	_cell_count = math::min((uint8_t)num_cells, (uint8_t)MAX_CELL_COUNT);
 
 	int32_t _num_cells = num_cells;
-	param_set(param_find("BAT_N_CELLS"), &_num_cells);
+	param_set(param_find("BAT1_N_CELLS"), &_num_cells);
 
 	return ret;
 }

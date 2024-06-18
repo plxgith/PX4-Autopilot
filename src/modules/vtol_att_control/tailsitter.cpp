@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2015-2022 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2015-2023 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -42,11 +42,6 @@
 #include "tailsitter.h"
 #include "vtol_att_control_main.h"
 
-#include <uORB/topics/landing_gear.h>
-
-#define PITCH_TRANSITION_FRONT_P1 -1.1f	// pitch angle to switch to TRANSITION_P2
-#define PITCH_TRANSITION_BACK -0.25f	// pitch angle to switch to MC
-
 using namespace matrix;
 
 Tailsitter::Tailsitter(VtolAttitudeControl *attc) :
@@ -69,10 +64,13 @@ void Tailsitter::update_vtol_state()
 	 * For the backtransition the pitch is controlled in MC mode again and switches to full MC control reaching the sufficient pitch angle.
 	*/
 
-	float pitch = Eulerf(Quatf(_v_att->q)).theta();
 
 	if (_vtol_vehicle_status->fixed_wing_system_failure) {
 		// Failsafe event, switch to MC mode immediately
+		if (_vtol_mode != vtol_mode::MC_MODE) {
+			_transition_start_timestamp = hrt_absolute_time();
+		}
+
 		_vtol_mode = vtol_mode::MC_MODE;
 
 	} else if (!_attc->is_fixed_wing_requested()) {
@@ -92,9 +90,10 @@ void Tailsitter::update_vtol_state()
 			break;
 
 		case vtol_mode::TRANSITION_BACK:
+			const float pitch = Eulerf(Quatf(_v_att->q)).theta();
 
 			// check if we have reached pitch angle to switch to MC mode
-			if (pitch >= PITCH_TRANSITION_BACK || _time_since_trans_start > _param_vt_b_trans_dur.get()) {
+			if (pitch >= PITCH_THRESHOLD_AUTO_TRANSITION_TO_MC || _time_since_trans_start > _param_vt_b_trans_dur.get()) {
 				_vtol_mode = vtol_mode::MC_MODE;
 			}
 
@@ -115,24 +114,9 @@ void Tailsitter::update_vtol_state()
 
 		case vtol_mode::TRANSITION_FRONT_P1: {
 
-				const bool airspeed_triggers_transition = PX4_ISFINITE(_airspeed_validated->calibrated_airspeed_m_s)
-						&& !_param_fw_arsp_mode.get() ;
-
-				bool transition_to_fw = false;
-
-				if (pitch <= PITCH_TRANSITION_FRONT_P1) {
-					if (airspeed_triggers_transition) {
-						transition_to_fw = _airspeed_validated->calibrated_airspeed_m_s >= _param_vt_arsp_trans.get() ;
-
-					} else {
-						transition_to_fw = true;
-					}
-				}
-
-				transition_to_fw |= can_transition_on_ground();
-
-				if (transition_to_fw) {
+				if (isFrontTransitionCompleted()) {
 					_vtol_mode = vtol_mode::FW_MODE;
+					_trans_finished_ts = hrt_absolute_time();
 				}
 
 				break;
@@ -141,6 +125,7 @@ void Tailsitter::update_vtol_state()
 		case vtol_mode::TRANSITION_BACK:
 			// failsafe into fixed wing mode
 			_vtol_mode = vtol_mode::FW_MODE;
+			_trans_finished_ts = hrt_absolute_time();
 			break;
 		}
 	}
@@ -185,21 +170,20 @@ void Tailsitter::update_transition_state()
 			// calculate rotation axis for transition.
 			_q_trans_start = Quatf(_v_att->q);
 			Vector3f z = -_q_trans_start.dcm_z();
-			_trans_rot_axis = z.cross(Vector3f(0, 0, -1));
+			_trans_rot_axis = z.cross(Vector3f(0.f, 0.f, -1.f));
 
 			// as heading setpoint we choose the heading given by the direction the vehicle points
-			float yaw_sp = atan2f(z(1), z(0));
+			const float yaw_sp = atan2f(z(1), z(0));
 
 			// the intial attitude setpoint for a backtransition is a combination of the current fw pitch setpoint,
 			// the yaw setpoint and zero roll since we want wings level transition.
-			// If for some reason the fw attitude setpoint is not recent then don't sue it and assume 0 pitch
+			// If for some reason the fw attitude setpoint is not recent then don't use it and assume 0 pitch
 			if (_fw_virtual_att_sp->timestamp > (now - 1_s)) {
-				_q_trans_start = Eulerf(0.0f, _fw_virtual_att_sp->pitch_body, yaw_sp);
+				_q_trans_start = Eulerf(0.f, _fw_virtual_att_sp->pitch_body, yaw_sp);
 
 			} else {
-				_q_trans_start = Eulerf(0.0f, 0.f, yaw_sp);
+				_q_trans_start = Eulerf(0.f, 0.f, yaw_sp);
 			}
-
 
 			// attitude during transitions are controlled by mc attitude control so rotate the desired attitude to the
 			// multirotor frame
@@ -207,9 +191,9 @@ void Tailsitter::update_transition_state()
 
 		} else if (_vtol_mode == vtol_mode::TRANSITION_FRONT_P1) {
 			// initial attitude setpoint for the transition should be with wings level
-			_q_trans_start = Eulerf(0.0f, _mc_virtual_att_sp->pitch_body, _mc_virtual_att_sp->yaw_body);
-			Vector3f x = Dcmf(Quatf(_v_att->q)) * Vector3f(1, 0, 0);
-			_trans_rot_axis = -x.cross(Vector3f(0, 0, -1));
+			_q_trans_start = Eulerf(0.f, _mc_virtual_att_sp->pitch_body, _mc_virtual_att_sp->yaw_body);
+			Vector3f x = Dcmf(Quatf(_v_att->q)) * Vector3f(1.f, 0.f, 0.f);
+			_trans_rot_axis = -x.cross(Vector3f(0.f, 0.f, -1.f));
 		}
 
 		_q_trans_sp = _q_trans_start;
@@ -219,10 +203,8 @@ void Tailsitter::update_transition_state()
 	_q_trans_sp.normalize();
 
 	// tilt angle (zero if vehicle nose points up (hover))
-	float cos_tilt = _q_trans_sp(0) * _q_trans_sp(0) - _q_trans_sp(1) * _q_trans_sp(1) - _q_trans_sp(2) *
-			 _q_trans_sp(2) + _q_trans_sp(3) * _q_trans_sp(3);
-	cos_tilt = cos_tilt >  1.0f ?  1.0f : cos_tilt;
-	cos_tilt = cos_tilt < -1.0f ? -1.0f : cos_tilt;
+	const float cos_tilt = math::constrain(_q_trans_sp(0) * _q_trans_sp(0) - _q_trans_sp(1) * _q_trans_sp(1) -
+					       _q_trans_sp(2) * _q_trans_sp(2) + _q_trans_sp(3) * _q_trans_sp(3), -1.f, 1.f);
 	const float tilt = acosf(cos_tilt);
 
 	if (_vtol_mode == vtol_mode::TRANSITION_FRONT_P1) {
@@ -248,6 +230,11 @@ void Tailsitter::update_transition_state()
 
 	_v_att_sp->thrust_body[2] = _mc_virtual_att_sp->thrust_body[2];
 
+	if (_vtol_mode == vtol_mode::TRANSITION_BACK) {
+		const float progress = math::constrain(_time_since_trans_start / B_TRANS_THRUST_BLENDING_DURATION, 0.f, 1.f);
+		blendThrottleBeginningBackTransition(progress);
+	}
+
 	_v_att_sp->timestamp = hrt_absolute_time();
 
 	const Eulerf euler_sp(_q_trans_sp);
@@ -261,7 +248,7 @@ void Tailsitter::update_transition_state()
 void Tailsitter::waiting_on_tecs()
 {
 	// copy the last trust value from the front transition
-	_v_att_sp->thrust_body[0] = _thrust_transition;
+	_v_att_sp->thrust_body[0] = -_last_thr_in_mc;
 }
 
 void Tailsitter::update_fw_state()
@@ -275,98 +262,107 @@ void Tailsitter::update_fw_state()
 */
 void Tailsitter::fill_actuator_outputs()
 {
-	auto &mc_in = _actuators_mc_in->control;
-	auto &fw_in = _actuators_fw_in->control;
-
-	auto &mc_out = _actuators_out_0->control;
-	auto &fw_out = _actuators_out_1->control;
-
 	_torque_setpoint_0->timestamp = hrt_absolute_time();
-	_torque_setpoint_0->timestamp_sample = _actuators_mc_in->timestamp_sample;
+	_torque_setpoint_0->timestamp_sample = _vehicle_torque_setpoint_virtual_mc->timestamp_sample;
 	_torque_setpoint_0->xyz[0] = 0.f;
 	_torque_setpoint_0->xyz[1] = 0.f;
 	_torque_setpoint_0->xyz[2] = 0.f;
 
 	_torque_setpoint_1->timestamp = hrt_absolute_time();
-	_torque_setpoint_1->timestamp_sample = _actuators_fw_in->timestamp_sample;
+	_torque_setpoint_1->timestamp_sample = _vehicle_torque_setpoint_virtual_fw->timestamp_sample;
 	_torque_setpoint_1->xyz[0] = 0.f;
 	_torque_setpoint_1->xyz[1] = 0.f;
 	_torque_setpoint_1->xyz[2] = 0.f;
 
 	_thrust_setpoint_0->timestamp = hrt_absolute_time();
-	_thrust_setpoint_0->timestamp_sample = _actuators_mc_in->timestamp_sample;
+	_thrust_setpoint_0->timestamp_sample = _vehicle_thrust_setpoint_virtual_mc->timestamp_sample;
 	_thrust_setpoint_0->xyz[0] = 0.f;
 	_thrust_setpoint_0->xyz[1] = 0.f;
 	_thrust_setpoint_0->xyz[2] = 0.f;
 
 	_thrust_setpoint_1->timestamp = hrt_absolute_time();
-	_thrust_setpoint_1->timestamp_sample = _actuators_fw_in->timestamp_sample;
+	_thrust_setpoint_1->timestamp_sample = _vehicle_thrust_setpoint_virtual_fw->timestamp_sample;
 	_thrust_setpoint_1->xyz[0] = 0.f;
 	_thrust_setpoint_1->xyz[1] = 0.f;
 	_thrust_setpoint_1->xyz[2] = 0.f;
 
-
-	mc_out[actuator_controls_s::INDEX_ROLL]  = mc_in[actuator_controls_s::INDEX_ROLL];
-	mc_out[actuator_controls_s::INDEX_PITCH] = mc_in[actuator_controls_s::INDEX_PITCH];
-	mc_out[actuator_controls_s::INDEX_YAW]   = mc_in[actuator_controls_s::INDEX_YAW];
-
+	// Motors
 	if (_vtol_mode == vtol_mode::FW_MODE) {
-		mc_out[actuator_controls_s::INDEX_THROTTLE] = fw_in[actuator_controls_s::INDEX_THROTTLE];
 
-		// FW thrust is allocated on mc_thrust_sp[0] for tailsitter with dynamic control allocation
-		_thrust_setpoint_0->xyz[2] = -fw_in[actuator_controls_s::INDEX_THROTTLE];
+		_thrust_setpoint_0->xyz[2] = -_vehicle_thrust_setpoint_virtual_fw->xyz[0];
 
 		/* allow differential thrust if enabled */
 		if (_param_vt_fw_difthr_en.get() & static_cast<int32_t>(VtFwDifthrEnBits::YAW_BIT)) {
-			float yaw_control = fw_in[actuator_controls_s::INDEX_YAW] * _param_vt_fw_difthr_s_y.get();
-			mc_out[actuator_controls_s::INDEX_ROLL] = yaw_control;
-			_torque_setpoint_0->xyz[0] = yaw_control;
+			_torque_setpoint_0->xyz[0] = _vehicle_torque_setpoint_virtual_fw->xyz[0] * _param_vt_fw_difthr_s_y.get();
 		}
 
 		if (_param_vt_fw_difthr_en.get() & static_cast<int32_t>(VtFwDifthrEnBits::PITCH_BIT)) {
-			float pitch_control = fw_in[actuator_controls_s::INDEX_PITCH] * _param_vt_fw_difthr_s_p.get();
-			mc_out[actuator_controls_s::INDEX_PITCH] = pitch_control;
-			_torque_setpoint_0->xyz[1] = pitch_control;
+			_torque_setpoint_0->xyz[1] = _vehicle_torque_setpoint_virtual_fw->xyz[1] * _param_vt_fw_difthr_s_p.get();
 		}
 
 		if (_param_vt_fw_difthr_en.get() & static_cast<int32_t>(VtFwDifthrEnBits::ROLL_BIT)) {
-			float roll_control = -fw_in[actuator_controls_s::INDEX_ROLL] * _param_vt_fw_difthr_s_r.get();
-			mc_out[actuator_controls_s::INDEX_YAW] = roll_control;
-			_torque_setpoint_0->xyz[2] = roll_control;
+			_torque_setpoint_0->xyz[2] = _vehicle_torque_setpoint_virtual_fw->xyz[2] * _param_vt_fw_difthr_s_r.get();
+		}
+
+		// for the short period after switching to FW where there is no thrust published yet from the FW controller,
+		// keep publishing the last MC thrust to keep the motors running
+		if (hrt_elapsed_time(&_trans_finished_ts) < 50_ms) {
+			_thrust_setpoint_0->xyz[2] = _last_thr_in_mc;
+			_torque_setpoint_0->xyz[0] = 0.f;
+			_torque_setpoint_0->xyz[1] = 0.f;
+			_torque_setpoint_0->xyz[2] = 0.f;
 		}
 
 	} else {
-		_torque_setpoint_0->xyz[0] = mc_in[actuator_controls_s::INDEX_ROLL];
-		_torque_setpoint_0->xyz[1] = mc_in[actuator_controls_s::INDEX_PITCH];
-		_torque_setpoint_0->xyz[2] = mc_in[actuator_controls_s::INDEX_YAW];
+		_thrust_setpoint_0->xyz[2] = _vehicle_thrust_setpoint_virtual_mc->xyz[2];
 
-		mc_out[actuator_controls_s::INDEX_THROTTLE] = mc_in[actuator_controls_s::INDEX_THROTTLE];
-		_thrust_setpoint_0->xyz[2] = -mc_in[actuator_controls_s::INDEX_THROTTLE];
+		// for the short period after starting the backtransition where there is no thrust published yet from the MC controller,
+		// keep publishing the last FW thrust to keep the motors running
+		if (_vtol_mode != vtol_mode::TRANSITION_FRONT_P1 && hrt_elapsed_time(&_transition_start_timestamp) < 50_ms) {
+			_thrust_setpoint_0->xyz[2] = -_last_thr_in_fw_mode;
+		}
+
+		_torque_setpoint_0->xyz[0] = _vehicle_torque_setpoint_virtual_mc->xyz[0];
+		_torque_setpoint_0->xyz[1] = _vehicle_torque_setpoint_virtual_mc->xyz[1];
+		_torque_setpoint_0->xyz[2] = _vehicle_torque_setpoint_virtual_mc->xyz[2];
 	}
 
-	// Landing Gear
-	if (_vtol_mode == vtol_mode::MC_MODE) {
-		mc_out[actuator_controls_s::INDEX_LANDING_GEAR] = landing_gear_s::GEAR_DOWN;
+	// Control surfaces
+	if (!_param_vt_elev_mc_lock.get() || _vtol_mode != vtol_mode::MC_MODE) {
+		_torque_setpoint_1->xyz[0] = _vehicle_torque_setpoint_virtual_fw->xyz[0];
+		_torque_setpoint_1->xyz[1] = _vehicle_torque_setpoint_virtual_fw->xyz[1];
+		_torque_setpoint_1->xyz[2] = _vehicle_torque_setpoint_virtual_fw->xyz[2];
+	}
+}
 
-	} else {
-		mc_out[actuator_controls_s::INDEX_LANDING_GEAR] = landing_gear_s::GEAR_UP;
+
+bool Tailsitter::isFrontTransitionCompletedBase()
+{
+	const bool airspeed_triggers_transition = PX4_ISFINITE(_airspeed_validated->calibrated_airspeed_m_s)
+			&& _param_fw_use_airspd.get();
+
+	bool transition_to_fw = false;
+	const float pitch = Eulerf(Quatf(_v_att->q)).theta();
+
+	if (pitch <= PITCH_THRESHOLD_AUTO_TRANSITION_TO_FW) {
+		if (airspeed_triggers_transition) {
+			transition_to_fw = _airspeed_validated->calibrated_airspeed_m_s >= _param_vt_arsp_trans.get() ;
+
+		} else {
+			transition_to_fw = true;
+		}
 	}
 
-	if (_param_vt_elev_mc_lock.get() && _vtol_mode == vtol_mode::MC_MODE) {
-		fw_out[actuator_controls_s::INDEX_ROLL]  = 0;
-		fw_out[actuator_controls_s::INDEX_PITCH] = 0;
+	return transition_to_fw;
+}
 
-	} else {
-		fw_out[actuator_controls_s::INDEX_ROLL]  = fw_in[actuator_controls_s::INDEX_ROLL];
-		fw_out[actuator_controls_s::INDEX_PITCH] = fw_in[actuator_controls_s::INDEX_PITCH];
+void Tailsitter::blendThrottleAfterFrontTransition(float scale)
+{
+	// note: MC throttle is negative (as in negative z), while FW throttle is positive (positive x)
+	_v_att_sp->thrust_body[0] = scale * _v_att_sp->thrust_body[0] + (1.f - scale) * (-_last_thr_in_mc);
+}
 
-		_torque_setpoint_1->xyz[0] = fw_in[actuator_controls_s::INDEX_ROLL];
-		_torque_setpoint_1->xyz[1] = fw_in[actuator_controls_s::INDEX_PITCH];
-		_torque_setpoint_1->xyz[2] = fw_in[actuator_controls_s::INDEX_YAW];
-	}
-
-	_actuators_out_0->timestamp_sample = _actuators_mc_in->timestamp_sample;
-	_actuators_out_1->timestamp_sample = _actuators_fw_in->timestamp_sample;
-
-	_actuators_out_0->timestamp = _actuators_out_1->timestamp = hrt_absolute_time();
+void Tailsitter::blendThrottleBeginningBackTransition(float scale)
+{
+	_v_att_sp->thrust_body[2] = scale * _v_att_sp->thrust_body[2] + (1.f - scale) * (-_last_thr_in_fw_mode);
 }

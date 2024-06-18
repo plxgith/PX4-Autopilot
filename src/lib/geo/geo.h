@@ -54,19 +54,8 @@
 #include <lib/matrix/matrix/math.hpp>
 
 static constexpr float CONSTANTS_ONE_G = 9.80665f;						// m/s^2
-
-static constexpr float CONSTANTS_STD_PRESSURE_PA = 101325.0f;					// pascals (Pa)
-static constexpr float CONSTANTS_STD_PRESSURE_KPA = CONSTANTS_STD_PRESSURE_PA / 1000.0f;	// kilopascals (kPa)
-static constexpr float CONSTANTS_STD_PRESSURE_MBAR = CONSTANTS_STD_PRESSURE_PA /
-		100.0f;	// Millibar (mbar) (1 mbar = 100 Pa)
-
-static constexpr float CONSTANTS_AIR_DENSITY_SEA_LEVEL_15C = 1.225f;				// kg/m^3
-static constexpr float CONSTANTS_AIR_GAS_CONST = 287.1f;					// J/(kg * K)
-static constexpr float CONSTANTS_ABSOLUTE_NULL_CELSIUS = -273.15f;				// °C
-
 static constexpr double CONSTANTS_RADIUS_OF_EARTH = 6371000;					// meters (m)
 static constexpr float  CONSTANTS_RADIUS_OF_EARTH_F = CONSTANTS_RADIUS_OF_EARTH;		// meters (m)
-
 static constexpr float CONSTANTS_EARTH_SPIN_RATE = 7.2921150e-5f;				// radians/second (rad/s)
 
 
@@ -136,7 +125,7 @@ void get_vector_to_next_waypoint_fast(double lat_now, double lon_now, double lat
 void add_vector_to_global_position(double lat_now, double lon_now, float v_n, float v_e, double *lat_res,
 				   double *lon_res);
 
-int get_distance_to_line(struct crosstrack_error_s *crosstrack_error, double lat_now, double lon_now,
+int get_distance_to_line(struct crosstrack_error_s &crosstrack_error, double lat_now, double lon_now,
 			 double lat_start, double lon_start, double lat_end, double lon_end);
 
 int get_distance_to_arc(struct crosstrack_error_s *crosstrack_error, double lat_now, double lon_now,

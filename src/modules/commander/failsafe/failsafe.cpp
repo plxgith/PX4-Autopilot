@@ -323,6 +323,78 @@ FailsafeBase::Action Failsafe::fromOffboardLossActParam(int param_value, uint8_t
 	return action;
 }
 
+FailsafeBase::ActionOptions Failsafe::fromHighWindLimitActParam(int param_value)
+{
+	ActionOptions options{};
+
+	switch (command_after_high_wind_failsafe(param_value)) {
+	case command_after_high_wind_failsafe::None:
+		options.action = Action::None;
+		break;
+
+	case command_after_high_wind_failsafe::Warning:
+		options.action = Action::Warn;
+		break;
+
+	case command_after_high_wind_failsafe::Hold_mode:
+		options.allow_user_takeover = UserTakeoverAllowed::AlwaysModeSwitchOnly; // ensure the user can escape again
+		options.action = Action::Hold;
+		options.clear_condition = ClearCondition::OnModeChangeOrDisarm;
+		break;
+
+	case command_after_high_wind_failsafe::Return_mode:
+		options.action = Action::RTL;
+		options.clear_condition = ClearCondition::OnModeChangeOrDisarm;
+		break;
+
+	case command_after_high_wind_failsafe::Terminate:
+		options.allow_user_takeover = UserTakeoverAllowed::Never;
+		options.action = Action::Terminate;
+		options.clear_condition = ClearCondition::Never;
+		break;
+
+	case command_after_high_wind_failsafe::Land_mode:
+		options.action = Action::Land;
+		break;
+
+	default:
+		options.action = Action::Warn;
+		break;
+	}
+
+	return options;
+}
+
+FailsafeBase::ActionOptions Failsafe::fromRemainingFlightTimeLowActParam(int param_value)
+{
+	ActionOptions options{};
+
+	options.allow_user_takeover = UserTakeoverAllowed::Auto;
+	options.cause = Cause::RemainingFlightTimeLow;
+
+	switch (command_after_remaining_flight_time_low(param_value)) {
+	case command_after_remaining_flight_time_low::None:
+		options.action = Action::None;
+		break;
+
+	case command_after_remaining_flight_time_low::Warning:
+		options.action = Action::Warn;
+		break;
+
+	case command_after_remaining_flight_time_low::Return_mode:
+		options.action = Action::RTL;
+		options.clear_condition = ClearCondition::OnModeChangeOrDisarm;
+		break;
+
+	default:
+		options.action = Action::None;
+		break;
+
+	}
+
+	return options;
+}
+
 void Failsafe::checkStateAndMode(const hrt_abstime &time_us, const State &state,
 				 const failsafe_flags_s &status_flags)
 {
@@ -354,7 +426,7 @@ void Failsafe::checkStateAndMode(const hrt_abstime &time_us, const State &state,
 	const bool rc_loss_ignored = rc_loss_ignored_mission || rc_loss_ignored_loiter || rc_loss_ignored_offboard ||
 				     rc_loss_ignored_takeoff || ignore_link_failsafe || _manual_control_lost_at_arming;
 
-	if (_param_com_rc_in_mode.get() != int32_t(offboard_loss_failsafe_mode::Land_mode) && !rc_loss_ignored) {
+	if (_param_com_rc_in_mode.get() != int32_t(RcInMode::StickInputDisabled) && !rc_loss_ignored) {
 		CHECK_FAILSAFE(status_flags, manual_control_signal_lost,
 			       fromNavDllOrRclActParam(_param_nav_rcl_act.get()).causedBy(Cause::ManualControlLoss));
 	}
@@ -382,7 +454,7 @@ void Failsafe::checkStateAndMode(const hrt_abstime &time_us, const State &state,
 
 		// If manual control loss and GCS connection loss are disabled and we lose both command links and the mission finished,
 		// trigger RTL to avoid losing the vehicle
-		if ((_param_com_rc_in_mode.get() == int32_t(offboard_loss_failsafe_mode::Land_mode) || rc_loss_ignored_mission)
+		if ((_param_com_rc_in_mode.get() == int32_t(RcInMode::StickInputDisabled) || rc_loss_ignored_mission)
 		    && _param_nav_dll_act.get() == int32_t(gcs_connection_loss_failsafe_mode::Disabled)
 		    && state.mission_finished) {
 			_last_state_mission_control_lost = checkFailsafe(_caller_id_mission_control_lost, _last_state_mission_control_lost,
@@ -390,10 +462,9 @@ void Failsafe::checkStateAndMode(const hrt_abstime &time_us, const State &state,
 		}
 	}
 
-
 	CHECK_FAILSAFE(status_flags, wind_limit_exceeded,
-		       ActionOptions(Action::RTL).clearOn(ClearCondition::OnModeChangeOrDisarm));
-	CHECK_FAILSAFE(status_flags, flight_time_limit_exceeded, ActionOptions(Action::RTL));
+		       ActionOptions(fromHighWindLimitActParam(_param_com_wind_max_act.get()).cannotBeDeferred()));
+	CHECK_FAILSAFE(status_flags, flight_time_limit_exceeded, ActionOptions(Action::RTL).cannotBeDeferred());
 
 	// trigger RTL if low position accurancy is detected
 	if (state.user_intended_mode == vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION ||
@@ -401,12 +472,23 @@ void Failsafe::checkStateAndMode(const hrt_abstime &time_us, const State &state,
 		CHECK_FAILSAFE(status_flags, local_position_accuracy_low, ActionOptions(Action::RTL));
 	}
 
-	CHECK_FAILSAFE(status_flags, primary_geofence_breached, fromGfActParam(_param_gf_action.get()));
+	CHECK_FAILSAFE(status_flags, geofence_breached, fromGfActParam(_param_gf_action.get()).cannotBeDeferred());
 
-	// Battery
-	CHECK_FAILSAFE(status_flags, battery_low_remaining_time, ActionOptions(Action::RTL).causedBy(Cause::BatteryLow));
-	CHECK_FAILSAFE(status_flags, battery_unhealthy, Action::Warn);
+	// Battery flight time remaining failsafe
 
+	CHECK_FAILSAFE(status_flags, battery_low_remaining_time,
+		       ActionOptions(fromRemainingFlightTimeLowActParam(_param_com_fltt_low_act.get())));
+
+	if ((_armed_time != 0)
+	    && (time_us < _armed_time + static_cast<hrt_abstime>(_param_com_spoolup_time.get() * 1_s))
+	   ) {
+		CHECK_FAILSAFE(status_flags, battery_unhealthy, ActionOptions(Action::Disarm).cannotBeDeferred());
+
+	} else {
+		CHECK_FAILSAFE(status_flags, battery_unhealthy, Action::Warn);
+	}
+
+	// Battery low failsafe
 	switch (status_flags.battery_warning) {
 	case battery_status_s::BATTERY_WARNING_LOW:
 		_last_state_battery_warning_low = checkFailsafe(_caller_id_battery_warning_low, _last_state_battery_warning_low,
@@ -434,7 +516,7 @@ void Failsafe::checkStateAndMode(const hrt_abstime &time_us, const State &state,
 	if ((_armed_time != 0)
 	    && (time_us < _armed_time + static_cast<hrt_abstime>(_param_com_spoolup_time.get() * 1_s))
 	   ) {
-		CHECK_FAILSAFE(status_flags, fd_esc_arming_failure, Action::Disarm);
+		CHECK_FAILSAFE(status_flags, fd_esc_arming_failure, ActionOptions(Action::Disarm).cannotBeDeferred());
 	}
 
 	if ((_armed_time != 0)
@@ -442,10 +524,10 @@ void Failsafe::checkStateAndMode(const hrt_abstime &time_us, const State &state,
 		+ static_cast<hrt_abstime>((_param_com_lkdown_tko.get() + _param_com_spoolup_time.get()) * 1_s))
 	   ) {
 		// This handles the case where something fails during the early takeoff phase
-		CHECK_FAILSAFE(status_flags, fd_critical_failure, Action::Disarm);
+		CHECK_FAILSAFE(status_flags, fd_critical_failure, ActionOptions(Action::Disarm).cannotBeDeferred());
 
 	} else if (!circuit_breaker_enabled_by_val(_param_cbrk_flightterm.get(), CBRK_FLIGHTTERM_KEY)) {
-		CHECK_FAILSAFE(status_flags, fd_critical_failure, Action::Terminate);
+		CHECK_FAILSAFE(status_flags, fd_critical_failure, ActionOptions(Action::Terminate).cannotBeDeferred());
 
 	} else {
 		CHECK_FAILSAFE(status_flags, fd_critical_failure, Action::Warn);
@@ -460,7 +542,7 @@ void Failsafe::checkStateAndMode(const hrt_abstime &time_us, const State &state,
 	Action mode_fallback_action = checkModeFallback(status_flags, state.user_intended_mode);
 	_last_state_mode_fallback = checkFailsafe(_caller_id_mode_fallback, _last_state_mode_fallback,
 				    mode_fallback_action != Action::None,
-				    ActionOptions(mode_fallback_action).allowUserTakeover(UserTakeoverAllowed::Always));
+				    ActionOptions(mode_fallback_action).allowUserTakeover(UserTakeoverAllowed::Always).cannotBeDeferred());
 }
 
 void Failsafe::updateArmingState(const hrt_abstime &time_us, bool armed, const failsafe_flags_s &status_flags)

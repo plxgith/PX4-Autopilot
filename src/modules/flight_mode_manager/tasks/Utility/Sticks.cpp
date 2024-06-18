@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2020 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2020-2023 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -62,8 +62,15 @@ bool Sticks::checkAndUpdateStickInputs()
 		_positions_expo(2) = math::expo_deadzone(_positions(2), _param_mpc_z_man_expo.get(),  _param_mpc_hold_dz.get());
 		_positions_expo(3) = math::expo_deadzone(_positions(3), _param_mpc_yaw_expo.get(),    _param_mpc_hold_dz.get());
 
+		_aux_positions(0) = manual_control_setpoint.aux1;
+		_aux_positions(1) = manual_control_setpoint.aux2;
+		_aux_positions(2) = manual_control_setpoint.aux3;
+		_aux_positions(3) = manual_control_setpoint.aux4;
+		_aux_positions(4) = manual_control_setpoint.aux5;
+		_aux_positions(5) = manual_control_setpoint.aux6;
+
 		// valid stick inputs are required
-		_input_available = _positions.isAllFinite();
+		_input_available = manual_control_setpoint.valid && _positions.isAllFinite();
 
 	} else {
 		failsafe_flags_s failsafe_flags;
@@ -95,7 +102,6 @@ void Sticks::limitStickUnitLengthXY(Vector2f &v)
 
 void Sticks::rotateIntoHeadingFrameXY(Vector2f &v, const float yaw, const float yaw_setpoint)
 {
-	Vector3f v3(v(0), v(1), 0.f);
 	const float yaw_rotate = PX4_ISFINITE(yaw_setpoint) ? yaw_setpoint : yaw;
-	v = Vector2f(Dcmf(Eulerf(0.0f, 0.0f, yaw_rotate)) * v3);
+	v = Dcm2f(yaw_rotate) * v;
 }

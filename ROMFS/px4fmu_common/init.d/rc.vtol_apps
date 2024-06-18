@@ -5,16 +5,6 @@
 # NOTE: Script variables are declared/initialized/unset in the rcS script.
 #
 
-###############################################################################
-#                       Begin Estimator group selection                       #
-###############################################################################
-
-ekf2 start &
-
-###############################################################################
-#                        End Estimator group selection                        #
-###############################################################################
-
 #
 # Start Control Allocator
 #
@@ -37,7 +27,7 @@ fi
 
 fw_rate_control start vtol
 fw_att_control start vtol
-fw_pos_control_l1 start vtol
+fw_pos_control start vtol
 fw_autotune_attitude_control start vtol
 
 # Start Land Detector
