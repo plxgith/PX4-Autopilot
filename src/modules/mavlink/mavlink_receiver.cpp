@@ -358,6 +358,34 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 	_mavlink->set_has_received_messages(true);
 }
 
+void MavlinkReceiver::handle_messages_in_gimbal_mode(mavlink_message_t &msg)
+{
+	switch (msg.msgid) {
+	case MAVLINK_MSG_ID_HEARTBEAT:
+		handle_message_heartbeat(&msg);
+		break;
+
+	case MAVLINK_MSG_ID_GIMBAL_MANAGER_SET_ATTITUDE:
+		handle_message_gimbal_manager_set_attitude(&msg);
+		break;
+
+	case MAVLINK_MSG_ID_GIMBAL_MANAGER_SET_MANUAL_CONTROL:
+		handle_message_gimbal_manager_set_manual_control(&msg);
+		break;
+
+	case MAVLINK_MSG_ID_GIMBAL_DEVICE_INFORMATION:
+		handle_message_gimbal_device_information(&msg);
+		break;
+
+	case MAVLINK_MSG_ID_GIMBAL_DEVICE_ATTITUDE_STATUS:
+		handle_message_gimbal_device_attitude_status(&msg);
+		break;
+	}
+
+	// Message forwarding
+	_mavlink->handle_message(&msg);
+}
+
 bool
 MavlinkReceiver::evaluate_target_ok(int command, int target_system, int target_component)
 {
@@ -3187,38 +3215,18 @@ MavlinkReceiver::run()
 							_mavlink->set_proto_version(2);
 						}
 
-						/* handle generic messages and commands */
-						handle_message(&msg);
 
-						/* handle packet with mission manager */
-						_mission_manager.handle_message(&msg);
+						switch (_mavlink->get_mode()) {
+						case Mavlink::MAVLINK_MODE::MAVLINK_MODE_GIMBAL:
+							handle_messages_in_gimbal_mode(msg);
+							break;
 
-						/* handle packet with parameter component */
-						if (_mavlink->boot_complete()) {
-							// make sure mavlink app has booted before we start processing parameter sync
-							_parameters_manager.handle_message(&msg);
-
-						} else {
-							if (hrt_elapsed_time(&_mavlink->get_first_start_time()) > 20_s) {
-								PX4_ERR("system boot did not complete in 20 seconds");
-								_mavlink->set_boot_complete();
-							}
+						default:
+							handle_message(&msg);
+							break;
 						}
 
-						if (_mavlink->ftp_enabled()) {
-							/* handle packet with ftp component */
-							_mavlink_ftp.handle_message(&msg);
-						}
-
-						/* handle packet with log component */
-						_mavlink_log_handler.handle_message(&msg);
-
-						/* handle packet with timesync component */
-						_mavlink_timesync.handle_message(&msg);
-
-						/* handle packet with parent object */
-						_mavlink->handle_message(&msg);
-
+						_mavlink->set_has_received_messages(true); // Received first message, unlock wait to transmit '-w' command-line flag
 						update_rx_stats(msg);
 
 						if (_message_statistics_enabled) {
