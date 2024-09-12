@@ -264,3 +264,6 @@
 
 #define GPIO_I2C2_SCL GPIO_I2C2_SCL_1       /* PB10 */
 #define GPIO_I2C2_SDA GPIO_I2C2_SDA_1       /* PB11 */
+
+#define PX4IO_HEATER_ENABLED
+
