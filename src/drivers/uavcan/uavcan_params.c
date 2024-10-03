@@ -365,8 +365,6 @@ PARAM_DEFINE_FLOAT(UAVCAN_BAT1_V_D, 0.2);
  *
  *
  * @unit mAh
- * @min 1000
- * @max 30000
  * @group UAVCAN
  */
 PARAM_DEFINE_FLOAT(UAVCAN_BAT1_CAP, 1600.0);
