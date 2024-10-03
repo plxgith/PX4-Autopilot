@@ -126,11 +126,10 @@ private:
 	float _state_of_charge_volt_based{-1.f};
 	float _state_of_charge{1.f};
 
-	float _bat1_full_voltage{50.0f};
 	float _test{0.0f};
 	float _bat1_v_drop{0.3f};
-	float _bat1_capacity{25000.0f};
-	float _bat1_num_of_cells{12.0f};
+	float _bat1_capacity{1600.0f};	// Cmarko
+	float _bat1_num_of_cells{3.0f};	// Cmarko
 	float _bat1_v_empty{3.5f};
 	float _bat1_v_charged{4.0f};
 

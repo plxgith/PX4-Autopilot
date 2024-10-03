@@ -52,22 +52,12 @@ UavcanBatteryBridge::UavcanBatteryBridge(uavcan::INode &node) :
 {
 	_throttle_filter.setParameters(1.f, 1.f);	// try one second
 	_current_filter_a.setParameters(1.f, 1.f);
-	// parameters init
-	//param_get(_param_bat1_full_voltage, &_bat1_full_voltage);
-	//param_get(_param_bat1_full_wh, &bat1_full_wh);
-	// param_get(_param_bat2_full_voltage, &bat2_full_voltage);
-	// param_get(_param_bat2_full_wh, &bat2_full_wh);
+
+
 	_params_handles._bat1_volt_drop = param_find("UAVCAN_BAT1_V_D");
 	param_get(_params_handles._bat1_volt_drop, &_test);
 
-	// _test = param_find("UAVCAN_TEST");
-	// _bat1_capacity = param_find("BAT1_CAPACITY");
-	// _bat1_num_of_cells = param_find("BAT1_N_CELLS");
-	// _bat1_v_drop = param_find("BAT1_V_LOAD_DROP");
-	// _bat1_v_empty = param_find("BAT1_V_EMPTY");
-	// _bat1_v_charged = param_find("BAT1_V_CHARGED");
 
-	// param_get("BAT_LOW_THR")
 }
 
 int UavcanBatteryBridge::init()
@@ -126,22 +116,11 @@ UavcanBatteryBridge::battery_sub_cb(const uavcan::ReceivedDataStructure<uavcan::
 
 	// calculate remaiming battery
 
-	//battery_status[instance].remaining = calculate_remaining(msg.voltage, full_voltage) / 100.0; // between 0 and 1
-	// battery_status[instance].remaining = estimate_state_of_charge_voltage_based(msg.voltage, msg.current);
 	battery_status[instance].remaining = estimate_state_of_charge(msg.voltage, msg.current);
-	// battery_status[instance].scale = msg.; // Power scaling factor, >= 1, or -1 if unknown
-	//battery_status[instance].temperature = msg.temperature + CONSTANTS_ABSOLUTE_NULL_CELSIUS; // Kelvin to Celcius
-	// battery_status[instance].cell_count = msg.;
 	battery_status[instance].connected = true;
 	battery_status[instance].source = msg.status_flags & uavcan::equipment::power::BatteryInfo::STATUS_FLAG_IN_USE;
-	// battery_status[instance].priority = msg.;
-	// battery_status[instance].capacity = msg.;
 	battery_status[instance].full_charge_capacity_wh = msg.full_charge_capacity_wh;
-	battery_status[instance].remaining_capacity_wh = 28000.0f;
-	// battery_status[instance].cycle_count = msg.;
-	//time_remaining  = calculate_time_remaining(msg.current);
 	battery_status[instance].time_remaining_s = calculate_time_remaining(msg.current);
-	// battery_status[instance].average_time_to_empty = msg.;
 	battery_status[instance].serial_number = msg.model_instance_id;
 	battery_status[instance].id = msg.getSrcNodeID().get();
 
@@ -153,9 +132,8 @@ UavcanBatteryBridge::battery_sub_cb(const uavcan::ReceivedDataStructure<uavcan::
 		battery_status[instance].cell_count = 1;
 	}
 
-	// battery_status[instance].max_cell_voltage_delta = msg.;
 
-	// battery_status[instance].is_powering_off = msg.;
+
 
 	determineWarning(battery_status[instance].remaining);
 	battery_status[instance].warning = _warning;
