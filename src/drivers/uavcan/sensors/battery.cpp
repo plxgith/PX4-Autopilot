@@ -55,7 +55,19 @@ UavcanBatteryBridge::UavcanBatteryBridge(uavcan::INode &node) :
 
 
 	_params_handles._bat1_volt_drop = param_find("UAVCAN_BAT1_V_D");
-	param_get(_params_handles._bat1_volt_drop, &_test);
+	param_get(_params_handles._bat1_volt_drop, &_bat1_v_drop);
+
+	_params_handles._bat1_capacity = param_find("UAVCAN_BAT1_CAP");
+	param_get(_params_handles._bat1_capacity, &_bat1_capacity);
+
+	_params_handles._bat1_num_of_cells = param_find("UAVCAN_BAT1_N");
+	param_get(_params_handles._bat1_num_of_cells, &_bat1_num_of_cells);
+
+	_params_handles._bat1_v_empty = param_find("UAVCAN_BAT1_V_E");
+	param_get(_params_handles._bat1_v_empty, &_bat1_v_empty);
+
+	_params_handles._bat1_v_charged = param_find("UAVCAN_BAT1_V_F");
+	param_get(_params_handles._bat1_v_charged, &_bat1_v_charged);
 
 
 }
@@ -83,12 +95,6 @@ void
 UavcanBatteryBridge::battery_sub_cb(const uavcan::ReceivedDataStructure<uavcan::equipment::power::BatteryInfo> &msg)
 {
 	uint8_t instance = 0;
-
-	float full_voltage = 50.4;
-	float full_wh  = 28.0;
-	float full_mAh = 28000;
-	float time_remaining = 0;
-
 
 
 	for (instance = 0; instance < battery_status_s::MAX_INSTANCES; instance++) {
@@ -155,7 +161,6 @@ float
 UavcanBatteryBridge::calculate_hours_remaining(float remaining_capacity_wh, float voltage, float current)
 {
 
-	float time_remaining = NAN;
 	if(current < 0) {
 		return NAN;
 	}
@@ -174,25 +179,25 @@ float UavcanBatteryBridge::estimate_state_of_charge_voltage_based(const float vo
 	float temp{0.0f};
 
 	float cell_voltage = voltage_v / _bat1_num_of_cells;
-	_temp_array.data[0] = _params_handles._bat1_volt_drop;
+	_temp_array.data[0] =  _bat1_v_drop;
 	// correct voltage for load drop
 	actuator_controls_s actuator_controls{};
 	_actuator_controls_0_sub.copy(&actuator_controls);
 	const float throttle = actuator_controls.control[actuator_controls_s::INDEX_THROTTLE];
-	_temp_array.data[1] = throttle;
+	_temp_array.data[1] = _bat1_capacity;
 
 	_throttle_filter.update(throttle);
 	temp = _throttle_filter.getState();
-	_temp_array.data[2] = temp;
+	_temp_array.data[2] = _bat1_num_of_cells;
 
 	// assume linear relation between throtle and voltage drop
 	cell_voltage += throttle * _bat1_v_drop;
-	_temp_array.data[3] = cell_voltage;
+	_temp_array.data[3] = _bat1_v_empty;
 
 
 	//voltage based state of charge
 	_state_of_charge_volt_based =  math::gradual(cell_voltage, _bat1_v_empty, _bat1_v_charged, 0.f, 1.f );
-	_temp_array.data[4] = _state_of_charge_volt_based;
+	_temp_array.data[4] = _bat1_v_charged;
 
 	// _temp_array.data[2] = _bat1_v_charged;
 

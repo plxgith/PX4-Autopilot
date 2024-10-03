@@ -129,7 +129,7 @@ private:
 	float _test{0.0f};
 	float _bat1_v_drop{0.3f};
 	float _bat1_capacity{1600.0f};	// Cmarko
-	float _bat1_num_of_cells{3.0f};	// Cmarko
+	int32_t _bat1_num_of_cells{3};	// Cmarko
 	float _bat1_v_empty{3.5f};
 	float _bat1_v_charged{4.0f};
 
@@ -146,6 +146,10 @@ private:
 protected:
 	struct {
 		param_t _bat1_volt_drop;
+		param_t _bat1_capacity;
+		param_t _bat1_num_of_cells;
+		param_t _bat1_v_empty;
+		param_t _bat1_v_charged;
 	}_params_handles{};
 
 

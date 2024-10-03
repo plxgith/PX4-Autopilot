@@ -355,10 +355,54 @@ PARAM_DEFINE_INT32(UAVCAN_SUB_BTN, 0);
  * @min 0
  * @max 0.3
  * @reboot_required true
- *
  * @group UAVCAN
  */
 
 PARAM_DEFINE_FLOAT(UAVCAN_BAT1_V_D, 0.2);
+
+/**
+ * CAN Battery capacity in mAh
+ *
+ *
+ * @unit mAh
+ * @min 1000
+ * @max 30000
+ * @group UAVCAN
+ */
+PARAM_DEFINE_FLOAT(UAVCAN_BAT1_CAP, 1600.0);
+
+/**
+ * CAN Battery number of cells
+ *
+ * @min 1
+ * @max 12
+ * @group UAVCAN
+ *
+ */
+PARAM_DEFINE_INT32(UAVCAN_BAT1_N, 3);
+
+/**
+ * CAN Battery Empty Cell Voltage
+ *
+ * UAVCAN battery one.
+ *
+ *
+ * @unit V
+ * @group UAVCAN
+ */
+PARAM_DEFINE_FLOAT(UAVCAN_BAT1_V_E, 3.5);
+
+
+/**
+ * CAN Battery Full Cell Voltage
+ *
+ * UAVCAN battery one.
+ *
+ *
+ * @unit V
+ * @group UAVCAN
+ */
+PARAM_DEFINE_FLOAT(UAVCAN_BAT1_V_F, 4.05);
+
 
 
