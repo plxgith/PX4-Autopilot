@@ -52,6 +52,7 @@ UavcanBatteryBridge::UavcanBatteryBridge(uavcan::INode &node) :
 {
 	_throttle_filter.setParameters(1.f, 1.f);	// try one second
 	_current_filter_a.setParameters(1.f, 1.f);
+	_voltage_filter_v.setParameters(1.f, 1.f);
 
 
 	_params_handles._bat1_volt_drop = param_find("UAVCAN_BAT1_V_D");
@@ -115,7 +116,14 @@ UavcanBatteryBridge::battery_sub_cb(const uavcan::ReceivedDataStructure<uavcan::
 	battery_status[instance].voltage_filtered_v = msg.voltage;
 	battery_status[instance].current_a = msg.current;
 	battery_status[instance].current_filtered_a = msg.current;
-	// battery_status[instance].current_average_a = msg.;
+
+	if(!_battery_initialized) {
+	if (msg.voltage > 2.1f) {
+		estimate_state_of_charge_voltage_based(msg.voltage, msg.current);
+		_state_of_charge = _state_of_charge_volt_based; // Set initial state based on voltage
+		_battery_initialized = true;
+	}
+	}
 
 	if (battery_aux_support[instance] == false) {
 		sumDischarged(battery_status[instance].timestamp, battery_status[instance].current_a);
@@ -176,66 +184,60 @@ UavcanBatteryBridge::calculate_hours_remaining(float remaining_capacity_wh, floa
 	return remaining_hours;
 }
 
-float UavcanBatteryBridge::estimate_state_of_charge_voltage_based(const float voltage_v, const float current_a)
+void UavcanBatteryBridge::estimate_state_of_charge_voltage_based(const float voltage_v, const float current_a)
 {
-	float temp{0.0f};
 
 	float cell_voltage = voltage_v / _bat1_num_of_cells;
-	_temp_array.data[0] =  _bat1_v_drop;
 	// correct voltage for load drop
 	actuator_controls_s actuator_controls{};
 	_actuator_controls_0_sub.copy(&actuator_controls);
 	const float throttle = actuator_controls.control[actuator_controls_s::INDEX_THROTTLE];
-	_temp_array.data[1] = _bat1_capacity;
 
 	_throttle_filter.update(throttle);
-	temp = _throttle_filter.getState();
-	_temp_array.data[2] = _bat1_num_of_cells;
 
 	// assume linear relation between throtle and voltage drop
 	cell_voltage += throttle * _bat1_v_drop;
-	_temp_array.data[3] = _bat1_v_empty;
 
 
 	//voltage based state of charge
 	_state_of_charge_volt_based =  math::gradual(cell_voltage, _bat1_v_empty, _bat1_v_charged, 0.f, 1.f );
-	_temp_array.data[4] = _bat1_v_charged;
 
-	// _temp_array.data[2] = _bat1_v_charged;
 
-	// _temp_array.data[3] = _bat1_v_empty;
-	// _temp_array.data[4] = _bat1_capacity;
-	// _temp_array.data[5] = _bat1_num_of_cells;
 
-	_debug_array_pub.publish(_temp_array);
-	return _state_of_charge_volt_based;
 
 
 }
 
 float UavcanBatteryBridge::estimate_state_of_charge(const float voltage_v, const float current_a)
 {
+
 	estimate_state_of_charge_voltage_based(voltage_v, current_a);
-	// choose which quantity is used for final report
-	if (_bat1_capacity > 0.f && _battery_initialised) {
-		// if capacity is known, fuse voltage measurements with used capacity
+	// choose which quantity we're using for final reporting
+	if (_bat1_capacity > 0.f && _battery_initialized) {
+		// if battery capacity is known, fuse voltage measurement with used capacity
+		// The lower the voltage the more adjust the estimate with it to avoid deep discharge
 		const float weight_v = 3e-4f * (1 - _state_of_charge_volt_based);
-		_temp_array.data[5] = weight_v;
+		_temp_array.data[1] = weight_v;
 		_state_of_charge = (1 - weight_v) * _state_of_charge + weight_v * _state_of_charge_volt_based;
-		_temp_array.data[6] = _state_of_charge;
-		// apply current capacity slope calculated using current
+		_temp_array.data[2] = _state_of_charge;
+		// directly apply current capacity slope calculated using current
 		_state_of_charge -= _discharged_mah_loop / _bat1_capacity;
-		_temp_array.data[7] = _state_of_charge;
+		_temp_array.data[3] = _state_of_charge;
 		_state_of_charge = math::max(_state_of_charge, 0.f);
-		_temp_array.data[8] = _state_of_charge;
+		_temp_array.data[4] = _discharged_mah_loop;
+
 		const float state_of_charge_current_based = math::max(1.f - _discharged_mah / _bat1_capacity, 0.f);
-		_temp_array.data[9] = state_of_charge_current_based;
+		_temp_array.data[5] = state_of_charge_current_based;
 		_state_of_charge = math::min(state_of_charge_current_based, _state_of_charge);
-		_temp_array.data[10] = _state_of_charge;
-	}
-	else {
+		_temp_array.data[6] = _state_of_charge;
+
+	} else {
 		_state_of_charge = _state_of_charge_volt_based;
 	}
+
+	_temp_array.data[0] = _state_of_charge_volt_based;
+
+
 
 	_debug_array_pub.publish(_temp_array);
 	return _state_of_charge;
@@ -251,8 +253,6 @@ float UavcanBatteryBridge::calculate_time_remaining(float current_a)
 	if (_vehicle_status_sub.copy(&vehicle_status)) {
 		_armed = (vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED);
 	}
-	_temp_array.data[11] = _armed;
-
 
 	if(!PX4_ISFINITE(_current_filter_a.getState()) || _current_filter_a.getState() < FLT_EPSILON) {
 		_current_filter_a.reset(10.0f);
@@ -260,19 +260,16 @@ float UavcanBatteryBridge::calculate_time_remaining(float current_a)
 	if(_armed && PX4_ISFINITE(current_a)) {
 		_current_filter_a.update(fmaxf(current_a, 0.f));
 	}
-	_temp_array.data[12] = _current_filter_a.getState();
 
 
 	// Remaining time estimation only possible with capacity
 	if(_bat1_capacity > 0.f) {
 		const float remaining_capacity_mah = _state_of_charge * _bat1_capacity;
-		_temp_array.data[13] = remaining_capacity_mah;
 
 		const float current_ma = fmaxf(_current_filter_a.getState() * 1e3f, FLT_EPSILON);
 		time_remaining_s = remaining_capacity_mah / current_ma * 3600.f;
 	}
 
-	_temp_array.data[14] = time_remaining_s;
 	return time_remaining_s;
 }
 

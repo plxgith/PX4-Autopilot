@@ -85,7 +85,7 @@ private:
 	float calculate_hours_remaining(float remaining_capacity_wh, float voltage, float current);
 	float calculate_time_remaining(float current_a);
 	float estimate_state_of_charge(const float voltage_v, const float curent_a);
-	float estimate_state_of_charge_voltage_based(const float voltage_v, const float current_a);
+	void estimate_state_of_charge_voltage_based(const float voltage_v, const float current_a);
 
 	typedef uavcan::MethodBinder < UavcanBatteryBridge *,
 		void (UavcanBatteryBridge::*)
@@ -119,9 +119,9 @@ private:
 	float _voltage{0.f};
 	AlphaFilter<float> _current_filter_a;
 	AlphaFilter<float> _throttle_filter;
-	//AlphaFilter<float> _voltage_filter_v;
+	AlphaFilter<float> _voltage_filter_v;
 
-	bool _battery_initialised = false;
+	bool _battery_initialized = false;
 
 	float _discharged_mah{0.f};
 	float _discharged_mah_loop{0.f};
