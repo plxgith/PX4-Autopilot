@@ -107,6 +107,8 @@ UavcanBatteryBridge::battery_sub_cb(const uavcan::ReceivedDataStructure<uavcan::
 		return;
 	}
 
+
+
 	// get data from sensor
 	battery_status[instance].timestamp = hrt_absolute_time();
 	battery_status[instance].voltage_v = msg.voltage;
@@ -215,7 +217,7 @@ float UavcanBatteryBridge::estimate_state_of_charge(const float voltage_v, const
 {
 	estimate_state_of_charge_voltage_based(voltage_v, current_a);
 	// choose which quantity is used for final report
-	if (_bat1_capacity > 0.f) {
+	if (_bat1_capacity > 0.f && _battery_initialised) {
 		// if capacity is known, fuse voltage measurements with used capacity
 		const float weight_v = 3e-4f * (1 - _state_of_charge_volt_based);
 		_temp_array.data[5] = weight_v;

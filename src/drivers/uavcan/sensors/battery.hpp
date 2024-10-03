@@ -119,6 +119,9 @@ private:
 	float _voltage{0.f};
 	AlphaFilter<float> _current_filter_a;
 	AlphaFilter<float> _throttle_filter;
+	//AlphaFilter<float> _voltage_filter_v;
+
+	bool _battery_initialised = false;
 
 	float _discharged_mah{0.f};
 	float _discharged_mah_loop{0.f};
