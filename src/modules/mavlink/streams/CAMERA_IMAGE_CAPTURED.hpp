@@ -78,7 +78,7 @@ private:
 			msg.q[2] = capture.q[2];
 			msg.q[3] = capture.q[3];
 			msg.image_index = capture.seq;
-			msg.capture_result = capture.result;
+			//msg.capture_result = capture.result;
 			msg.file_url[0] = '\0';
 
 			mavlink_msg_camera_image_captured_send_struct(_mavlink->get_channel(), &msg);

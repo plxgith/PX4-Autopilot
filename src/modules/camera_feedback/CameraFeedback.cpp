@@ -108,8 +108,8 @@ CameraFeedback::Run()
 		capture.alt = gpos.alt_ellipsoid;
 
 		capture.alt = gps_raw.alt_ellipsoid / 1000.0;
-		capture.lat = gps_raw.lat;
-
+		//capture.lat = gps_raw.lat;
+		capture.gps_fix = gps_raw.fix_type;
 
 		if (gpos.terrain_alt_valid) {
 			capture.ground_distance = gpos.alt - gpos.terrain_alt;
@@ -124,7 +124,7 @@ CameraFeedback::Run()
 		capture.q[1] = att.q[1];
 		capture.q[2] = att.q[2];
 		capture.q[3] = att.q[3];
-		capture.result = 1;
+		//capture.result = 1;
 
 		_capture_pub.publish(capture);
 	}
