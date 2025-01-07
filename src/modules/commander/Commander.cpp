@@ -1772,8 +1772,7 @@ void Commander::executeActionRequest(const action_request_s &action_request)
 
 			_status_changed = true;
 			_armed.manual_lockdown = true;
-			// don't want to send parachute in case of kill switch
-			//send_parachute_command();
+			send_parachute_command();
 		}
 
 		break;
