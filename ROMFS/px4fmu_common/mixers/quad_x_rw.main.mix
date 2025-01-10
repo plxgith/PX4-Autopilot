@@ -2,13 +2,7 @@ QuadX with reversed motor direction
 
 R: 4xrw
 
-AUX1 Passthrough
-M: 1
-S: 3 5  10000  10000      0 -10000  10000
 
-AUX2 Passthrough
-M: 1
-S: 3 6  10000  10000      0 -10000  10000
 
 Failsafe outputs
 The following outputs are set to their disarmed value

@@ -131,8 +131,8 @@ private:
 
 	float _test{0.0f};
 	float _bat1_v_drop{0.3f};
-	float _bat1_capacity{25000.0f};	// Cmarko
-	int32_t _bat1_num_of_cells{12};	// Cmarko
+	float _bat1_capacity{1600.0f};	// Cmarko
+	int32_t _bat1_num_of_cells{3};	// Cmarko
 	float _bat1_v_empty{3.5f};
 	float _bat1_v_charged{4.2f};
 
