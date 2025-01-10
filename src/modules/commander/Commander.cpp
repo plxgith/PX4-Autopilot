@@ -1769,10 +1769,13 @@ void Commander::executeActionRequest(const action_request_s &action_request)
 			}
 
 			events::send(events::ID("commander_kill_sw_engaged"), log_levels, "Kill-switch engaged");
-
-			_status_changed = true;
-			_armed.manual_lockdown = true;
-			send_parachute_command();
+			if(_armed.armed) {
+				_armed.force_failsafe = true;
+				_flight_termination_triggered = true;
+				_status_changed = true;
+				//_armed.manual_lockdown = true;
+				send_parachute_command();
+			}
 		}
 
 		break;
