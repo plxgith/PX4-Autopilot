@@ -50,6 +50,9 @@
 
 #include "LandDetector.h"
 
+#include <uORB/Publication.hpp>
+#include <uORB/topics/debug_array.h>
+
 using namespace time_literals;
 
 namespace land_detector
@@ -115,6 +118,8 @@ private:
 	uORB::Subscription _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
 	uORB::Subscription _takeoff_status_sub{ORB_ID(takeoff_status)};
 
+	uORB::Publication<debug_array_s> _debug_array_pub{ORB_ID(debug_array)};
+
 	hrt_abstime _hover_thrust_estimate_last_valid{0};
 	bool _hover_thrust_estimate_valid{false};
 
@@ -122,6 +127,8 @@ private:
 	bool _hover_thrust_initialized{false};
 
 	float _actuator_controls_throttle{0.f};
+	float _labud_land_min_throttle{0.4f};	// this value worked for detecting landing
+	debug_array_s debug{};
 
 	uint8_t _takeoff_state{takeoff_status_s::TAKEOFF_STATE_DISARMED};
 
