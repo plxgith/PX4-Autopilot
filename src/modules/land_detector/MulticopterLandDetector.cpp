@@ -77,7 +77,8 @@ MulticopterLandDetector::MulticopterLandDetector()
 {
 	_paramHandle.landSpeed = param_find("MPC_LAND_SPEED");
 	_paramHandle.minManThrottle = param_find("MPC_MANTHR_MIN");
-	_paramHandle.minThrottle = param_find("MPC_THR_MIN");
+	//_paramHandle.minThrottle = param_find("MPC_THR_MIN");
+	_paramHandle.minThrottle = 0.5;	// with this value it wanted to disarm
 	_paramHandle.useHoverThrustEstimate = param_find("MPC_USE_HTE");
 	_paramHandle.hoverThrottle = param_find("MPC_THR_HOVER");
 	_paramHandle.crawlSpeed = param_find("MPC_LAND_CRWL");
