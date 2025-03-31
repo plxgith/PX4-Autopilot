@@ -124,7 +124,7 @@ CameraFeedback::Run()
 		capture.q[1] = att.q[1];
 		capture.q[2] = att.q[2];
 		capture.q[3] = att.q[3];
-		//capture.result = 1;
+		capture.result = 1;
 
 		_capture_pub.publish(capture);
 	}
