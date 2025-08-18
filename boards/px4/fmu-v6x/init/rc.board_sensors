@@ -59,6 +59,9 @@ fi
 if ver hwbasecmp 009 010 011
 then
 	pm_selector_auterion start
+
+	# Auterion's INA238 uses a shunt value of 0.0003 instead of 0.0005.
+	param set-default INA238_SHUNT 0.0003
 else
 	if [ $INA_CONFIGURED = no ]
 	then
@@ -168,8 +171,8 @@ else
 	bmp388 -X start
 fi
 
-# Baro on I2C3
-ms5611 -X start
+# Don't try to start external baro on I2C3 as it can conflict with the MS5525DSO airspeed sensor.
+#ms5611 -X start
 
 unset INA_CONFIGURED
 unset HAVE_PM2

@@ -127,6 +127,9 @@
 #define SPI6_nRESET_EXTERNAL1       /* PF10 */ (GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_2MHz|GPIO_OUTPUT_CLEAR|GPIO_PORTF|GPIO_PIN10)
 #define SPI6_RESET(on_true)          px4_arch_gpiowrite(SPI6_nRESET_EXTERNAL1, !(on_true))
 
+// ADIS16507 hardware reset
+#define GPIO_ADIS16507_RESET(reset) SPI6_RESET(reset)
+
 /* I2C busses */
 
 /* Devices on the onboard buses.
@@ -319,10 +322,6 @@
 #define HRT_PPM_CHANNEL         /* T8C1 */  1  /* use capture/compare channel 1 */
 #define GPIO_PPM_IN             /* PI5 T8C1 */ GPIO_TIM8_CH1IN_2
 
-/* RC Serial port */
-
-#define RC_SERIAL_PORT                     "/dev/ttyS5"
-
 /* Input Capture Channels. */
 #define INPUT_CAP1_TIMER                  1
 #define INPUT_CAP1_CHANNEL     /* T1C2 */ 2
@@ -419,6 +418,9 @@
 
 /* This board provides a DMA pool and APIs */
 #define BOARD_DMA_ALLOC_POOL_SIZE 5120
+
+/* This board has 4 DMA channels available for bidirectional dshot */
+#define BOARD_DMA_NUM_DSHOT_CHANNELS 4
 
 /* This board provides the board_on_reset interface */
 

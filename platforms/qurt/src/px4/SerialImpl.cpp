@@ -37,6 +37,13 @@
 #include <drivers/device/qurt/uart.h>
 #include <drivers/drv_hrt.h>
 
+#define MODULE_NAME "SerialImpl"
+
+extern "C" {
+	__EXPORT int fc_uart_rx_available(int fd, uint32_t *data);
+	__EXPORT int fc_uart_flush_rx(int fd);
+}
+
 namespace device
 {
 
@@ -156,6 +163,18 @@ bool SerialImpl::close()
 	return true;
 }
 
+ssize_t SerialImpl::bytesAvailable()
+{
+	if (!_open) {
+		PX4_ERR("Device not open!");
+		return -1;
+	}
+
+	uint32_t rx_bytes = 0;
+	(void) fc_uart_rx_available(_serial_fd, &rx_bytes);
+	return (ssize_t) rx_bytes;
+}
+
 ssize_t SerialImpl::read(uint8_t *buffer, size_t buffer_size)
 {
 	if (!_open) {
@@ -173,7 +192,7 @@ ssize_t SerialImpl::read(uint8_t *buffer, size_t buffer_size)
 	return ret_read;
 }
 
-ssize_t SerialImpl::readAtLeast(uint8_t *buffer, size_t buffer_size, size_t character_count, uint32_t timeout_us)
+ssize_t SerialImpl::readAtLeast(uint8_t *buffer, size_t buffer_size, size_t character_count, uint32_t timeout_ms)
 {
 	if (!_open) {
 		PX4_ERR("Cannot readAtLeast from serial device until it has been opened");
@@ -186,6 +205,7 @@ ssize_t SerialImpl::readAtLeast(uint8_t *buffer, size_t buffer_size, size_t char
 	}
 
 	const hrt_abstime start_time_us = hrt_absolute_time();
+	hrt_abstime timeout_us = timeout_ms * 1000;
 	int total_bytes_read = 0;
 
 	while (total_bytes_read < (int) character_count) {
@@ -257,7 +277,9 @@ ssize_t SerialImpl::write(const void *buffer, size_t buffer_size)
 
 void SerialImpl::flush()
 {
-	// TODO: Flush not implemented yet on Qurt
+	if (_open) {
+		(void) fc_uart_flush_rx(_serial_fd);
+	}
 }
 
 const char *SerialImpl::getPort() const

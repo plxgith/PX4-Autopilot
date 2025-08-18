@@ -44,7 +44,7 @@
 
 #include "ekf.h"
 
-#include <ekf_derivation/generated/compute_airspeed_h_and_k.h>
+#include <ekf_derivation/generated/compute_airspeed_h.h>
 #include <ekf_derivation/generated/compute_airspeed_innov_and_innov_var.h>
 #include <ekf_derivation/generated/compute_wind_init_and_cov_from_airspeed.h>
 
@@ -58,8 +58,12 @@ void Ekf::controlAirDataFusion(const imuSample &imu_delayed)
 	const bool airspeed_timed_out = isTimedOut(_aid_src_airspeed.time_last_fuse, (uint64_t)10e6);
 	const bool sideslip_timed_out = isTimedOut(_aid_src_sideslip.time_last_fuse, (uint64_t)10e6);
 
-	if (_control_status.flags.fake_pos || (airspeed_timed_out && sideslip_timed_out && (_params.drag_ctrl == 0))) {
+	if (_control_status.flags.fake_pos || (airspeed_timed_out && sideslip_timed_out && (_params.ekf2_drag_ctrl == 0))) {
 		_control_status.flags.wind = false;
+	}
+
+	if (_control_status.flags.wind && _external_wind_init) {
+		_external_wind_init = false;
 	}
 
 #if defined(CONFIG_EKF2_GNSS)
@@ -68,7 +72,7 @@ void Ekf::controlAirDataFusion(const imuSample &imu_delayed)
 	if (_control_status.flags.fixed_wing) {
 		if (_control_status.flags.in_air && !_control_status.flags.vehicle_at_rest) {
 			if (!_control_status.flags.fuse_aspd) {
-				_yawEstimator.setTrueAirspeed(_params.EKFGSF_tas_default);
+				_yawEstimator.setTrueAirspeed(_params.ekf2_gsf_tas);
 			}
 
 		} else {
@@ -78,7 +82,7 @@ void Ekf::controlAirDataFusion(const imuSample &imu_delayed)
 
 #endif // CONFIG_EKF2_GNSS
 
-	if (_params.arsp_thr <= 0.f) {
+	if (_params.ekf2_arsp_thr <= 0.f) {
 		stopAirspeedFusion();
 		return;
 	}
@@ -89,13 +93,13 @@ void Ekf::controlAirDataFusion(const imuSample &imu_delayed)
 
 		updateAirspeed(airspeed_sample, _aid_src_airspeed);
 
-		_innov_check_fail_status.flags.reject_airspeed = _aid_src_airspeed.innovation_rejected; // TODO: remove this redundant flag
+		_innov_check_fail_status.flags.reject_airspeed =
+			_aid_src_airspeed.innovation_rejected; // TODO: remove this redundant flag
 
 		const bool continuing_conditions_passing = _control_status.flags.in_air
-				&& _control_status.flags.fixed_wing
 				&& !_control_status.flags.fake_pos;
 
-		const bool is_airspeed_significant = airspeed_sample.true_airspeed > _params.arsp_thr;
+		const bool is_airspeed_significant = airspeed_sample.true_airspeed > _params.ekf2_arsp_thr;
 		const bool is_airspeed_consistent = (_aid_src_airspeed.test_ratio > 0.f && _aid_src_airspeed.test_ratio < 1.f);
 		const bool starting_conditions_passing = continuing_conditions_passing
 				&& is_airspeed_significant
@@ -127,10 +131,11 @@ void Ekf::controlAirDataFusion(const imuSample &imu_delayed)
 			if (_control_status.flags.inertial_dead_reckoning && !is_airspeed_consistent) {
 				resetVelUsingAirspeed(airspeed_sample);
 
-			} else if (!_control_status.flags.wind || getWindVelocityVariance().longerThan(_params.initial_wind_uncertainty)) {
-				// If starting wind state estimation, reset the wind states and covariances before fusing any data
-				// Also catch the case where sideslip fusion enabled wind estimation recently and didn't converge yet.
+			} else if (!_external_wind_init && !_synthetic_airspeed
+				   && (!_control_status.flags.wind
+				       || getWindVelocityVariance().longerThan(sq(_params.initial_wind_uncertainty)))) {
 				resetWindUsingAirspeed(airspeed_sample);
+				_aid_src_airspeed.time_last_fuse = _time_delayed_us;
 			}
 
 			_control_status.flags.wind = true;
@@ -146,7 +151,7 @@ void Ekf::controlAirDataFusion(const imuSample &imu_delayed)
 void Ekf::updateAirspeed(const airspeedSample &airspeed_sample, estimator_aid_source1d_s &aid_src) const
 {
 	// Variance for true airspeed measurement - (m/sec)^2
-	const float R = sq(math::constrain(_params.eas_noise, 0.5f, 5.0f) *
+	const float R = sq(math::constrain(_params.ekf2_eas_noise, 0.5f, 5.0f) *
 			   math::constrain(airspeed_sample.eas2tas, 0.9f, 10.0f));
 
 	float innov = 0.f;
@@ -155,12 +160,12 @@ void Ekf::updateAirspeed(const airspeedSample &airspeed_sample, estimator_aid_so
 					     &innov, &innov_var);
 
 	updateAidSourceStatus(aid_src,
-				 airspeed_sample.time_us,                 // sample timestamp
-				 airspeed_sample.true_airspeed,           // observation
-				 R,                                       // observation variance
-				 innov,                                   // innovation
-				 innov_var,                               // innovation variance
-				 math::max(_params.tas_innov_gate, 1.f)); // innovation gate
+			      airspeed_sample.time_us,                 // sample timestamp
+			      airspeed_sample.true_airspeed,           // observation
+			      R,                                       // observation variance
+			      innov,                                   // innovation
+			      innov_var,                               // innovation variance
+			      math::max(_params.ekf2_tas_gate, 1.f)); // innovation gate
 }
 
 void Ekf::fuseAirspeed(const airspeedSample &airspeed_sample, estimator_aid_source1d_s &aid_src)
@@ -198,10 +203,8 @@ void Ekf::fuseAirspeed(const airspeedSample &airspeed_sample, estimator_aid_sour
 
 	_fault_status.flags.bad_airspeed = false;
 
-	VectorState H; // Observation jacobian
-	VectorState K; // Kalman gain vector
-
-	sym::ComputeAirspeedHAndK(_state.vector(), P, innov_var, FLT_EPSILON, &H, &K);
+	const VectorState H = sym::ComputeAirspeedH(_state.vector(), FLT_EPSILON);
+	VectorState K = P * H / aid_src.innovation_variance;
 
 	if (update_wind_only) {
 		const Vector2f K_wind = K.slice<State::wind_vel.dof, 1>(State::wind_vel.idx, 0);
@@ -209,13 +212,17 @@ void Ekf::fuseAirspeed(const airspeedSample &airspeed_sample, estimator_aid_sour
 		K.slice<State::wind_vel.dof, 1>(State::wind_vel.idx, 0) = K_wind;
 	}
 
-	const bool is_fused = measurementUpdate(K, H, aid_src.observation_variance, aid_src.innovation);
+	if (_synthetic_airspeed) {
+		K.slice<State::wind_vel.dof, 1>(State::wind_vel.idx, 0) = 0.f;
+	}
 
-	aid_src.fused = is_fused;
-	_fault_status.flags.bad_airspeed = !is_fused;
+	measurementUpdate(K, H, aid_src.observation_variance, aid_src.innovation);
 
-	if (is_fused) {
-		aid_src.time_last_fuse = _time_delayed_us;
+	aid_src.fused = true;
+	aid_src.time_last_fuse = _time_delayed_us;
+
+	if (!update_wind_only) {
+		_time_last_hor_vel_fuse = _time_delayed_us;
 	}
 }
 
@@ -236,7 +243,7 @@ void Ekf::resetWindUsingAirspeed(const airspeedSample &airspeed_sample)
 	constexpr float sideslip_var = sq(math::radians(15.0f));
 
 	const float euler_yaw = getEulerYaw(_R_to_earth);
-	const float airspeed_var = sq(math::constrain(_params.eas_noise, 0.5f, 5.0f)
+	const float airspeed_var = sq(math::constrain(_params.ekf2_eas_noise, 0.5f, 5.0f)
 				      * math::constrain(airspeed_sample.eas2tas, 0.9f, 10.0f));
 
 	matrix::SquareMatrix<float, State::wind_vel.dof> P_wind;

@@ -65,7 +65,6 @@
 #include "streams/BATTERY_STATUS.hpp"
 #include "streams/CAMERA_IMAGE_CAPTURED.hpp"
 #include "streams/CAMERA_TRIGGER.hpp"
-#include "streams/COLLISION.hpp"
 #include "streams/COMMAND_LONG.hpp"
 #include "streams/COMPONENT_INFORMATION.hpp"
 #include "streams/COMPONENT_METADATA.hpp"
@@ -76,6 +75,9 @@
 #include "streams/ESTIMATOR_STATUS.hpp"
 #include "streams/EXTENDED_SYS_STATE.hpp"
 #include "streams/FLIGHT_INFORMATION.hpp"
+#if defined(MAVLINK_MSG_ID_GLOBAL_POSITION)
+#include "streams/GLOBAL_POSITION.hpp"
+#endif //MAVLINK_MSG_ID_GLOBAL_POSITION
 #include "streams/GLOBAL_POSITION_INT.hpp"
 #include "streams/GPS_GLOBAL_ORIGIN.hpp"
 #include "streams/GPS_RAW_INT.hpp"
@@ -97,6 +99,7 @@
 #include "streams/OPEN_DRONE_ID_BASIC_ID.hpp"
 #include "streams/OPEN_DRONE_ID_LOCATION.hpp"
 #include "streams/OPEN_DRONE_ID_SYSTEM.hpp"
+#include "streams/OPEN_DRONE_ID_ARM_STATUS.hpp"
 #include "streams/OPTICAL_FLOW_RAD.hpp"
 #include "streams/ORBIT_EXECUTION_STATUS.hpp"
 #include "streams/PING.hpp"
@@ -116,7 +119,6 @@
 #include "streams/SYSTEM_TIME.hpp"
 #include "streams/TIME_ESTIMATE_TO_TARGET.hpp"
 #include "streams/TIMESYNC.hpp"
-#include "streams/TRAJECTORY_REPRESENTATION_WAYPOINTS.hpp"
 #include "streams/VFR_HUD.hpp"
 #include "streams/VIBRATION.hpp"
 #include "streams/WIND_COV.hpp"
@@ -382,9 +384,6 @@ static const StreamListItem streams_list[] = {
 #if defined(MANUAL_CONTROL_HPP)
 	create_stream_list_item<MavlinkStreamManualControl>(),
 #endif // MANUAL_CONTROL_HPP
-#if defined(TRAJECTORY_REPRESENTATION_WAYPOINTS_HPP)
-	create_stream_list_item<MavlinkStreamTrajectoryRepresentationWaypoints>(),
-#endif // TRAJECTORY_REPRESENTATION_WAYPOINTS_HPP
 #if defined(OPTICAL_FLOW_RAD_HPP)
 	create_stream_list_item<MavlinkStreamOpticalFlowRad>(),
 #endif // OPTICAL_FLOW_RAD_HPP
@@ -457,6 +456,9 @@ static const StreamListItem streams_list[] = {
 #if defined(OPEN_DRONE_ID_SYSTEM_HPP)
 	create_stream_list_item<MavlinkStreamOpenDroneIdSystem>(),
 #endif // OPEN_DRONE_ID_SYSTEM_HPP
+#if defined(OPEN_DRONE_ID_ARM_STATUS_HPP)
+	create_stream_list_item<MavlinkStreamOpenDroneIdArmStatus>(),
+#endif // OPEN_DRONE_ID_ARM_STATUS_HPP
 #if defined(ESC_INFO_HPP)
 	create_stream_list_item<MavlinkStreamESCInfo>(),
 #endif // ESC_INFO_HPP
@@ -511,6 +513,9 @@ static const StreamListItem streams_list[] = {
 #if defined(CURRENT_MODE_HPP)
 	create_stream_list_item<MavlinkStreamCurrentMode>(),
 #endif // CURRENT_MODE_HPP
+#if defined(GLOBAL_POSITION_HPP)
+	create_stream_list_item<MavlinkStreamGLobalPosition>(),
+#endif // GLOBAL_POSITION_HPP
 };
 
 const char *get_stream_name(const uint16_t msg_id)

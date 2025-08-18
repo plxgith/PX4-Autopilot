@@ -45,7 +45,7 @@ INA238::INA238(const I2CSPIDriverConfig &config, int battery_index) :
 	_sample_perf(perf_alloc(PC_ELAPSED, "ina238_read")),
 	_comms_errors(perf_alloc(PC_COUNT, "ina238_com_err")),
 	_collection_errors(perf_alloc(PC_COUNT, "ina238_collection_err")),
-	_battery(battery_index, this, INA238_SAMPLE_INTERVAL_US, battery_status_s::BATTERY_SOURCE_POWER_MODULE)
+	_battery(battery_index, this, INA238_SAMPLE_INTERVAL_US, battery_status_s::SOURCE_POWER_MODULE)
 {
 	float fvalue = DEFAULT_MAX_CURRENT;
 	_max_current = fvalue;
@@ -55,14 +55,27 @@ INA238::INA238(const I2CSPIDriverConfig &config, int battery_index) :
 		_max_current = fvalue;
 	}
 
-	_range = _max_current > (DEFAULT_MAX_CURRENT - 1.0f) ? INA238_ADCRANGE_HIGH : INA238_ADCRANGE_LOW;
-
 	fvalue = DEFAULT_SHUNT;
 	_rshunt = fvalue;
 	ph = param_find("INA238_SHUNT");
 
 	if (ph != PARAM_INVALID && param_get(ph, &fvalue) == PX4_OK) {
 		_rshunt = fvalue;
+	}
+
+	// According to page 8.2.2.1, page 33/48 of the INA238 interface datasheet (Rev. A),
+	// the requirement is: R_SHUNT < V_SENSE_MAX / I_MAX
+	// therefore: R_SHUNT * I_MAX < V_SENSE_MAX
+	// and so if V_SENSE_MAX is bigger, we need to use the bigger ADC range to avoid
+	// the device from capping the measured current.
+
+	const float v_sense_max = _rshunt * _max_current;
+
+	if (v_sense_max > INA238_ADCRANGE_LOW_V_SENSE) {
+		_range = INA238_ADCRANGE_HIGH;
+
+	} else {
+		_range = INA238_ADCRANGE_LOW;
 	}
 
 	_current_lsb = _max_current / INA238_DN_MAX;
@@ -80,6 +93,7 @@ INA238::INA238(const I2CSPIDriverConfig &config, int battery_index) :
 	_battery.setConnected(false);
 	_battery.updateVoltage(0.f);
 	_battery.updateCurrent(0.f);
+	_battery.updateTemperature(0.f);
 	_battery.updateAndPublishBatteryStatus(hrt_absolute_time());
 }
 
@@ -123,7 +137,15 @@ int INA238::init()
 		return ret;
 	}
 
-	return Reset();
+	ret = Reset();
+
+	if (ret) {
+		return ret;
+	}
+
+	start();
+
+	return 0;
 }
 
 int INA238::force_init()
@@ -158,6 +180,8 @@ int INA238::Reset()
 {
 
 	int ret = PX4_ERROR;
+
+	_retries = 3;
 
 	if (RegisterWrite(Register::CONFIG, (uint16_t)(ADC_RESET_BIT)) != PX4_OK) {
 		return ret;
@@ -224,9 +248,21 @@ int INA238::collect()
 	bool success{true};
 	int16_t bus_voltage{0};
 	int16_t current{0};
+	int16_t temperature{0};
 
 	success = (RegisterRead(Register::VS_BUS, (uint16_t &)bus_voltage) == PX4_OK);
 	success = success && (RegisterRead(Register::CURRENT, (uint16_t &)current) == PX4_OK);
+	success = success && (RegisterRead(Register::DIETEMP, (uint16_t &)temperature) == PX4_OK);
+
+	if (success) {
+		_battery.updateVoltage(static_cast<float>(bus_voltage * INA238_VSCALE));
+		_battery.updateCurrent(static_cast<float>(current * _current_lsb));
+		_battery.updateTemperature(static_cast<float>(temperature * INA238_TSCALE));
+
+		_battery.setConnected(success);
+
+		_battery.updateAndPublishBatteryStatus(hrt_absolute_time());
+	}
 
 	if (!success || hrt_elapsed_time(&_last_config_check_timestamp) > 100_ms) {
 		// check configuration registers periodically or immediately following any failure
@@ -239,18 +275,12 @@ int INA238::collect()
 			PX4_DEBUG("register check failed");
 			perf_count(_bad_register_perf);
 			success = false;
+
+			_battery.setConnected(success);
+
+			_battery.updateAndPublishBatteryStatus(hrt_absolute_time());
 		}
 	}
-
-	if (!success) {
-		PX4_DEBUG("error reading from sensor");
-		bus_voltage = current = 0;
-	}
-
-	_battery.setConnected(success);
-	_battery.updateVoltage(static_cast<float>(bus_voltage * INA238_VSCALE));
-	_battery.updateCurrent(static_cast<float>(current * _current_lsb));
-	_battery.updateAndPublishBatteryStatus(hrt_absolute_time());
 
 	perf_end(_sample_perf);
 
@@ -258,6 +288,8 @@ int INA238::collect()
 		return PX4_OK;
 
 	} else {
+		PX4_DEBUG("error reading from sensor");
+
 		return PX4_ERROR;
 	}
 }
@@ -309,6 +341,7 @@ void INA238::RunImpl()
 		_battery.setConnected(false);
 		_battery.updateVoltage(0.f);
 		_battery.updateCurrent(0.f);
+		_battery.updateTemperature(0.f);
 		_battery.updateAndPublishBatteryStatus(hrt_absolute_time());
 
 		if (init() != PX4_OK) {

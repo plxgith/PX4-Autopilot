@@ -46,7 +46,6 @@
 #include "arm_internal.h"
 
 #define FLEXIO_BASE			IMXRT_FLEXIO1_BASE
-#define FLEXIO_PREQ			120000000
 #define DSHOT_TIMERS			FLEXIO_SHIFTBUFNIS_COUNT
 #define DSHOT_THROTTLE_POSITION		5u
 #define DSHOT_TELEMETRY_POSITION	4u
@@ -305,8 +304,8 @@ static int flexio_irq_handler(int irq, void *context, void *arg)
 int up_dshot_init(uint32_t channel_mask, unsigned dshot_pwm_freq, bool enable_bidirectional_dshot)
 {
 	/* Calculate dshot timings based on dshot_pwm_freq */
-	dshot_tcmp = 0x2F00 | (((FLEXIO_PREQ / (dshot_pwm_freq * 3) / 2)) & 0xFF);
-	bdshot_tcmp = 0x2900 | (((FLEXIO_PREQ / (dshot_pwm_freq * 5 / 4) / 2) - 1) & 0xFF);
+	dshot_tcmp = 0x2F00 | (((BOARD_FLEXIO_PREQ / (dshot_pwm_freq * 3) / 2) - 1) & 0xFF);
+	bdshot_tcmp = 0x2900 | (((BOARD_FLEXIO_PREQ / (dshot_pwm_freq * 5 / 4) / 2) - 3) & 0xFF);
 
 	/* Clock FlexIO peripheral */
 	imxrt_clockall_flexio1();
@@ -418,6 +417,21 @@ void up_bdshot_erpm(void)
 	}
 }
 
+
+int up_bdshot_num_erpm_ready(void)
+{
+	int num_ready = 0;
+
+	for (unsigned i = 0; i < DSHOT_TIMERS; ++i) {
+		// We only check that data has been received, rather than if it's valid.
+		// This ensures data is published even if one channel has bit errors.
+		if (bdshot_recv_mask & (1 << i)) {
+			++num_ready;
+		}
+	}
+
+	return num_ready;
+}
 
 
 int up_bdshot_get_erpm(uint8_t channel, int *erpm)

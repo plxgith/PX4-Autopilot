@@ -57,7 +57,7 @@ PARAM_DEFINE_INT32(UAVCAN_ENABLE, 0);
 /**
  * UAVCAN Node ID.
  *
- * Read the specs at http://uavcan.org to learn more about Node ID.
+ * Read the specs at https://dronecan.github.io/ to learn more about Node ID.
  *
  * @min 1
  * @max 125
@@ -85,7 +85,7 @@ PARAM_DEFINE_INT32(UAVCAN_BITRATE, 1000000);
  * @unit m
  * @group UAVCAN
  */
-PARAM_DEFINE_FLOAT(UAVCAN_RNG_MIN, 0.3f);
+PARAM_DEFINE_FLOAT(UAVCAN_RNG_MIN, 0.0f);
 
 /**
  * UAVCAN rangefinder maximum range
@@ -95,7 +95,7 @@ PARAM_DEFINE_FLOAT(UAVCAN_RNG_MIN, 0.3f);
  * @unit m
  * @group UAVCAN
  */
-PARAM_DEFINE_FLOAT(UAVCAN_RNG_MAX, 200.0f);
+PARAM_DEFINE_FLOAT(UAVCAN_RNG_MAX, 999.0f);
 
 /**
  * UAVCAN fuel tank maximum capacity
@@ -288,10 +288,11 @@ PARAM_DEFINE_INT32(UAVCAN_SUB_BARO, 0);
  * Enable UAVCAN battery subscription.
  *  uavcan::equipment::power::BatteryInfo
  *  ardupilot::equipment::power::BatteryInfoAux
+ *  cuav::equipment::power::CBAT
  *
  *  0 - Disable
  *  1 - Use raw data. Recommended for Smart battery
- *  2 - Filter the data with internal battery library
+ *  2 - Filter the data with internal battery library (unsupported with CBAT)
  *
  * @min 0
  * @max 2

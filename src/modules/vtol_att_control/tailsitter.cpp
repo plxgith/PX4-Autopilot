@@ -179,7 +179,8 @@ void Tailsitter::update_transition_state()
 			// the yaw setpoint and zero roll since we want wings level transition.
 			// If for some reason the fw attitude setpoint is not recent then don't use it and assume 0 pitch
 			if (_fw_virtual_att_sp->timestamp > (now - 1_s)) {
-				_q_trans_start = Eulerf(0.f, _fw_virtual_att_sp->pitch_body, yaw_sp);
+				const float pitch_body = Eulerf(Quatf(_fw_virtual_att_sp->q_d)).theta();
+				_q_trans_start = Eulerf(0.f, pitch_body, yaw_sp);
 
 			} else {
 				_q_trans_start = Eulerf(0.f, 0.f, yaw_sp);
@@ -191,7 +192,8 @@ void Tailsitter::update_transition_state()
 
 		} else if (_vtol_mode == vtol_mode::TRANSITION_FRONT_P1) {
 			// initial attitude setpoint for the transition should be with wings level
-			_q_trans_start = Eulerf(0.f, _mc_virtual_att_sp->pitch_body, _mc_virtual_att_sp->yaw_body);
+			const Eulerf setpoint_euler(Quatf(_mc_virtual_att_sp->q_d));
+			_q_trans_start = Eulerf(0.f, setpoint_euler.theta(), setpoint_euler.psi());
 			Vector3f x = Dcmf(Quatf(_v_att->q)) * Vector3f(1.f, 0.f, 0.f);
 			_trans_rot_axis = -x.cross(Vector3f(0.f, 0.f, -1.f));
 		}
@@ -238,10 +240,6 @@ void Tailsitter::update_transition_state()
 	_v_att_sp->timestamp = hrt_absolute_time();
 
 	const Eulerf euler_sp(_q_trans_sp);
-	_v_att_sp->roll_body = euler_sp.phi();
-	_v_att_sp->pitch_body = euler_sp.theta();
-	_v_att_sp->yaw_body = euler_sp.psi();
-
 	_q_trans_sp.copyTo(_v_att_sp->q_d);
 }
 
@@ -338,15 +336,14 @@ void Tailsitter::fill_actuator_outputs()
 
 bool Tailsitter::isFrontTransitionCompletedBase()
 {
-	const bool airspeed_triggers_transition = PX4_ISFINITE(_airspeed_validated->calibrated_airspeed_m_s)
-			&& _param_fw_use_airspd.get();
+	const bool airspeed_triggers_transition = PX4_ISFINITE(_attc->get_calibrated_airspeed());
 
 	bool transition_to_fw = false;
 	const float pitch = Eulerf(Quatf(_v_att->q)).theta();
 
 	if (pitch <= PITCH_THRESHOLD_AUTO_TRANSITION_TO_FW) {
 		if (airspeed_triggers_transition) {
-			transition_to_fw = _airspeed_validated->calibrated_airspeed_m_s >= _param_vt_arsp_trans.get() ;
+			transition_to_fw = _attc->get_calibrated_airspeed() >= _param_vt_arsp_trans.get() ;
 
 		} else {
 			transition_to_fw = true;

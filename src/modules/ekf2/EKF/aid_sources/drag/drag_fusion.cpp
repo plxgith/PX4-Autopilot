@@ -45,12 +45,14 @@
 
 void Ekf::controlDragFusion(const imuSample &imu_delayed)
 {
-	if ((_params.drag_ctrl > 0) && _drag_buffer) {
+	if ((_params.ekf2_drag_ctrl > 0) && _drag_buffer) {
 
 		if (!_control_status.flags.wind && !_control_status.flags.fake_pos && _control_status.flags.in_air) {
-			// reset the wind states and covariances when starting drag accel fusion
 			_control_status.flags.wind = true;
-			resetWindToZero();
+
+			if (!_external_wind_init) {
+				resetWindCov();
+			}
 		}
 
 		dragSample drag_sample;
@@ -63,17 +65,19 @@ void Ekf::controlDragFusion(const imuSample &imu_delayed)
 
 void Ekf::fuseDrag(const dragSample &drag_sample)
 {
-	const float R_ACC = fmaxf(_params.drag_noise, 0.5f); // observation noise variance in specific force drag (m/sec**2)**2
+	const float R_ACC = fmaxf(_params.ekf2_drag_noise,
+				  0.5f); // observation noise variance in specific force drag (m/sec**2)**2
 	const float rho = fmaxf(_air_density, 0.1f); // air density (kg/m**3)
 
 	// correct rotor momentum drag for increase in required rotor mass flow with altitude
 	// obtained from momentum disc theory
-	const float mcoef_corrrected = fmaxf(_params.mcoef * sqrtf(rho / atmosphere::kAirDensitySeaLevelStandardAtmos), 0.f);
+	const float mcoef_corrrected = fmaxf(_params.ekf2_mcoef * sqrtf(rho / atmosphere::kAirDensitySeaLevelStandardAtmos),
+					     0.f);
 
 	// drag model parameters
-	const bool using_bcoef_x = _params.bcoef_x > 1.0f;
-	const bool using_bcoef_y = _params.bcoef_y > 1.0f;
-	const bool using_mcoef   = _params.mcoef   > 0.001f;
+	const bool using_bcoef_x = _params.ekf2_bcoef_x > 1.0f;
+	const bool using_bcoef_y = _params.ekf2_bcoef_y > 1.0f;
+	const bool using_mcoef   = _params.ekf2_mcoef   > 0.001f;
 
 	if (!using_bcoef_x && !using_bcoef_y && !using_mcoef) {
 		return;
@@ -90,11 +94,11 @@ void Ekf::fuseDrag(const dragSample &drag_sample)
 	Vector2f bcoef_inv{0.f, 0.f};
 
 	if (using_bcoef_x) {
-		bcoef_inv(0) = 1.f / _params.bcoef_x;
+		bcoef_inv(0) = 1.f / _params.ekf2_bcoef_x;
 	}
 
 	if (using_bcoef_y) {
-		bcoef_inv(1) = 1.f / _params.bcoef_y;
+		bcoef_inv(1) = 1.f / _params.ekf2_bcoef_y;
 	}
 
 	if (using_bcoef_x && using_bcoef_y) {
@@ -104,8 +108,6 @@ void Ekf::fuseDrag(const dragSample &drag_sample)
 		bcoef_inv(0) = Vector2f(bcoef_inv.emult(rel_wind_body.xy()) / rel_wind_body.xy().norm()).norm();
 		bcoef_inv(1) = bcoef_inv(0);
 	}
-
-	bool fused[] {false, false};
 
 	Vector2f observation{};
 	Vector2f observation_variance{R_ACC, R_ACC};
@@ -150,7 +152,7 @@ void Ekf::fuseDrag(const dragSample &drag_sample)
 
 		if (innovation_variance(axis_index) < R_ACC) {
 			// calculation is badly conditioned
-			break;
+			return;
 		}
 
 		const float test_ratio = sq(innovation(axis_index)) / (sq(innov_gate) * innovation_variance(axis_index));
@@ -162,22 +164,18 @@ void Ekf::fuseDrag(const dragSample &drag_sample)
 
 			VectorState K = P * H / innovation_variance(axis_index);
 
-			if (measurementUpdate(K, H, R_ACC, innovation(axis_index))) {
-				fused[axis_index] = true;
-			}
+			measurementUpdate(K, H, R_ACC, innovation(axis_index));
 		}
 	}
 
 	updateAidSourceStatus(_aid_src_drag,
-				 drag_sample.time_us,  // sample timestamp
-				 observation,          // observation
-				 observation_variance, // observation variance
-				 innovation,           // innovation
-				 innovation_variance,  // innovation variance
-				 innov_gate);          // innovation gate
+			      drag_sample.time_us,  // sample timestamp
+			      observation,          // observation
+			      observation_variance, // observation variance
+			      innovation,           // innovation
+			      innovation_variance,  // innovation variance
+			      innov_gate);          // innovation gate
 
-	if (fused[0] && fused[1]) {
-		_aid_src_drag.fused = true;
-		_aid_src_drag.time_last_fuse = _time_delayed_us;
-	}
+	_aid_src_drag.fused = true;
+	_aid_src_drag.time_last_fuse = _time_delayed_us;
 }

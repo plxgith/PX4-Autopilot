@@ -38,13 +38,14 @@
 
 #include "ekf.h"
 
-void Ekf::controlEvYawFusion(const extVisionSample &ev_sample, const bool common_starting_conditions_passing,
-			     const bool ev_reset, const bool quality_sufficient, estimator_aid_source1d_s &aid_src)
+void Ekf::controlEvYawFusion(const imuSample &imu_sample, const extVisionSample &ev_sample,
+			     const bool common_starting_conditions_passing, const bool ev_reset, const bool quality_sufficient,
+			     estimator_aid_source1d_s &aid_src)
 {
 	static constexpr const char *AID_SRC_NAME = "EV yaw";
 
 	float obs = getEulerYaw(ev_sample.quat);
-	float obs_var = math::max(ev_sample.orientation_var(2), _params.ev_att_noise, sq(0.01f));
+	float obs_var = math::max(ev_sample.orientation_var(2), _params.ekf2_eva_noise, sq(0.01f));
 
 	float innov = wrap_pi(getEulerYaw(_R_to_earth) - obs);
 	float innov_var = 0.f;
@@ -53,26 +54,26 @@ void Ekf::controlEvYawFusion(const extVisionSample &ev_sample, const bool common
 	computeYawInnovVarAndH(obs_var, innov_var, H_YAW);
 
 	updateAidSourceStatus(aid_src,
-		ev_sample.time_us,                           // sample timestamp
-		obs,                                         // observation
-		obs_var,                                     // observation variance
-		innov,                                       // innovation
-		innov_var,                                   // innovation variance
-		math::max(_params.heading_innov_gate, 1.f)); // innovation gate
+			      ev_sample.time_us,                           // sample timestamp
+			      obs,                                         // observation
+			      obs_var,                                     // observation variance
+			      innov,                                       // innovation
+			      innov_var,                                   // innovation variance
+			      math::max(_params.ekf2_hdg_gate, 1.f)); // innovation gate
 
 	if (ev_reset) {
 		_control_status.flags.ev_yaw_fault = false;
 	}
 
 	// determine if we should use EV yaw aiding
-	bool continuing_conditions_passing = (_params.ev_ctrl & static_cast<int32_t>(EvCtrl::YAW))
+	bool continuing_conditions_passing = (_params.ekf2_ev_ctrl & static_cast<int32_t>(EvCtrl::YAW))
 					     && _control_status.flags.tilt_align
 					     && !_control_status.flags.ev_yaw_fault
 					     && PX4_ISFINITE(aid_src.observation)
 					     && PX4_ISFINITE(aid_src.observation_variance);
 
-	// if GPS enabled don't allow EV yaw if EV isn't NED
-	if (_control_status.flags.gps && _control_status.flags.yaw_align
+	// if GNSS is enabled don't allow EV yaw if EV isn't NED
+	if ((_control_status.flags.gnss_vel || _control_status.flags.gnss_pos) && _control_status.flags.yaw_align
 	    && (ev_sample.pos_frame != PositionFrame::LOCAL_FRAME_NED)
 	   ) {
 		continuing_conditions_passing = false;
@@ -191,9 +192,11 @@ void Ekf::controlEvYawFusion(const extVisionSample &ev_sample, const bool common
 void Ekf::stopEvYawFusion()
 {
 #if defined(CONFIG_EKF2_EXTERNAL_VISION)
+
 	if (_control_status.flags.ev_yaw) {
 
 		_control_status.flags.ev_yaw = false;
 	}
+
 #endif // CONFIG_EKF2_EXTERNAL_VISION
 }

@@ -160,11 +160,6 @@ else
 		override CMAKE_ARGS += -DCMAKE_BUILD_TYPE=UndefinedBehaviorSanitizer
 	endif
 
-	# Fuzz Testing
-	ifdef PX4_FUZZ
-		override CMAKE_ARGS += -DCMAKE_BUILD_TYPE=FuzzTesting
-	endif
-
 endif
 
 # Pick up specific Python path if set
@@ -300,6 +295,8 @@ uorb_graphs:
 	@$(MAKE) --no-print-directory px4_fmu-v2_default uorb_graph
 	@$(MAKE) --no-print-directory px4_fmu-v4_default uorb_graph
 	@$(MAKE) --no-print-directory px4_fmu-v5_default uorb_graph
+	@$(MAKE) --no-print-directory px4_fmu-v5x_default uorb_graph
+	@$(MAKE) --no-print-directory px4_fmu-v6x_default uorb_graph
 	@$(MAKE) --no-print-directory px4_sitl_default uorb_graph
 
 px4io_update:
@@ -324,10 +321,15 @@ px4io_update:
 	git status
 
 bootloaders_update: \
+	3dr_ctrl-zero-h7-oem-revg_bootloader \
 	ark_fmu-v6x_bootloader \
+	ark_fpv_bootloader \
 	ark_pi6x_bootloader \
 	cuav_nora_bootloader \
 	cuav_x7pro_bootloader \
+	cuav_7-nano_bootloader \
+	cuav_fmu-v6x_bootloader \
+	cuav_x25-evo_bootloader \
 	cubepilot_cubeorange_bootloader \
 	cubepilot_cubeorangeplus_bootloader \
 	hkust_nxt-dual_bootloader \
@@ -339,11 +341,15 @@ bootloaders_update: \
 	matek_h743_bootloader \
 	matek_h743-mini_bootloader \
 	matek_h743-slim_bootloader \
+        micoair_h743_bootloader \
+        micoair_h743-aio_bootloader \
+	micoair_h743-v2_bootloader \
 	modalai_fc-v2_bootloader \
 	mro_ctrl-zero-classic_bootloader \
 	mro_ctrl-zero-h7_bootloader \
 	mro_ctrl-zero-h7-oem_bootloader \
 	mro_pixracerpro_bootloader \
+	narinfc_h7_bootloader \
 	px4_fmu-v6c_bootloader \
 	px4_fmu-v6u_bootloader \
 	px4_fmu-v6x_bootloader \
@@ -357,7 +363,7 @@ coverity_scan: px4_sitl_default
 
 # Documentation
 # --------------------------------------------------------------------
-.PHONY: parameters_metadata airframe_metadata module_documentation extract_events px4_metadata doxygen
+.PHONY: parameters_metadata airframe_metadata module_documentation extract_events px4_metadata
 
 parameters_metadata:
 	@$(MAKE) --no-print-directory px4_sitl_default metadata_parameters ver_gen
@@ -373,15 +379,9 @@ extract_events:
 
 px4_metadata: parameters_metadata airframe_metadata module_documentation extract_events
 
-doxygen:
-	@mkdir -p "$(SRC_DIR)"/build/doxygen
-	@cd "$(SRC_DIR)"/build/doxygen && cmake "$(SRC_DIR)" $(CMAKE_ARGS) -G"$(PX4_CMAKE_GENERATOR)" -DCONFIG=px4_sitl_default -DBUILD_DOXYGEN=ON
-	@$(PX4_MAKE) -C "$(SRC_DIR)"/build/doxygen
-	@touch "$(SRC_DIR)"/build/doxygen/Documentation/.nojekyll
-
-# Astyle
+# Style
 # --------------------------------------------------------------------
-.PHONY: check_format format
+.PHONY: check_format format check_newlines
 
 check_format:
 	$(call colorecho,'Checking formatting with astyle')
@@ -392,9 +392,13 @@ format:
 	$(call colorecho,'Formatting with astyle')
 	@"$(SRC_DIR)"/Tools/astyle/check_code_style_all.sh --fix
 
+check_newlines:
+	$(call colorecho,'Checking for missing or duplicate newlines at the end of files')
+	@"$(SRC_DIR)"/Tools/astyle/check_newlines.sh
+
 # Testing
 # --------------------------------------------------------------------
-.PHONY: tests tests_coverage tests_mission tests_mission_coverage tests_offboard tests_avoidance
+.PHONY: tests tests_coverage tests_mission tests_mission_coverage tests_offboard
 .PHONY: rostest python_coverage
 
 tests:
@@ -404,11 +408,18 @@ tests:
 	$(eval UBSAN_OPTIONS += color=always)
 	$(call cmake-build,px4_sitl_test)
 
+# work around lcov bug #316; remove once lcov is fixed (see https://github.com/linux-test-project/lcov/issues/316)
+LCOBUG = --ignore-errors mismatch
 tests_coverage:
 	@$(MAKE) clean
 	@$(MAKE) --no-print-directory tests PX4_CMAKE_BUILD_TYPE=Coverage
 	@mkdir -p coverage
-	@lcov --directory build/px4_sitl_test --base-directory build/px4_sitl_test --gcov-tool gcov --capture -o coverage/lcov.info
+	@lcov --directory build/px4_sitl_test \
+		--base-directory build/px4_sitl_test \
+		--gcov-tool gcov \
+		--capture \
+		$(LCOBUG) \
+		-o coverage/lcov.info
 
 
 rostest: px4_sitl_default
@@ -447,10 +458,6 @@ tests_offboard: rostest
 	@"$(SRC_DIR)"/test/rostest_px4_run.sh mavros_posix_tests_offboard_posctl.test
 	@"$(SRC_DIR)"/test/rostest_px4_run.sh mavros_posix_tests_offboard_rpyrt_ctl.test
 
-tests_avoidance: rostest
-	@"$(SRC_DIR)"/test/rostest_avoidance_run.sh mavros_posix_test_avoidance.test
-	@"$(SRC_DIR)"/test/rostest_avoidance_run.sh mavros_posix_test_safe_landing.test
-
 python_coverage:
 	@mkdir -p "$(SRC_DIR)"/build/python_coverage
 	@cd "$(SRC_DIR)"/build/python_coverage && cmake "$(SRC_DIR)" $(CMAKE_ARGS) -G"$(PX4_CMAKE_GENERATOR)" -DCONFIG=px4_sitl_default -DPYTHON_COVERAGE=ON
@@ -464,7 +471,7 @@ python_coverage:
 
 # static analyzers (scan-build, clang-tidy, cppcheck)
 # --------------------------------------------------------------------
-.PHONY: scan-build px4_sitl_default-clang clang-tidy clang-tidy-fix clang-tidy-quiet
+.PHONY: scan-build px4_sitl_default-clang clang-tidy clang-tidy-fix
 .PHONY: cppcheck shellcheck_all validate_module_configs
 
 scan-build:
@@ -489,10 +496,6 @@ clang-tidy: px4_sitl_default-clang
 #  % run-clang-tidy-4.0.py -fix -j4 -checks=-\*,modernize-redundant-void-arg -p .
 clang-tidy-fix: px4_sitl_default-clang
 	@cd "$(SRC_DIR)"/build/px4_sitl_default-clang && "$(SRC_DIR)"/Tools/run-clang-tidy.py -header-filter=".*\.hpp" -j$(j_clang_tidy) -fix -p .
-
-# modified version of run-clang-tidy.py to return error codes and only output relevant results
-clang-tidy-quiet: px4_sitl_default-clang
-	@cd "$(SRC_DIR)"/build/px4_sitl_default-clang && "$(SRC_DIR)"/Tools/run-clang-tidy.py -header-filter=".*\.hpp" -j$(j_clang_tidy) -p .
 
 # TODO: Fix cppcheck errors then try --enable=warning,performance,portability,style,unusedFunction or --enable=all
 cppcheck: px4_sitl_default
@@ -545,14 +548,14 @@ distclean:
 # All other targets are handled by PX4_MAKE. Add a rule here to avoid printing an error.
 %:
 	$(if $(filter $(FIRST_ARG),$@), \
-		$(error "Make target $@ not found. It either does not exist or $@ cannot be the first argument. Use '$(MAKE) help|list_config_targets' to get a list of all possible [configuration] targets."),@#)
+		$(error "Make target $@ not found. It either does not exist or $@ cannot be the first argument. Use '$(MAKE) list_config_targets' to get a list of all possible [configuration] targets."),@#)
 
 # Print a list of non-config targets (based on http://stackoverflow.com/a/26339924/1487069)
 help:
 	@echo "Usage: $(MAKE) <target>"
 	@echo "Where <target> is one of:"
 	@$(MAKE) -pRrq -f $(lastword $(MAKEFILE_LIST)) : 2>/dev/null | \
-		awk -v RS= -F: '/^# File/,/^# Finished Make data base/ {if ($$1 !~ "^[#.]") {print $$1}}' | sort | \
+		awk -v RS= -F: '/(^|\n)# Files(\n|$$)/,/(^|\n)# Finished Make data base/ {if ($$1 !~ "^[#.]") {print $$1}}' | sort | \
 		egrep -v -e '^[^[:alnum:]]' -e '^($(subst $(space),|,$(ALL_CONFIG_TARGETS)))$$' -e '_default$$' -e '^(Makefile)'
 	@echo
 	@echo "Or, $(MAKE) <config_target> [<make_target(s)>]"
