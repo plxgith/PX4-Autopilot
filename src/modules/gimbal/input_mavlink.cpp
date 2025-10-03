@@ -261,6 +261,12 @@ InputMavlinkCmdMount::_process_command(ControlData &control_data, const vehicle_
 
 		switch ((int) vehicle_command.param7) {
 		case vehicle_command_s::VEHICLE_MOUNT_MODE_RETRACT:
+			control_data.type = ControlData::Type::Retract;
+			control_data.timestamp_last_update = vehicle_command.timestamp;
+			control_data.sysid_primary_control = vehicle_command.source_system;
+			control_data.compid_primary_control = vehicle_command.source_component;
+			update_result = UpdateResult::UpdatedActiveOnce;
+			break;
 
 		// fallthrough
 		case vehicle_command_s::VEHICLE_MOUNT_MODE_NEUTRAL:
@@ -718,6 +724,9 @@ InputMavlinkGimbalV2::_process_command(ControlData &control_data, const vehicle_
 
 		switch ((int) vehicle_command.param7) {
 		case vehicle_command_s::VEHICLE_MOUNT_MODE_RETRACT:
+			control_data.type = ControlData::Type::Retract;
+
+
 
 		// fallthrough
 

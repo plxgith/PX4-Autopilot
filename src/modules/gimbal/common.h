@@ -50,7 +50,8 @@ struct ControlData {
 	enum class Type {
 		Neutral = 0,
 		Angle,
-		LonLat
+		LonLat,
+		Retract
 	};
 
 	union TypeData {

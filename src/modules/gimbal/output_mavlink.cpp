@@ -75,7 +75,15 @@ void OutputMavlinkV1::update(const ControlData &control_data, bool new_setpoints
 				vehicle_command.param6 = 0.0;
 				vehicle_command.param7 = 0.0f;
 
-			} else {
+			}
+			else if(control_data.type == ControlData::Type::Retract) {
+				vehicle_command.param1 = vehicle_command_s::VEHICLE_MOUNT_MODE_RETRACT;
+
+				vehicle_command.param5 = 0.0;
+				vehicle_command.param6 = 0.0;
+				vehicle_command.param7 = 0.0f;
+			}
+			 else {
 				vehicle_command.param1 = vehicle_command_s::VEHICLE_MOUNT_MODE_MAVLINK_TARGETING;
 
 				vehicle_command.param5 = static_cast<double>(control_data.type_data.angle.frames[0]);
@@ -245,7 +253,14 @@ void OutputMavlinkV2::_publish_gimbal_device_set_attitude()
 
 	if (_absolute_angle[2]) {
 		set_attitude.flags |= gimbal_device_set_attitude_s::GIMBAL_DEVICE_FLAGS_YAW_LOCK;
+		set_attitude.flags ^= gimbal_device_set_attitude_s::GIMBAL_DEVICE_FLAGS_RETRACT;
+
 	}
+	// if (_absolute_angle[2]) {
+	// 	set_attitude.flags |= gimbal_device_set_attitude_s::GIMBAL_DEVICE_FLAGS_RETRACT;
+	// }
+	if(retract)
+		set_attitude.flags |= gimbal_device_set_attitude_s::GIMBAL_DEVICE_FLAGS_RETRACT;
 
 	_gimbal_device_set_attitude_pub.publish(set_attitude);
 }

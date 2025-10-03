@@ -137,8 +137,18 @@ void OutputBase::_set_angle_setpoints(const ControlData &control_data)
 	case ControlData::Type::LonLat:
 		_handle_position_update(control_data, true);
 		break;
-
+	case ControlData::Type::Retract:	// set this to same as neutral
+		retract ^= 1;
+		_q_setpoint[0] = 1.f;
+		_q_setpoint[1] = 0.f;
+		_q_setpoint[2] = 0.f;
+		_q_setpoint[3] = 0.f;
+		_angle_velocity[0] = NAN;
+		_angle_velocity[1] = NAN;
+		_angle_velocity[2] = NAN;
+		break;
 	case ControlData::Type::Neutral:
+		retract ^= 1;
 		_q_setpoint[0] = 1.f;
 		_q_setpoint[1] = 0.f;
 		_q_setpoint[2] = 0.f;
@@ -148,6 +158,7 @@ void OutputBase::_set_angle_setpoints(const ControlData &control_data)
 		_angle_velocity[2] = NAN;
 		break;
 	}
+
 }
 
 void OutputBase::_handle_position_update(const ControlData &control_data, bool force_update)

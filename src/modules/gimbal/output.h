@@ -88,7 +88,7 @@ protected:
 	float _angle_velocity[3] = { NAN, NAN, NAN }; //< [rad/s], can be NAN if not specifically set
 
 	bool _stabilize[3] = { false, false, false };
-
+	bool retract = false;
 	// Pitch and role are by default aligned with the horizon.
 	// Yaw follows the vehicle (not lock/absolute mode).
 	bool _absolute_angle[3] = {true, true, false };
