@@ -214,7 +214,7 @@ void OutputBase::_calculate_angle_output(const hrt_abstime &t)
 	float dt = math::constrain((t - _last_update) * 1.e-6f, 0.001f, 1.f);
 
 	const matrix::Quatf q_setpoint(_q_setpoint);
-	const bool q_setpoint_valid = q_setpoint.isAllFinite();
+	const bool q_setpoint_valid = true;
 	matrix::Eulerf euler_gimbal{};
 
 	if (q_setpoint_valid) {
