@@ -65,6 +65,7 @@ void LoggedTopics::add_default_topics()
 	add_optional_topic("follow_target", 500);
 	add_optional_topic("generator_status");
 	add_optional_topic("gps_dump");
+	add_optional_topic("gimbal_controls", 200);
 	add_optional_topic("heater_status");
 	add_topic("home_position");
 	add_topic("hover_thrust_estimate", 100);
