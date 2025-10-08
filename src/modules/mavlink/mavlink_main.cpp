@@ -1023,6 +1023,9 @@ Mavlink::handle_message(const mavlink_message_t *msg)
 	else if (msg->msgid == MAVLINK_MSG_ID_GIMBAL_DEVICE_ATTITUDE_STATUS) {
 		Mavlink::forward_message(msg, this);
 	}
+	else if(msg->msgid == MAVLINK_MSG_ID_GIMBAL_DEVICE_INFORMATION) {
+		Mavlink::forward_message(msg, this);
+	}
 }
 
 void
