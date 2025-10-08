@@ -364,7 +364,7 @@ void InputMavlinkCmdMount::_ack_vehicle_command(const vehicle_command_s &cmd)
 
 	vehicle_command_ack.timestamp = hrt_absolute_time();
 	vehicle_command_ack.command = cmd.command;
-	vehicle_command_ack.result = vehicle_command_ack_s::VEHICLE_CMD_RESULT_ACCEPTED;
+	vehicle_command_ack.result = vehicle_command_ack_s::VEHICLE_RESULT_ACCEPTED;
 	vehicle_command_ack.target_system = cmd.source_system;
 	vehicle_command_ack.target_component = cmd.source_component;
 
@@ -736,7 +736,7 @@ InputMavlinkGimbalV2::_process_command(ControlData &control_data, const vehicle_
 			break;
 		}
 
-		_ack_vehicle_command(vehicle_command, vehicle_command_ack_s::VEHICLE_CMD_RESULT_ACCEPTED);
+		_ack_vehicle_command(vehicle_command, vehicle_command_ack_s::VEHICLE_RESULT_ACCEPTED);
 		return update_result;
 
 	} else if (vehicle_command.command == vehicle_command_s::VEHICLE_CMD_DO_MOUNT_CONFIGURE) {
@@ -775,7 +775,7 @@ InputMavlinkGimbalV2::_process_command(ControlData &control_data, const vehicle_
 			}
 		}
 
-		_ack_vehicle_command(vehicle_command, vehicle_command_ack_s::VEHICLE_CMD_RESULT_ACCEPTED);
+		_ack_vehicle_command(vehicle_command, vehicle_command_ack_s::VEHICLE_RESULT_ACCEPTED);
 		return UpdateResult::UpdatedActive;
 
 	} else if (vehicle_command.command ==
@@ -845,7 +845,7 @@ InputMavlinkGimbalV2::_process_command(ControlData &control_data, const vehicle_
 			}
 		}();
 
-		_ack_vehicle_command(vehicle_command, vehicle_command_ack_s::VEHICLE_CMD_RESULT_ACCEPTED);
+		_ack_vehicle_command(vehicle_command, vehicle_command_ack_s::VEHICLE_RESULT_ACCEPTED);
 
 		if (new_sysid_primary_control != control_data.sysid_primary_control ||
 		    new_compid_primary_control != control_data.compid_primary_control) {
@@ -880,7 +880,7 @@ InputMavlinkGimbalV2::_process_command(ControlData &control_data, const vehicle_
 
 			_set_control_data_from_set_attitude(control_data, flags, q, angular_velocity);
 			_ack_vehicle_command(vehicle_command,
-					     vehicle_command_ack_s::VEHICLE_CMD_RESULT_ACCEPTED);
+					     vehicle_command_ack_s::VEHICLE_RESULT_ACCEPTED);
 
 			return UpdateResult::UpdatedActiveOnce;
 
@@ -890,7 +890,7 @@ InputMavlinkGimbalV2::_process_command(ControlData &control_data, const vehicle_
 				 vehicle_command.source_component,
 				 control_data.sysid_primary_control, control_data.compid_primary_control);
 			_ack_vehicle_command(vehicle_command,
-					     vehicle_command_ack_s::VEHICLE_CMD_RESULT_DENIED);
+					     vehicle_command_ack_s::VEHICLE_RESULT_DENIED);
 
 			return UpdateResult::UpdatedNotActive;
 		}
