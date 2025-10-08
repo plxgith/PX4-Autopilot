@@ -82,6 +82,7 @@ set(msg_files
 	failure_detector_status.msg
 	generator_status.msg
 	geofence_result.msg
+	gimbal_controls.msg
 	gimbal_device_attitude_status.msg
 	gimbal_device_information.msg
 	gimbal_device_set_attitude.msg
