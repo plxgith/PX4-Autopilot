@@ -1603,6 +1603,11 @@ Mavlink::configure_streams_to_default(const char *configure_single_stream)
 		// Note: streams requiring low latency come first
 		configure_stream_local("AUTOPILOT_STATE_FOR_GIMBAL_DEVICE", 20.0f);
 		configure_stream_local("GIMBAL_DEVICE_SET_ATTITUDE", 20.0f);
+		configure_stream_local("GLOBAL_POSITION_INT", 5.0f);
+		configure_stream_local("ATTITUDE", 15.0f);
+		configure_stream_local("GPS_RAW_INT", 0.5f);
+		configure_stream_local("SYSTEM_TIME", 1.0f);
+
 		break;
 
 	case MAVLINK_MODE_EXTVISION:
