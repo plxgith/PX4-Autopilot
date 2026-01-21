@@ -57,6 +57,7 @@ set(msg_files
 	camera_status.msg
 	camera_trigger.msg
 	cellular_status.msg
+	circuit_status.msg
 	collision_constraints.msg
 	collision_report.msg
 	commander_state.msg
