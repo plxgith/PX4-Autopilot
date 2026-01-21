@@ -11,6 +11,7 @@
 
 // Used to get access to class ModuleParams
 #include <px4_platform_common/module_params.h>
+#include <uORB/topics/circuit_status.h>
 
 class UavcanCircuitStatusBridge : public UavcanSensorBridgeBase, public ModuleParams
 {
