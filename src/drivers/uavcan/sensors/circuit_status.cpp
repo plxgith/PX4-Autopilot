@@ -27,5 +27,14 @@ int UavcanCircuitStatusBridge::init()
 
 void circuit_status_sub_cb(const uavcan::ReceivedDataStructure<uavcan::equipment::power::CircuitStatus> &msg)
 {
-	// TODO[TIN]
+	circuit_status_s report{};
+	report.timestamp = hrt_absolute_time();
+	report.voltage = msg.voltage;
+	report.current = msg.current;
+	// report.power_w   = msg.voltage * msg.current;
+	report.circuit_id = msg.circuit_id;
+	// report.status_flags = msg.status;
+
+	// _sensor_pub.publish(report);
+	publish(msg.getSrcNodeID().get(), &report);
 }
