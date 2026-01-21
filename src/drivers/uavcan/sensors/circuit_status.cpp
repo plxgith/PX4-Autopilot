@@ -25,7 +25,7 @@ int UavcanCircuitStatusBridge::init()
 	return 0;
 }
 
-void circuit_status_sub_cb(const uavcan::ReceivedDataStructure<uavcan::equipment::power::CircuitStatus> &msg)
+void UavcanCircuitStatusBridge::circuit_status_sub_cb(const uavcan::ReceivedDataStructure<uavcan::equipment::power::CircuitStatus> &msg)
 {
 	circuit_status_s report{};
 	report.timestamp = hrt_absolute_time();
