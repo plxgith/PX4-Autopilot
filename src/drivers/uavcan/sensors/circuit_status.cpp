@@ -1,18 +1,22 @@
 #include "circuit_status.hpp"
-
-// #include <lib/ecl/geo/geo.h>
 #include <px4_defines.h>
 
 const char *const UavcanCircuitStatusBridge::NAME = "circuit_status";
 
+// Constructor
+// - "uavcan_circuit_status" is just a debug label shown in logs
+// - ORB_ID(circuit_status) tells the base class which uORB topic to publish
+// - ModuleParams(nullptr) enables access to the PX4 parameter API
+// - _sub_circuit_status(node) initializes the UAVCAN subscriber with the shared node instance
 UavcanCircuitStatusBridge::UavcanCircuitStatusBridge(uavcan::INode &node) :
 	UavcanSensorBridgeBase("uavcan_circuit_status", ORB_ID(circuit_status)),
 	ModuleParams(nullptr),
 	_sub_circuit_status(node)
-{
+{}
 
-}
-
+// init()
+// Called when the UAVCAN driver starts up.
+// Registers this bridge’s subscriber callback with libuavcan.
 int UavcanCircuitStatusBridge::init()
 {
 	int res = _sub_circuit_status.start(CircuitStatusInfoCbBinder(this, &UavcanCircuitStatusBridge::circuit_status_sub_cb));
@@ -25,16 +29,21 @@ int UavcanCircuitStatusBridge::init()
 	return 0;
 }
 
+// Callback: executed each time a UAVCAN CircuitStatus message arrives.
 void UavcanCircuitStatusBridge::circuit_status_sub_cb(const uavcan::ReceivedDataStructure<uavcan::equipment::power::CircuitStatus> &msg)
 {
+	// Create a uORB message instance
 	circuit_status_s report{};
-	report.timestamp = hrt_absolute_time();
-	report.voltage = msg.voltage;
-	report.current = msg.current;
-	// report.power_w   = msg.voltage * msg.current;
-	report.circuit_id = msg.circuit_id;
-	// report.status_flags = msg.status;
 
-	// _sensor_pub.publish(report);
+	// Fill in fields using data from the UAVCAN message
+	report.timestamp  = hrt_absolute_time();
+	report.circuit_id = msg.circuit_id;
+	report.voltage    = msg.voltage;
+	report.current    = msg.current;
+
+	// Convert UAVCAN status bits into our local flags field
+	report.flags = msg.error_flags;
+
+	// Publish the filled structure to uORB so PX4 modules / QGC can read it
 	publish(msg.getSrcNodeID().get(), &report);
 }
