@@ -6,11 +6,9 @@ const char *const UavcanCircuitStatusBridge::NAME = "circuit_status";
 // Constructor
 // - "uavcan_circuit_status" is just a debug label shown in logs
 // - ORB_ID(circuit_status) tells the base class which uORB topic to publish
-// - ModuleParams(nullptr) enables access to the PX4 parameter API
 // - _sub_circuit_status(node) initializes the UAVCAN subscriber with the shared node instance
 UavcanCircuitStatusBridge::UavcanCircuitStatusBridge(uavcan::INode &node) :
 	UavcanSensorBridgeBase("uavcan_circuit_status", ORB_ID(circuit_status)),
-	ModuleParams(nullptr),
 	_sub_circuit_status(node)
 {}
 
