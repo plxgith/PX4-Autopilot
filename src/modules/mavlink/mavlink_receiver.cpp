@@ -224,6 +224,10 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 		handle_message_battery_status(msg);
 		break;
 
+	case MAVLINK_MSG_ID_CIRCUIT_STATUS:
+		handle_message_circuit_status(msg);
+		break;
+
 	case MAVLINK_MSG_ID_SERIAL_CONTROL:
 		handle_message_serial_control(msg);
 		break;
@@ -1794,6 +1798,22 @@ MavlinkReceiver::handle_message_battery_status(mavlink_message_t *msg)
 	}
 
 	_battery_pub.publish(battery_status);
+}
+
+void
+MavlinkReceiver::handle_message_circuit_status(mavlink_message_t *msg)
+{
+	mavlink_circuit_status_t circuit_mavlink;
+	mavlink_msg_circuit_status_decode(msg, &circuit_mavlink);
+
+	circuit_status_s circuit_status {};
+
+	circuit_status.timestamp = hrt_absolute_time();
+	circuit_status.voltage = circuit_mavlink.voltage;
+	circuit_status.current = circuit_mavlink.current;
+	// circuit_status.flags = circuit_mavlink.flags;
+
+	_circuit_status_pub.publish(circuit_status);
 }
 
 void

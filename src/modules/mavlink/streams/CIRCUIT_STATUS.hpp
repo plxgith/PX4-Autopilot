@@ -16,32 +16,32 @@ public:
 
 	unsigned get_size() override
 	{
-		return _circuit_status_subs.advertised_count() * (MAVLINK_MSG_ID_CIRCUIT_STATUS_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES);
+		return _circuit_status_subs.advertised() ? MAVLINK_MSG_ID_CIRCUIT_STATUS_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES : 0;
 	}
 
 private:
 	explicit MavlinkStreamCircuitStatus(Mavlink *mavlink) : MavlinkStream(mavlink) {}
 
-	uORB::SubscriptionMultiArray<circuit_status_s> _circuit_status_subs{ORB_ID::circuit_status};
+	uORB::Subscription _circuit_status_subs{ORB_ID::circuit_status};
 
 	bool send() override
 	{
-		bool update = false;
+		circuit_status_s circuit_status_data;
 
-		for (int i = 0; i < _circuit_status_subs.size(); i++) {
-			circuit_status_s circuit_status;
+		if (_circuit_status_subs.update(&circuit_status_data)) {
+			mavlink_circuit_status_t msg {};
+			msg.timestamp = hrt_absolute_time();
+			msg.id = circuit_status_data.circuit_id;
+			msg.voltage = circuit_status_data.voltage;
+			msg.current = circuit_status_data.current;
+			// msg.flags = circuit_status_data.flags;
 
-			if (_circuit_status_subs[i].update(&circuit_status)) {
-				mavlink_circuit_status_t msg {};
-				msg.id = i;
-				msg.voltage = circuit_status.voltage;
-				msg.current = circuit_status.current;
+			mavlink_msg_circuit_status_send_struct(_mavlink->get_channel(), &msg);
 
-				mavlink_msg_circuit_status_send_struct(_mavlink->get_channel(), &msg);
-
-				update = true;
-			}
+			return true;
 		}
+
+		return false;
 	}
 };
 

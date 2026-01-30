@@ -66,6 +66,7 @@
 #include "streams/BATTERY_STATUS.hpp"
 #include "streams/CAMERA_IMAGE_CAPTURED.hpp"
 #include "streams/CAMERA_TRIGGER.hpp"
+#include "streams/CIRCUIT_STATUS.hpp"
 #include "streams/COLLISION.hpp"
 #include "streams/COMMAND_LONG.hpp"
 #include "streams/COMPONENT_INFORMATION.hpp"
@@ -563,8 +564,11 @@ static const StreamListItem streams_list[] = {
 	create_stream_list_item<MavlinkStreamEfiStatus>(),
 #endif // EFI_STATUS_HPP
 #if defined(GPS_RTCM_DATA_HPP)
-	create_stream_list_item<MavlinkStreamGPSRTCMData>()
+	create_stream_list_item<MavlinkStreamGPSRTCMData>(),
 #endif // GPS_RTCM_DATA_HPP
+#if defined(CIRCUIT_STATUS_HPP)
+	create_stream_list_item<MavlinkStreamCircuitStatus>()
+#endif // CIRCUIT_STATUS_HPP
 };
 
 const char *get_stream_name(const uint16_t msg_id)

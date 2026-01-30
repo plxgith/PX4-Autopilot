@@ -16,3 +16,7 @@ float32 voltage		# Voltage in Volts
 float32 current		# Current in Amps
 
 uint8 	flags		# Bitmask of status flags (over/under-voltage, etc.)
+uint8 ERROR_FLAG_OVERVOLTAGE  = 1
+uint8 ERROR_FLAG_UNDERVOLTAGE = 2
+uint8 ERROR_FLAG_OVERCURRENT  = 4
+uint8 ERROR_FLAG_UNDERCURRENT = 8

@@ -55,6 +55,7 @@ MulticopterPositionControl::MulticopterPositionControl(bool vtol) :
 	_tilt_limit_slew_rate.setSlewRate(.2f);
 	reset_setpoint_to_nan(_setpoint);
 	_takeoff_status_pub.advertise();
+	_circuit_status_pub.advertise();
 }
 
 MulticopterPositionControl::~MulticopterPositionControl()
