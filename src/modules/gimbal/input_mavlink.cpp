@@ -263,7 +263,6 @@ InputMavlinkCmdMount::_process_command(ControlData &control_data, const vehicle_
 			update_result = UpdateResult::UpdatedActiveOnce;
 			break;
 
-		// fallthrough
 		case vehicle_command_s::VEHICLE_MOUNT_MODE_NEUTRAL:
 			control_data.type = ControlData::Type::Neutral;
 			control_data.sysid_primary_control = vehicle_command.source_system;
@@ -693,10 +692,10 @@ InputMavlinkGimbalV2::_process_command(ControlData &control_data, const vehicle_
 		switch ((int) vehicle_command.param7) {
 		case vehicle_command_s::VEHICLE_MOUNT_MODE_RETRACT:
 			control_data.type = ControlData::Type::Retract;
+			// update_result = InputBase::UpdateResult::UpdatedActiveOnce;
+			// break;
 
-
-
-		// fallthrough
+			//fallthrough
 
 		case vehicle_command_s::VEHICLE_MOUNT_MODE_NEUTRAL:
 			control_data.type = ControlData::Type::Neutral;
@@ -946,7 +945,7 @@ void InputMavlinkGimbalV2::_set_control_data_from_set_attitude(ControlData &cont
 		const matrix::Vector3f &angular_velocity)
 {
 	if ((flags & gimbal_manager_set_attitude_s::GIMBAL_MANAGER_FLAGS_RETRACT) != 0) {
-		// not implemented in ControlData
+		control_data.type = ControlData::Type::Retract;
 	} else if ((flags & gimbal_manager_set_attitude_s::GIMBAL_MANAGER_FLAGS_NEUTRAL) != 0) {
 		control_data.type = ControlData::Type::Neutral;
 

@@ -250,14 +250,15 @@ void OutputMavlinkV2::_publish_gimbal_device_set_attitude()
 
 	if (_absolute_angle[2]) {
 		set_attitude.flags |= gimbal_device_set_attitude_s::GIMBAL_DEVICE_FLAGS_YAW_LOCK;
-		set_attitude.flags ^= gimbal_device_set_attitude_s::GIMBAL_DEVICE_FLAGS_RETRACT;
-
 	}
-	// if (_absolute_angle[2]) {
-	// 	set_attitude.flags |= gimbal_device_set_attitude_s::GIMBAL_DEVICE_FLAGS_RETRACT;
-	// }
-	if(retract)
+
+	// Default state (meaning we just turned on PX4) the flags will be 0 (thats how I [TIN] understood it)
+	if(retract) { 	// Sets "set_attitude.flags" first bit to ON (1)
 		set_attitude.flags |= gimbal_device_set_attitude_s::GIMBAL_DEVICE_FLAGS_RETRACT;
+	}
+	else {		// Sets "set_attitude.flags" first bit to OFF (0)
+		set_attitude.flags &= gimbal_device_set_attitude_s::GIMBAL_DEVICE_FLAGS_RETRACT;
+	}
 
 	_gimbal_device_set_attitude_pub.publish(set_attitude);
 }

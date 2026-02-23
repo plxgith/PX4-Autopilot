@@ -115,7 +115,6 @@ void OutputBase::_set_angle_setpoints(const ControlData &control_data)
 		_handle_position_update(control_data, true);
 		break;
 	case ControlData::Type::Retract:	// set this to same as neutral
-		retract ^= 1;
 		_q_setpoint[0] = 1.f;
 		_q_setpoint[1] = 0.f;
 		_q_setpoint[2] = 0.f;
@@ -123,9 +122,20 @@ void OutputBase::_set_angle_setpoints(const ControlData &control_data)
 		_angle_velocity[0] = NAN;
 		_angle_velocity[1] = NAN;
 		_angle_velocity[2] = NAN;
+
+		// Default state (meaning we just turned on PX4) the flags will be 0 (thats how I [TIN] understood it)
+		// The first time we click "Retract" this code will be executed for the first time, which sets retract to true, and in stm32 logic it will lift gimbal
+		// next click on "Retract" which would result to an uneven number of clicks lowers the gimbal in stm32 logic.
+		// Gimbal moves down when "retract_counter" is uneven, othwerwise it goes up
+		if (retract_counter % 2 == 0)
+			retract = true;
+		else
+			retract = false;
+
+		++retract_counter;
+
 		break;
 	case ControlData::Type::Neutral:
-		retract ^= 1;
 		_q_setpoint[0] = 1.f;
 		_q_setpoint[1] = 0.f;
 		_q_setpoint[2] = 0.f;
