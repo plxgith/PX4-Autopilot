@@ -81,7 +81,7 @@ CameraFeedback::Run()
 		_gps_raw_sub.copy(&gps_raw);
 
 		if (trig.timestamp == 0 ||
-		    gpos.timestamp == 0 ||
+		    /*gpos.timestamp == 0 ||*/
 		    att.timestamp == 0) {
 
 			// reject until we have valid data
