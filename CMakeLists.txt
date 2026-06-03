@@ -234,6 +234,15 @@ message(STATUS "cmake build type: ${CMAKE_BUILD_TYPE}")
 #
 project(px4 CXX C ASM)
 
+# Applaying circuit_status modifications that way its being logged in QGC
+message(STATUS "Applying CIRCUIT_STATUS patches")
+
+execute_process(
+    COMMAND ${PYTHON_EXECUTABLE}
+            ${PX4_SOURCE_DIR}/Tools/patch_circuit_status.py
+    WORKING_DIRECTORY ${PX4_SOURCE_DIR}
+)
+
 set(package-contact "px4users@googlegroups.com")
 
 set(CMAKE_CXX_STANDARD 14)
