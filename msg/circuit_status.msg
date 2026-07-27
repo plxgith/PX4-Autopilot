@@ -15,6 +15,8 @@ uint32 	circuit_id	# unique ID for this circuit/sensor
 float32 voltage		# Voltage in Volts
 float32 current		# Current in Amps
 
+bool 	is_fan_working
+
 uint8 	flags		# Bitmask of status flags (over/under-voltage, etc.)
 uint8 ERROR_FLAG_OVERVOLTAGE  = 1
 uint8 ERROR_FLAG_UNDERVOLTAGE = 2

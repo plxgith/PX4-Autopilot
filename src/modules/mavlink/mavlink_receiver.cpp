@@ -1813,6 +1813,8 @@ MavlinkReceiver::handle_message_circuit_status(mavlink_message_t *msg)
 	circuit_status.current = circuit_mavlink.current;
 	// circuit_status.flags = circuit_mavlink.flags;
 
+	// circuit_status.is_fan_working = circuit_mavlink.is_fan_working;
+
 	_circuit_status_pub.publish(circuit_status);
 }
 

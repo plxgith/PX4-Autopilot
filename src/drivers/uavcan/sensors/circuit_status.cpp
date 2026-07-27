@@ -38,6 +38,7 @@ void UavcanCircuitStatusBridge::circuit_status_sub_cb(const uavcan::ReceivedData
 	report.circuit_id = msg.circuit_id;
 	report.voltage    = msg.voltage;
 	report.current    = msg.current;
+	report.is_fan_working	= msg.is_fan_working;
 
 	// Convert UAVCAN status bits into our local flags field
 	report.flags = msg.error_flags;
