@@ -15,7 +15,7 @@ MESSAGE_XML = """  <message id="501" name="CIRCUIT_STATUS">
     </message>"""
 
 # The big whitespace is here only for formating reasons to fit properly in the file its being written in
-SIZE_ENTRY 	= "(			    'CIRCUIT_STATUS' ,  24), # ID#501"
+SIZE_ENTRY 	= "(			   'CIRCUIT_STATUS' ,  24), # ID#501"
 
 def patch_common_xml():
 	text = COMMON_XML.read_text()
