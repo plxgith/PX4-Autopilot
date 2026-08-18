@@ -1,0 +1,18 @@
+
+
+
+
+
+
+menuconfig SYSTEMCMDS_VESTA_BATTERY_TEST
+	bool "vesta_battery_test"
+	default n
+	---help---
+		Enable support for vesta_battery_test
+
+menuconfig USER_MOTOR_TEST
+	bool "vesta_battery_test running as userspace module"
+	default y
+	depends on BOARD_PROTECTED && SYSTEMCMDS_VESTA_BATTERY_TEST
+	---help---
+		Put vesta_battery_test in userspace memory
