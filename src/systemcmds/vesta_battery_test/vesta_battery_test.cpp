@@ -3,8 +3,9 @@
 
 VestaBatteryTest::VestaBatteryTest() :
 	ModuleParams(nullptr),
-	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::lp_default)
+	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::test1)
 {
+	PX4_INFO("Constructor done");
 }
 
 int VestaBatteryTest::task_spawn(int argc, char *argv[])
@@ -18,6 +19,7 @@ int VestaBatteryTest::task_spawn(int argc, char *argv[])
 
 		// if hardware scheduled work item ok
 		if(instance->init()) {
+			PX4_INFO("Object instance created");
 			return PX4_OK;
 		}
 		else {
@@ -36,6 +38,7 @@ bool VestaBatteryTest::init()
 {
 	// run every 10ms
 	ScheduleOnInterval(interval_us);
+	PX4_INFO("Module Scheduled");
 	return true;
 }
 
@@ -67,11 +70,12 @@ Example of a simple module running out of a work queue.
 
 void VestaBatteryTest::Run()
 {
-	PX4_INFO("Vesta Battery Test Run Start");
+	PX4_INFO("Vesta Battery Test Run Loop");
 
 	if(should_exit()) {
 		ScheduleClear();
 		exit_and_cleanup();
+		PX4_INFO("Module closed");
 		return;
 	}
 
@@ -93,7 +97,19 @@ void VestaBatteryTest::Run()
 	if(test_time - _last_time > 1e6) {
 		PX4_INFO("Now");
 		_last_time = test_time;
+		counter++;
+
+		for(int i = 0; i < 10; i++) {
+			test_debug.data[i] = counter;
+		}
+		// out.motor_number = motor_number;
+		// out.value = channel;
+		// out.action = counter;
+
 	}
+	_motors_out_pub.publish(out);
+	_debug_pub.publish(test_debug);
+
 
 
 }

@@ -8,8 +8,11 @@
 #include <uORB/uORB.h>
 #include <uORB/Subscription.hpp>
 #include <uORB/Publication.hpp>
+
 #include <uORB/topics/battery_status.h>
 #include <uORB/topics/debug_array.h>
+#include <uORB/topics/test_motor.h>
+
 
 #include <px4_platform_common/module.h>
 #include <px4_platform_common/module_params.h>
@@ -30,14 +33,21 @@ public:
 	bool init();
 
 private:
-	static constexpr double interval_us = 10000 * 100;	// 10ms; 100Hz
+	static constexpr double interval_us = 10000;	// 10ms; 100Hz
 
 	void Run() override;
 
 	hrt_abstime _last_time = 0;
+	uint8_t counter = 0;
+	uint8_t channel = 0;
+	uint8_t motor = 0;
 	// Battery Subscription
 	uORB::Subscription _battery_sub{ORB_ID(battery_status)};
 
+	uORB::Publication<debug_array_s> _debug_pub{ORB_ID(debug_array)};
+	debug_array_s test_debug{0};
+	test_motor_s out{0};
 
+	uORB::Publication<test_motor_s> _motors_out_pub{ORB_ID(test_motor)};
 
 };

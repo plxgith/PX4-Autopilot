@@ -239,7 +239,7 @@ float UavcanBatteryBridge::estimate_state_of_charge(const float voltage_v, const
 
 
 
-	_debug_array_pub.publish(_temp_array);
+	//_debug_array_pub.publish(_temp_array);
 	return _state_of_charge;
 	//return 100.0;
 

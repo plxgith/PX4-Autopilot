@@ -115,7 +115,7 @@ void MulticopterLandDetector::_update_topics()
 		_takeoff_state = takeoff_status.takeoff_state;
 	}
 
-	_debug_array_pub.publish(debug);
+	//_debug_array_pub.publish(debug);
 }
 
 void MulticopterLandDetector::_update_params()

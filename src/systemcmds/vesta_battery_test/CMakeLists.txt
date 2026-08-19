@@ -4,5 +4,7 @@ px4_add_module(
 	STACK_MAIN 4096
 	SRCS
 		vesta_battery_test.cpp
+	DEPENDS
+		px4_work_queue
 	)
 
