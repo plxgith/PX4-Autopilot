@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stdio.h>
 #include <px4_platform_common/posix.h>
 #include <px4_platform_common/defines.h>
@@ -5,6 +7,7 @@
 
 #include <uORB/uORB.h>
 #include <uORB/Subscription.hpp>
+#include <uORB/Publication.hpp>
 #include <uORB/topics/battery_status.h>
 #include <uORB/topics/debug_array.h>
 
@@ -27,13 +30,14 @@ public:
 	bool init();
 
 private:
-	static constexpr double interval_us = 10000;	// 10ms; 100Hz
+	static constexpr double interval_us = 10000 * 100;	// 10ms; 100Hz
 
 	void Run() override;
 
-	time_t _last_time;
+	hrt_abstime _last_time = 0;
 	// Battery Subscription
 	uORB::Subscription _battery_sub{ORB_ID(battery_status)};
+
 
 
 };

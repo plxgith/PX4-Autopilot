@@ -3,7 +3,7 @@
 
 VestaBatteryTest::VestaBatteryTest() :
 	ModuleParams(nullptr),
-	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::test1)
+	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::lp_default)
 {
 }
 
@@ -68,6 +68,7 @@ Example of a simple module running out of a work queue.
 void VestaBatteryTest::Run()
 {
 	PX4_INFO("Vesta Battery Test Run Start");
+
 	if(should_exit()) {
 		ScheduleClear();
 		exit_and_cleanup();
@@ -87,14 +88,16 @@ void VestaBatteryTest::Run()
 
 
 	}
-	time_t test_time = hrt_absolute_time();
+	hrt_abstime test_time = hrt_absolute_time();
 
 	if(test_time - _last_time > 1e6) {
 		PX4_INFO("Now");
+		_last_time = test_time;
 	}
 
 
 }
+
 
 
 
