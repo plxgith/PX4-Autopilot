@@ -36,7 +36,10 @@ int VestaBatteryTest::task_spawn(int argc, char *argv[])
 
 bool VestaBatteryTest::init()
 {
-	// run every 10ms
+
+	_last_time = hrt_absolute_time();
+   	 _last_debug_time = _last_time;
+	test_debug.data[voltage] = 777;
 	ScheduleOnInterval(interval_us);
 	PX4_INFO("Module Scheduled");
 	return true;
@@ -79,27 +82,56 @@ void VestaBatteryTest::Run()
 		return;
 	}
 
+	// get current time
+	hrt_abstime test_time = hrt_absolute_time();
+
+
+	// SLOW START PHASE
+	if(test_time - _last_time > time_soft_start && current_phase == soft_start) {
+		test_debug.data[voltage] = 888;
+		_last_time = test_time;	// remember time
+		current_phase = takeoff;
+		PX4_INFO("SOFT_START -> TAKEOFF");
+	}
+
+	// TAKEOFF PHASE
+	if(test_time - _last_time > time_takeoff && current_phase == takeoff) {
+	test_debug.data[voltage] = 999;
+	_last_time = test_time;	// remember time
+	current_phase = cruise;
+    	PX4_INFO("TAKEOFF -> CRUISE");
+	}
+
+
+
+
 	// if new battery data
 	if(_battery_sub.updated()) {
 		battery_status_s battery;
 
 		if(_battery_sub.copy(&battery)){
 
+			// test - copy battery voltage
+			test_debug.data[5] = battery.voltage_v;
+			// test - copy battery current
+			test_debug.data[6] = battery.current_a;
+			// test - adjust throt
+
 			// Adjust throttle based on current
+
 
 		}
 
 
 
 	}
-	hrt_abstime test_time = hrt_absolute_time();
 
-	if(test_time - _last_time > 1e6) {
+	if(test_time - _last_debug_time > 1e6) {
 		PX4_INFO("Now");
-		_last_time = test_time;
+		_last_debug_time = test_time;
 		counter++;
 
-		for(int i = 0; i < 10; i++) {
+		for(int i = 1; i < 5; i++) {
 			test_debug.data[i] = counter;
 		}
 		// out.motor_number = motor_number;

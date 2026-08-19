@@ -38,6 +38,7 @@ private:
 	void Run() override;
 
 	hrt_abstime _last_time = 0;
+	hrt_abstime _last_debug_time = 0;
 	uint8_t counter = 0;
 	uint8_t channel = 0;
 	uint8_t motor = 0;
@@ -49,5 +50,33 @@ private:
 	test_motor_s out{0};
 
 	uORB::Publication<test_motor_s> _motors_out_pub{ORB_ID(test_motor)};
+
+
+	// phases of testing
+	hrt_abstime time_soft_start = 5 * 1e6;
+	hrt_abstime time_takeoff = 40 * 1e6;	// s
+	hrt_abstime time_land = 40 * 1e6;
+
+
+	// indexes for debug array
+	uint8_t voltage = 0;
+	uint8_t current = 1;
+	uint8_t throttle = 2;
+
+
+	enum test_phase {
+		soft_start,
+		takeoff,
+		cruise,
+		land
+	}current_phase = soft_start;
+
+
+	bool p_soft_start = false;
+	bool p_takeoff = false;
+	bool p_cruise = false;
+	bool p_land = false;
+
+
 
 };
