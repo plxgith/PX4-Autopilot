@@ -39,10 +39,31 @@ bool VestaBatteryTest::init()
 
 	_last_time = hrt_absolute_time();
    	 _last_debug_time = _last_time;
-	test_debug.data[voltage] = 777;
+	test_debug.data[phase_counter] = 777;
+	update_all_outputs(100);
 	ScheduleOnInterval(interval_us);
 	PX4_INFO("Module Scheduled");
 	return true;
+}
+
+void VestaBatteryTest::motor_test(unsigned channel, float value, uint8_t driver_instance, int timeout_ms)
+{
+	test_motor_s test_motor{};
+	test_motor.timestamp = hrt_absolute_time();
+	test_motor.motor_number = channel;
+	test_motor.value = value;
+	test_motor.action = value >= 0.f ? test_motor_s::ACTION_RUN : test_motor_s::ACTION_STOP;
+	test_motor.driver_instance = driver_instance;
+	test_motor.timeout_ms = timeout_ms;
+
+	uORB::Publication<test_motor_s> pub{ORB_ID(test_motor)};
+	pub.publish(test_motor);
+}
+
+void VestaBatteryTest::update_all_outputs(float value)
+{
+	for (int i = 0; i < 1; ++i)
+		 motor_test(i, value, 0, 0);
 }
 
 
@@ -88,7 +109,8 @@ void VestaBatteryTest::Run()
 
 	// SLOW START PHASE
 	if(test_time - _last_time > time_soft_start && current_phase == soft_start) {
-		test_debug.data[voltage] = 888;
+		test_debug.data[phase_counter] = 888;
+		update_all_outputs(0);
 		_last_time = test_time;	// remember time
 		current_phase = takeoff;
 		PX4_INFO("SOFT_START -> TAKEOFF");
@@ -96,10 +118,30 @@ void VestaBatteryTest::Run()
 
 	// TAKEOFF PHASE
 	if(test_time - _last_time > time_takeoff && current_phase == takeoff) {
-	test_debug.data[voltage] = 999;
+	test_debug.data[phase_counter] = 999;
 	_last_time = test_time;	// remember time
 	current_phase = cruise;
     	PX4_INFO("TAKEOFF -> CRUISE");
+	}
+
+	// CRUISE PHASE
+	// here have to keep in this phase @15A until we
+	// get to 3.6V per cell
+	if(current_phase == cruise) {
+		if(battery.voltage_v / 12 < low_battery_v) {
+			test_debug.data[phase_counter] = 1111;
+			_last_time = test_time;
+			current_phase = land;
+			_last_time = test_time;
+		}
+	}
+
+	if(test_time - _last_time > time_land && current_phase == land)
+	{
+		// put throttle back to 70A
+		test_debug.data[phase_counter] = 1222;
+		current_phase = finished;
+
 	}
 
 
@@ -107,14 +149,14 @@ void VestaBatteryTest::Run()
 
 	// if new battery data
 	if(_battery_sub.updated()) {
-		battery_status_s battery;
+
 
 		if(_battery_sub.copy(&battery)){
 
 			// test - copy battery voltage
-			test_debug.data[5] = battery.voltage_v;
+			test_debug.data[voltage] = battery.voltage_v;
 			// test - copy battery current
-			test_debug.data[6] = battery.current_a;
+			test_debug.data[current] = battery.current_a;
 			// test - adjust throt
 
 			// Adjust throttle based on current
@@ -127,19 +169,16 @@ void VestaBatteryTest::Run()
 	}
 
 	if(test_time - _last_debug_time > 1e6) {
-		PX4_INFO("Now");
+
 		_last_debug_time = test_time;
 		counter++;
 
-		for(int i = 1; i < 5; i++) {
-			test_debug.data[i] = counter;
-		}
-		// out.motor_number = motor_number;
-		// out.value = channel;
-		// out.action = counter;
+
+		test_debug.data[seconds_counter] = counter;
+
 
 	}
-	_motors_out_pub.publish(out);
+
 	_debug_pub.publish(test_debug);
 
 

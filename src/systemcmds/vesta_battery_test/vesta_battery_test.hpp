@@ -31,7 +31,8 @@ public:
 	static int print_usage(const char *reason = nullptr);
 
 	bool init();
-
+	void motor_test(unsigned channel, float value, uint8_t driver_instance, int timeout_ms);
+	void update_all_outputs(float value);
 private:
 	static constexpr double interval_us = 10000;	// 10ms; 100Hz
 
@@ -44,13 +45,14 @@ private:
 	uint8_t motor = 0;
 	// Battery Subscription
 	uORB::Subscription _battery_sub{ORB_ID(battery_status)};
+	battery_status_s battery;
+	float low_battery_v = 3.8;	// V
 
 	uORB::Publication<debug_array_s> _debug_pub{ORB_ID(debug_array)};
 	debug_array_s test_debug{0};
-	test_motor_s out{0};
+
 
 	uORB::Publication<test_motor_s> _motors_out_pub{ORB_ID(test_motor)};
-
 
 	// phases of testing
 	hrt_abstime time_soft_start = 5 * 1e6;
@@ -62,13 +64,16 @@ private:
 	uint8_t voltage = 0;
 	uint8_t current = 1;
 	uint8_t throttle = 2;
+	uint8_t seconds_counter = 3;
+	uint8_t phase_counter = 4;
 
 
 	enum test_phase {
 		soft_start,
 		takeoff,
 		cruise,
-		land
+		land,
+		finished
 	}current_phase = soft_start;
 
 
