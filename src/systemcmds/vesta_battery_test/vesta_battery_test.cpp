@@ -40,7 +40,7 @@ bool VestaBatteryTest::init()
 	_last_time = hrt_absolute_time();
    	 _last_debug_time = _last_time;
 	test_debug.data[phase_counter] = 777;
-	update_all_outputs(100);
+	update_all_outputs(10/100);	// this has to be divided???
 	ScheduleOnInterval(interval_us);
 	PX4_INFO("Module Scheduled");
 	return true;
@@ -62,8 +62,11 @@ void VestaBatteryTest::motor_test(unsigned channel, float value, uint8_t driver_
 
 void VestaBatteryTest::update_all_outputs(float value)
 {
-	for (int i = 0; i < 1; ++i)
+	for (int i = 0; i < 7; ++i) {
 		 motor_test(i, value, 0, 0);
+		 px4_usleep(1000);
+	}
+
 }
 
 
@@ -100,6 +103,7 @@ void VestaBatteryTest::Run()
 		ScheduleClear();
 		exit_and_cleanup();
 		PX4_INFO("Module closed");
+		update_all_outputs(-1);
 		return;
 	}
 
@@ -110,7 +114,7 @@ void VestaBatteryTest::Run()
 	// SLOW START PHASE
 	if(test_time - _last_time > time_soft_start && current_phase == soft_start) {
 		test_debug.data[phase_counter] = 888;
-		update_all_outputs(0);
+		update_all_outputs(100/100);
 		_last_time = test_time;	// remember time
 		current_phase = takeoff;
 		PX4_INFO("SOFT_START -> TAKEOFF");
@@ -194,3 +198,31 @@ extern "C" __EXPORT int vesta_battery_test_main(int argc, char *argv[])
 }
 
 
+
+static px4::atomic<bool> thread_should_exit {false};
+
+static VestaBatteryTest *Vesta_Battery_Test = nullptr;
+int main(int argc, char *argv[])
+{
+
+	if(!strcmp(argv[1], "start")) {
+		if(Vesta_Battery_Test != nullptr && Vesta_Battery_Test->is_running()){
+			PX4_WARN("already running!!!");
+			return 0;
+		}
+		Vesta_Battery_Test = new VestaBatteryTest();
+	}
+
+	if(!strcmp(argv[1], "stop")) {
+
+
+		if (Vesta_Battery_Test == nullptr || !Vesta_Battery_Test->is_running()) {
+			PX4_WARN("not running");
+			/* this is not an error */
+			return 0;
+		}
+		Vesta_Battery_Test->update_all_outputs(-1);
+
+
+	}
+}
