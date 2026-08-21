@@ -134,7 +134,7 @@ void VestaBatteryTest::Run()
 	// here have to keep in this phase @15A until we
 	// get to 3.6V per cell
 	if(current_phase == cruise) {
-		if(battery.voltage_v / 12 < low_battery_v) {
+		if((battery.voltage_v / 12) < (low_battery_v - volt_drop_15A)) {
 			test_debug.data[phase_counter] = percent_land;
 			_last_time = test_time;
 			update_all_outputs(percent_land);

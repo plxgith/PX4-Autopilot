@@ -47,6 +47,8 @@ private:
 	uORB::Subscription _battery_sub{ORB_ID(battery_status)};
 	battery_status_s battery;
 	float low_battery_v = 3.8;	// V
+	float volt_drop_15A = 0.1f;	// per cell volt drop; don't know,
+					//  have to test for each battery
 
 	uORB::Publication<debug_array_s> _debug_pub{ORB_ID(debug_array)};
 	debug_array_s test_debug{0};
