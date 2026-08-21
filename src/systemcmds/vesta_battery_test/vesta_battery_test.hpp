@@ -40,7 +40,7 @@ private:
 
 	hrt_abstime _last_time = 0;
 	hrt_abstime _last_debug_time = 0;
-	uint8_t counter = 0;
+	uint32_t counter = 0;
 	uint8_t channel = 0;
 	uint8_t motor = 0;
 	// Battery Subscription
@@ -61,12 +61,18 @@ private:
 
 
 	// indexes for debug array
-	uint8_t voltage = 0;
-	uint8_t current = 1;
-	uint8_t throttle = 2;
-	uint8_t seconds_counter = 3;
-	uint8_t phase_counter = 4;
+	uint8_t voltage = 2;
+	uint8_t current = 3;
+	uint8_t throttle = 4;
+	uint8_t seconds_counter = 0;
+	uint8_t phase_counter = 1;
 
+	// phases throttle amounts
+	float percent_soft_start = 0.1f;
+	float percent_takeoff = 0.75f;
+	float percent_cruise = 0.3f;
+	float percent_land = 0.65f;
+	float percent_done = -1;
 
 	enum test_phase {
 		soft_start,

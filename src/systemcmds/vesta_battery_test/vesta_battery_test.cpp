@@ -39,8 +39,9 @@ bool VestaBatteryTest::init()
 
 	_last_time = hrt_absolute_time();
    	 _last_debug_time = _last_time;
-	test_debug.data[phase_counter] = 777;
-	update_all_outputs(10/100);	// this has to be divided???
+	test_debug.data[phase_counter] = percent_soft_start;
+	test_debug.id = 1;
+	update_all_outputs(percent_soft_start);	// this has to be divided???
 	ScheduleOnInterval(interval_us);
 	PX4_INFO("Module Scheduled");
 	return true;
@@ -84,11 +85,11 @@ int VestaBatteryTest::print_usage(const char *reason)
 	PRINT_MODULE_DESCRIPTION(
 		R"DESCR_STR(
 ### Description
-Example of a simple module running out of a work queue.
+Battery Testing module. Mimics battery discharge on Vesta VTOL
 
 )DESCR_STR");
 
-	PRINT_MODULE_USAGE_NAME("work_item_example", "template");
+	PRINT_MODULE_USAGE_NAME("vesta_battery_test", "template");
 	PRINT_MODULE_USAGE_COMMAND("start");
 	PRINT_MODULE_USAGE_DEFAULT_COMMANDS();
 
@@ -97,7 +98,7 @@ Example of a simple module running out of a work queue.
 
 void VestaBatteryTest::Run()
 {
-	PX4_INFO("Vesta Battery Test Run Loop");
+	//PX4_INFO("Vesta Battery Test Run Loop");
 
 	if(should_exit()) {
 		ScheduleClear();
@@ -113,19 +114,20 @@ void VestaBatteryTest::Run()
 
 	// SLOW START PHASE
 	if(test_time - _last_time > time_soft_start && current_phase == soft_start) {
-		test_debug.data[phase_counter] = 888;
-		update_all_outputs(100/100);
+		test_debug.data[phase_counter] = percent_takeoff;
+		test_debug.id = 2;
+		update_all_outputs(percent_takeoff);	// update
 		_last_time = test_time;	// remember time
 		current_phase = takeoff;
-		PX4_INFO("SOFT_START -> TAKEOFF");
 	}
 
 	// TAKEOFF PHASE
 	if(test_time - _last_time > time_takeoff && current_phase == takeoff) {
-	test_debug.data[phase_counter] = 999;
+	test_debug.data[phase_counter] = percent_cruise;
+	update_all_outputs(percent_cruise);
+	test_debug.id = 3;
 	_last_time = test_time;	// remember time
 	current_phase = cruise;
-    	PX4_INFO("TAKEOFF -> CRUISE");
 	}
 
 	// CRUISE PHASE
@@ -133,8 +135,10 @@ void VestaBatteryTest::Run()
 	// get to 3.6V per cell
 	if(current_phase == cruise) {
 		if(battery.voltage_v / 12 < low_battery_v) {
-			test_debug.data[phase_counter] = 1111;
+			test_debug.data[phase_counter] = percent_land;
 			_last_time = test_time;
+			update_all_outputs(percent_land);
+			test_debug.id = 4;
 			current_phase = land;
 			_last_time = test_time;
 		}
@@ -143,7 +147,9 @@ void VestaBatteryTest::Run()
 	if(test_time - _last_time > time_land && current_phase == land)
 	{
 		// put throttle back to 70A
-		test_debug.data[phase_counter] = 1222;
+		test_debug.data[phase_counter] = percent_done;
+		test_debug.id = 5;
+		update_all_outputs(-1);
 		current_phase = finished;
 
 	}
