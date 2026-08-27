@@ -59,7 +59,7 @@ private:
 	// phases of testing
 	hrt_abstime time_soft_start = 5 * 1e6;
 	hrt_abstime time_takeoff = 40 * 1e6;	// s
-	hrt_abstime time_land = 40 * 1e6;
+	hrt_abstime time_land = 10 * 1e6;
 
 
 	// indexes for debug array
@@ -73,7 +73,7 @@ private:
 	float percent_soft_start = 0.1f;
 	float percent_takeoff = 0.75f;
 	float percent_cruise = 0.4f;
-	float percent_land = 0.65f;
+	float percent_land = 1.0f;
 	float percent_done = -1;
 
 	enum test_phase {
