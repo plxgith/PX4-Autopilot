@@ -72,7 +72,7 @@ private:
 	// phases throttle amounts
 	float percent_soft_start = 0.1f;
 	float percent_takeoff = 0.75f;
-	float percent_cruise = 0.3f;
+	float percent_cruise = 0.4f;
 	float percent_land = 0.65f;
 	float percent_done = -1;
 
