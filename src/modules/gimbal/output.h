@@ -80,7 +80,13 @@ protected:
 	float _angle_velocity[3] = { NAN, NAN, NAN }; //< [rad/s], can be NAN if not specifically set
 
 	bool _stabilize[3] = { false, false, false };
+
+	// retract, used to indicate when retract button in QGC is clicked
 	bool retract = false;
+	// retract_counter, used to know if the retract button is supposed to lift or lower the
+	// gimbal camera (even number lowers the gimbal, uneven number lifts the gimbal)
+	int retract_counter = 0;
+
 	// Pitch and role are by default aligned with the horizon.
 	// Yaw follows the vehicle (not lock/absolute mode).
 	bool _absolute_angle[3] = {true, true, false };
