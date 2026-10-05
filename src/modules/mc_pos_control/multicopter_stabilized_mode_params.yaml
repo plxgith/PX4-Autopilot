@@ -1,0 +1,52 @@
+module_name: mc_pos_control
+parameters:
+- group: Multicopter Position Control
+  definitions:
+    MPC_MAN_TILT_MAX:
+      description:
+        short: Maximal tilt angle in Stabilized, Altitude and Altitude Cruise mode
+      type: float
+      default: 35.0
+      unit: deg
+      min: 1
+      max: 70
+      decimal: 0
+      increment: 1
+    MPC_MAN_Y_MAX:
+      description:
+        short: Max manual yaw rate for Stabilized, Altitude, Position mode
+      type: float
+      default: 150.0
+      unit: deg/s
+      min: 0
+      max: 400
+      decimal: 0
+      increment: 10
+    MPC_MANTHR_MIN:
+      description:
+        short: Minimum collective thrust in Stabilized mode
+        long: |-
+          The value is mapped to the lowest throttle stick position in Stabilized mode.
+
+          Too low collective thrust leads to loss of roll/pitch/yaw torque control authority.
+          Airmode is used to keep torque authority with zero thrust (see MC_AIRMODE).
+      type: float
+      default: 0.08
+      unit: norm
+      min: 0
+      max: 0.5
+      decimal: 2
+      increment: 0.01
+    MPC_THR_CURVE:
+      description:
+        short: Thrust curve mapping in Stabilized Mode
+        long: |-
+          Rescale to estimate: stick is rescaled linearly so center stick gives the hover thrust estimate.
+          No rescale: stick maps 1:1 to thrust; useful with very low hover thrust, where rescaling distorts the curve and makes the upper half sensitive.
+          Rescale to parameter: as Rescale to estimate, but uses MPC_THR_HOVER; with MPC_THR_HOVER 0.5 same as No rescale.
+      type: enum
+      values:
+        0: Rescale to estimate
+        1: No rescale
+        2: Rescale to parameter
+      default: 0

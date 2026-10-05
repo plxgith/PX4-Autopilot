@@ -85,10 +85,32 @@ endif()
 if(PX4_ETHERNET)
 	set(added_arguments ${added_arguments} --ethernet)
 endif()
+# Check if board has an rc.board_airframes file to filter airframes
+set(board_airframes_file "${PX4_BOARD_DIR}/init/rc.board_airframes")
+set(airframes_whitelist "")
+if(EXISTS "${board_airframes_file}")
+	message(STATUS "ROMFS: Using board-specific airframes list: ${board_airframes_file}")
+	file(STRINGS "${board_airframes_file}" airframes_whitelist)
+	# Remove comments and empty lines
+	list(FILTER airframes_whitelist EXCLUDE REGEX "^[ \t]*#")
+	list(FILTER airframes_whitelist EXCLUDE REGEX "^[ \t]*$")
+endif()
+
 # create list of relative romfs file names
 set(romfs_copy_files_relative)
 foreach(romfs_file IN LISTS romfs_copy_files)
 	string(REPLACE "${romfs_src_dir}/" "" romfs_file_rel ${romfs_file})
+
+	# If we have an airframes whitelist, filter airframe files
+	if(airframes_whitelist AND romfs_file_rel MATCHES "^init.d/airframes/")
+		# Extract just the filename
+		get_filename_component(airframe_name "${romfs_file_rel}" NAME)
+		# Check if it's in the whitelist
+		if(NOT "${airframe_name}" IN_LIST airframes_whitelist)
+			continue()
+		endif()
+	endif()
+
 	list(APPEND romfs_copy_files_relative ${romfs_file_rel})
 endforeach()
 # copy the ROMFS files by creating a tar and extracting it to the build
@@ -135,6 +157,7 @@ add_custom_command(
 	COMMAND ${PYTHON_EXECUTABLE} ${PX4_SOURCE_DIR}/Tools/filepaths/generate_config.py
 		--rc-dir ${romfs_gen_root_dir}/init.d
 		--params-file ${CONFIG_BOARD_PARAM_FILE}
+		--board-root-path ${CONFIG_BOARD_ROOT_PATH}
 	COMMAND ${CMAKE_COMMAND} -E touch ${romfs_copy_stamp}
 	WORKING_DIRECTORY ${romfs_gen_root_dir}
 	DEPENDS ${romfs_tar_file}
@@ -171,6 +194,7 @@ endif()
 # board custom init files
 set(OPTIONAL_BOARD_RC)
 list(APPEND OPTIONAL_BOARD_RC
+	rc.board_early
 	rc.board_defaults
 	rc.board_sensors
 	rc.board_extras
@@ -297,53 +321,6 @@ foreach(board_extra_file ${OPTIONAL_BOARD_EXTRAS})
 
 endforeach()
 
-
-
-if(config_uavcan_peripheral_firmware)
-
-	include(ExternalProject)
-
-	foreach(uavcan_peripheral_config ${config_uavcan_peripheral_firmware})
-		# include the UAVCAN peripheral binaries in ROMFS
-		message(STATUS "ROMFS:  Adding UAVCAN peripheral ${uavcan_peripheral_config} -> /etc/uavcan/fw/")
-
-		# ExternalProject_Add() with GIT_SUBMODULES "" initializes no submodules.
-		cmake_policy(SET CMP0097 NEW)
-
-		include(ExternalProject)
-
-		ExternalProject_Add(build_${uavcan_peripheral_config}
-			GIT_REPOSITORY ${CMAKE_SOURCE_DIR}
-			GIT_TAG ${PX4_GIT_TAG}
-			GIT_SUBMODULES ""
-			DOWNLOAD_NO_PROGRESS true
-			CMAKE_ARGS -DCONFIG=${uavcan_peripheral_config}
-			INSTALL_COMMAND ""
-			USES_TERMINAL_BUILD true
-			BUILD_ALWAYS 1
-		)
-
-		ExternalProject_Get_Property(build_${uavcan_peripheral_config} BINARY_DIR)
-
-		add_custom_command(
-			OUTPUT
-				${romfs_gen_root_dir}/uavcan/fw/_${uavcan_board_id}.bin
-				${uavcan_peripheral_config}.stamp
-			COMMAND ${CMAKE_COMMAND} -E make_directory ${romfs_gen_root_dir}/uavcan/fw/
-			COMMAND ${CMAKE_COMMAND} -E copy ${BINARY_DIR}/deploy/*.bin ${romfs_gen_root_dir}/uavcan/fw/
-			COMMAND ls -lsa ${romfs_gen_root_dir}/uavcan/fw/
-			COMMAND ${CMAKE_COMMAND} -E touch ${uavcan_peripheral_config}.stamp
-			DEPENDS
-				build_${uavcan_peripheral_config}
-			COMMENT "ROMFS: copying ${uavcan_peripheral_config}"
-		)
-
-		list(APPEND extras_dependencies
-			${uavcan_peripheral_config}.stamp
-		)
-	endforeach()
-endif()
-
 list(APPEND extras_dependencies
 	${config_romfs_extra_dependencies}
 	)
@@ -394,10 +371,19 @@ if("${CONFIG_FS_CROMFS}" STREQUAL "y")
 		WORKING_DIRECTORY ${NUTTX_DIR}/tools
 	)
 
+	# gencromfs writes its intermediate data to fixed names in /tmp
+	# (/tmp/gencromfs-000000, ...), so two builds generating a ROMFS at the
+	# same time corrupt each other's nsh_romfsimg.c. Serialize it where flock
+	# exists (Linux), which covers concurrent CI builds on one runner.
+	find_program(FLOCK_PROGRAM flock)
+	if(FLOCK_PROGRAM)
+		set(gencromfs_lock ${FLOCK_PROGRAM} /tmp/gencromfs.lock)
+	endif()
+
 	# create nsh_romfsimg.c
 	add_custom_command(OUTPUT nsh_romfsimg.c
 		COMMAND ${CMAKE_COMMAND} -E remove -f nsh_romfsimg.c
-		COMMAND ${CMAKE_BINARY_DIR}/gencromfs ${romfs_gen_root_dir} nsh_romfsimg.c
+		COMMAND ${gencromfs_lock} ${CMAKE_BINARY_DIR}/gencromfs ${romfs_gen_root_dir} nsh_romfsimg.c
 		DEPENDS
 			${CMAKE_BINARY_DIR}/gencromfs
 			romfs_pruned.stamp

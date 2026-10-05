@@ -16,7 +16,9 @@ A new log file is created for each arming session on the SD card.
 To display the current state, use `logger status` on the console.
 If you want to start logging immediately, use `logger on`.
 This overrides the arming state, as if the system was armed.
-`logger off` undoes this.
+`logger off` stops the current log.
+Logging can start again on the next arming or AUX activation according to `SDLOG_MODE`.
+If `logger off` stops a continuous log (`SDLOG_MODE=2` or `4`), the next arming starts a new log that continues until shutdown.
 
 If logging stops due to a write error, or reaching the [maximum file size](#file-size-limitations), PX4 will automatically restart logging in a new file.
 
@@ -33,12 +35,12 @@ The logging system is configured by default to collect sensible logs for [flight
 Logging may further be configured using the [SD Logging](../advanced_config/parameter_reference.md#sd-logging) parameters.
 The parameters you are most likely to change are listed below.
 
-| Parameter                                                                | Description                                                                                                                                                                                                                                                                                                                                                                      |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Parameter                                                                | Description                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [SDLOG_MODE](../advanced_config/parameter_reference.md#SDLOG_MODE)       | Logging Mode. Defines when logging starts and stops.<br />- `0`: Log when armed until disarm (default).<br />- `1`: Log from boot until disarm.<br />- `2`: Log from boot until shutdown.<br />- `3`: Log based on the [AUX1 RC channel](../advanced_config/parameter_reference.md#RC_MAP_AUX1).<br />- `4`: Log from first armed until shutdown. |
-| [SDLOG_BACKEND](../advanced_config/parameter_reference.md#SDLOG_BACKEND) | Logging Backend (bitmask). Setting a bit enables the corresponding backend. If no backend is selected, the logger is disabled.<br />- bit `0`: SD card logging.</br >- bit `1`: Mavlink logging.
-| [SDLOG_PROFILE](../advanced_config/parameter_reference.md#SDLOG_PROFILE) | Logging profile. Use this to enable less common logging/analysis (e.g. for EKF2 replay, high rate logging for PID & filter tuning, thermal temperature calibration).                                                                                                                                                                                                             |
-| [SDLOG_MISSION](../advanced_config/parameter_reference.md#SDLOG_MISSION) | Create very small additional "Mission Log".<br>This log can _not_ be used with [Flight Review](../log/flight_log_analysis.md#flight-review-online-tool), but is useful when you need a small log for geotagging or regulatory compliance.                                                                                                                                        |
+| [SDLOG_BACKEND](../advanced_config/parameter_reference.md#SDLOG_BACKEND) | Logging Backend (bitmask). Setting a bit enables the corresponding backend. If no backend is selected, the logger is disabled.<br />- bit `0`: SD card logging.</br >- bit `1`: Mavlink logging.                                                                                                                                                  |
+| [SDLOG_PROFILE](../advanced_config/parameter_reference.md#SDLOG_PROFILE) | Logging profile. Use this to enable less common logging/analysis (e.g. for EKF2 replay, high rate logging for PID & filter tuning, thermal temperature calibration).                                                                                                                                                                              |
+| [SDLOG_MISSION](../advanced_config/parameter_reference.md#SDLOG_MISSION) | Create very small additional "Mission Log".<br>This log can _not_ be used with [Flight Review](../log/flight_log_analysis.md#flight-review-online-tool), but is useful when you need a small log for geotagging or regulatory compliance.                                                                                                         |
 
 Useful settings for specific cases:
 
@@ -52,21 +54,28 @@ This allows, for example, logging of your own uORB topics.
 
 ### SD Card Configuration
 
-Separately, the list of logged topics can also be customized with a file on the SD card.
-Create a file `etc/logging/logger_topics.txt` on the card with a list of topics (For SITL, it's `build/px4_sitl_default/rootfs/fs/microsd/etc/logging/logger_topics.txt`):
+The list of logged topics can also be customized with a file on the SD card: `etc/logging/logger_topics.txt` (for SITL, it's `build/px4_sitl_default/rootfs/etc/logging/logger_topics.txt`).
+
+Each topic to be logged is listed on a separate line, with the following format:
 
 ```plain
 <topic_name> <interval> <instance>
 ```
 
-The `<interval>` is optional, and if specified, defines the minimum interval in ms between two logged messages of this topic.
-If not specified, the topic is logged at full rate.
+Where:
 
-The `<instance>` is optional, and if specified, defines the instance to log.
-If not specified, all instances of the topic are logged.
-To specify `<instance>`, `<interval>` must be specified. It can be set to 0 to log at full rate
+- `<interval>` (optional).
+  Defines the minimum interval in ms between two logged messages of this topic.
+  If not specified or `0`, the topic is logged at full rate.
+- `<instance>` (optional).
+  Defines the instance to log.
+  NOte that `<interval>` must be specified in order to set `instance`
 
-The topics in this file replace all of the default logged topics.
+  If not specified, all instances of the topic are logged.
+
+The topics in this file will be added on top of the already selected topics.
+To just log the topics defined in this file, set [SDLOG_PROFILE=0](../advanced_config/parameter_reference.md#SDLOG_PROFILE).
+If a topic is already included, it will update it's rate.
 
 Example :
 
@@ -77,16 +86,41 @@ sensor_gyro 200
 sensor_mag 200 1
 ```
 
-This configuration will log sensor_accel 0 at full rate, sensor_accel 1 at 10Hz, all sensor_gyro instances at 5Hz and sensor_mag 1 at 5Hz.
+This configuration will log sensor_accel 0 at full rate, sensor_accel 1 at 10Hz, all `sensor_gyro` instances at 5Hz and `sensor_mag` 1 at 5Hz.
 
 ## Scripts
 
 There are several scripts to analyze and convert logging files in the [pyulog](https://github.com/PX4/pyulog) repository.
 
+## Log Cleanup
+
+PX4 automatically manages log storage by rotating log files during writing and cleaning up old logs when starting a new log.
+Rotation is **on by default**: when the current file reaches [SDLOG_MAX_SIZE](../advanced_config/parameter_reference.md#SDLOG_MAX_SIZE), the logger closes it and opens a new one, and old `.ulg` files are deleted (oldest first) to keep free space above the threshold set by [SDLOG_ROTATE](../advanced_config/parameter_reference.md#SDLOG_ROTATE).
+
+Three parameters control how much space logs may use:
+
+- [SDLOG_ROTATE](../advanced_config/parameter_reference.md#SDLOG_ROTATE) is the maximum disk usage percentage (default 90).
+  Cleanup prior to logging (see below) ensures at least `(100 - SDLOG_ROTATE)%` of the disk stays free at all times, **even while writing a new log file**.
+  Setting it to `0` disables space-based cleanup entirely; setting it to `100` lets logs fill the disk completely.
+- [SDLOG_MAX_SIZE](../advanced_config/parameter_reference.md#SDLOG_MAX_SIZE) is the maximum size of a single log file in MB
+  (default 1024). It also reserves headroom so that a full new file always fits after cleanup.
+- [SDLOG_DIRS_MAX](../advanced_config/parameter_reference.md#SDLOG_DIRS_MAX) optionally caps the number of log directories kept (default 0, disabled).
+  This runs on top of the space-based cleanup and is mainly useful for capping log usage by count independent of available disk size (e.g. in SITL, where it defaults to `7`).
+
+At log start, the cleanup threshold is `((100 - SDLOG_ROTATE)% of disk) + SDLOG_MAX_SIZE`.
+The oldest logs are deleted until the free space meets this threshold.
+For example, on an 8 GB card with defaults, cleanup keeps at least `820 + 1024 = ~1.8 GB` free at log start,
+so ~6 GB is usable for logs and disk usage never exceeds 90% during writing.
+Small flash targets override `SDLOG_MAX_SIZE` to a smaller value to keep more logs within the available space.
+
+PX4 stores logs in directories named with one of two formats, depending on whether the system has valid time: date directories (such as `2024-01-15` or `2024-01-16`) when it does, and session directories (`sess001`) when it doesn't.
+The cleanup algorithm prioritises deleting logs from whichever format is not currently in use.
+This ensures that stale logs from a different time mode are cleaned up before current logs.
+
 ## File size limitations
 
 The maximum file size depends on the file system and OS.
-The size limit on NuttX is currently around 2GB.
+The size limit on NuttX is currently around 4GB.
 
 ## Dropouts
 
@@ -161,7 +195,7 @@ There are different clients that support ulog streaming:
 
 - If log streaming does not start, make sure the `logger` is running (see above), and inspect the console output while starting.
 - If it still does not work, make sure that MAVLink 2 is used.
-  Enforce it by setting `MAV_PROTO_VER` to 2.
+  `MAV_PROTO_VER` needs to be set to 2.
 - Log streaming uses a maximum of 70% of the configured MAVLink rate (`-r` parameter).
   If more is needed, messages are dropped.
   The currently used percentage can be inspected with `mavlink status` (1.8% is used in this example):

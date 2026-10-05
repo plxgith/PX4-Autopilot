@@ -1,6 +1,6 @@
 # ROS 2 Offboard Control Приклад
 
-The following C++ example shows how to do position control in [offboard mode](../flight_modes/offboard.md) from a ROS 2 node.
+The following C++ example shows how to do multicopter position control in [offboard mode](../flight_modes/offboard.md) from a ROS 2 node.
 
 Приклад починає відправляти установочні точки, входить у режим offboard, озброюється, піднімається на 5 метрів і чекає.
 Незважаючи на простоту, він демонструє основні принципи використання offboard control і способи надсилання команд транспортному засобу.
@@ -22,9 +22,9 @@ To subscribe to data coming from nodes that publish in a different frame (for ex
 
 ## Випробування
 
-Follow the instructions in [ROS 2 User Guide](../ros2/user_guide.md) to install PX and run the simulator, install ROS 2, and start the XRCE-DDS Agent.
+Follow the instructions in [ROS 2 User Guide](../ros2/user_guide.md) to install PX and run the multicopter simulator, install ROS 2, and start the XRCE-DDS Agent.
 
-After that we can follow a similar set of steps to those in [ROS 2 User Guide > Build ROS 2 Workspace](../ros2/user_guide.md#build-ros-2-workspace) to run the example.
+After that we can follow a similar set of steps to those in [ROS 2 User Guide > Running an example (optional)](../ros2/user_guide.md#running-an-example-optional) to run the example.
 
 :::tip
 Make sure that QGC is connected to PX4 before running the ROS 2 node.
@@ -143,7 +143,7 @@ After 10 cycles `publish_vehicle_command()` is called to change to offboard mode
 The implementations of the `publish_offboard_control_mode()` and `publish_trajectory_setpoint()` methods are shown below.
 These publish the [OffboardControlMode](../msg_docs/OffboardControlMode.md) and [TrajectorySetpoint](../msg_docs/TrajectorySetpoint.md) messages to PX4 (respectively).
 
-The `OffboardControlMode` is required in order to inform PX4 of the _type_ of offboard control behing used.
+The `OffboardControlMode` is required in order to inform PX4 of the _type_ of offboard control being used.
 Here we're only using _position control_, so the `position` field is set to `true` and all the other fields are set to `false`.
 
 ```cpp
@@ -219,4 +219,4 @@ The param and command fields map to [MAVLink commands](https://mavlink.io/en/mes
 
 ## Дивіться також
 
-- [Python ROS2 offboard examples with PX4](https://github.com/Jaeyoung-Lim/px4-offboard) (Jaeyoung-Lim/px4-offboard).
+- [Python ROS 2 offboard examples with PX4](https://github.com/Jaeyoung-Lim/px4-offboard) (Jaeyoung-Lim/px4-offboard).

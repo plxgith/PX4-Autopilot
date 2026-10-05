@@ -25,7 +25,9 @@ These have been tested by the PX4 dev team, or which are popular within the PX4 
 | Device                                                       |     GPS     |          Compass          | [CAN](../dronecan/index.md) | Buzzer / SafeSw / LED | Notes                       |
 | :----------------------------------------------------------- | :---------: | :-----------------------: | :-------------------------: | :-------------------: | :-------------------------- |
 | [ARK GPS](../dronecan/ark_gps.md)                            |     M9N     |          BMM150           |              ✓              |           ✓           | + Baro, IMU                 |
+| [ARK DAN GPS](../gps_compass/ark_dan_gps.md)                 |  DAN-F10N   |          IIS2MDC          |                             |           ✓           |                             |
 | [ARK SAM GPS](../gps_compass/ark_sam_gps.md)                 |  SAM-M10Q   |          IIS2MDC          |                             |           ✓           |                             |
+| [ARK SAM GPS MINI ](../gps_compass/ark_sam_gps_mini.md)      |  SAM-M10Q   |          IIS2MDC          |                             |           ✓           |                             |
 | [ARK TESEO GPS](../dronecan/ark_teseo_gps.md)                | Teseo-LIV4F |          BMM150           |              ✓              |           ✓           | + Baro, IMU                 |
 | [Avionics Anonymous UAVCAN GNSS/Mag][avionics_anon_can_gnss] |   SAM-M8Q   |         MMC5983MA         |              ✓              |           ✘           |                             |
 | [CUAV NEO 3 GPS](../gps_compass/gps_cuav_neo_3.md)           |     M9N     |          IST8310          |                             |           ✓           |                             |
@@ -176,7 +178,7 @@ Compass calibration for an included compass part is covered in: [Compass Configu
 ## GNSS Data Overview
 
 PX4 uses the subset of information that can be provided by most GNSS modules.
-This is written to the [SensorGps](../msg_docs/SensorGps.md) uORB message and used by the estimator as an input to global position estimation.
+This is written to the [SensorGnss](../msg_docs/SensorGnss.md) uORB message, and the selected receiver is passed to the estimator in [VehicleGnss](../msg_docs/VehicleGnss.md) as an input to global position estimation.
 It is also streamed via MAVLink using messages such as [GPS_RAW_INT](https://mavlink.io/en/messages/common.html#GPS_RAW_INT) and [GPS2_RAW](https://mavlink.io/en/messages/common.html#GPS2_RAW).
 
 Some of GNSS terms that are useful for interpreting the data include:
@@ -184,9 +186,9 @@ Some of GNSS terms that are useful for interpreting the data include:
 - `DOP`: Dilution of position (dimensionless).
   This is a measure of the geometric quality of satellite positions and their effect on the precision of the GPS receiver's calculations.
 - `EPH`: Standard deviation of horizontal position error (metres).
-  This represents the the uncertainty in the GPS fix latitude and longitude.
+  This represents the uncertainty in the GPS fix latitude and longitude.
 - `EPV`: Standard deviation of vertical position error (metres).
-  This represents the the uncertainty in the GPS fix altitude.
+  This represents the uncertainty in the GPS fix altitude.
 
 ### DOP vs EPH/EPV
 
@@ -196,11 +198,22 @@ It is possible to have low DOP (good satellite geometry) but still have high EPH
 
 EPH/EPV values therefore provide a more immediate and practical estimate of the actual GPS accuracy you can expect under current conditions.
 
+### GNSS Position Fusion
+
+GNSS position fusion will not begin until yaw alignment is established.
+If a magnetometer is available, the EKF aligns yaw using the magnetic heading, allowing GPS position fusion to start soon after boot.
+If no magnetometer is present, the system must rely on GPS yaw (from a dual-antenna setup) or movement-based yaw estimation.
+Until one of these provides a valid heading, the EKF will not start GPS position fusion, and the vehicle will remain in a “no position” state even though attitude data is valid.
+This behavior prevents large position errors that could occur when the yaw reference is uncertain.
+
 ## Developer Information
 
 - GPS/RTK-GPS
   - [RTK-GPS](../advanced/rtk_gps.md)
+  - [PPS Time Synchronization](../advanced/pps_time_sync.md)
   - [GPS driver](../modules/modules_driver.md#gps)
+  - [PPS driver](../modules/modules_driver.md#pps-capture)
   - [DroneCAN Example](../dronecan/index.md)
+  - [u-blox Diagnostics with u-center](../gps_compass/u-center.md)
 - Compass
   - [Driver source code](https://github.com/PX4/PX4-Autopilot/tree/main/src/drivers/magnetometer) (Compasses)

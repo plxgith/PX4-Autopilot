@@ -35,6 +35,8 @@
 
 using namespace time_literals;
 
+ModuleBase::Descriptor RoverAckermann::desc{task_spawn, custom_command, print_usage};
+
 RoverAckermann::RoverAckermann() :
 	ModuleParams(nullptr),
 	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::rate_ctrl)
@@ -44,7 +46,11 @@ RoverAckermann::RoverAckermann() :
 
 bool RoverAckermann::init()
 {
-	ScheduleOnInterval(10_ms); // 100 Hz
+	if (!_vehicle_angular_velocity_sub.registerCallback()) {
+		PX4_ERR("callback registration failed");
+		return false;
+	}
+
 	return true;
 }
 
@@ -55,6 +61,16 @@ void RoverAckermann::updateParams()
 
 void RoverAckermann::Run()
 {
+	if (should_exit()) {
+		_vehicle_angular_velocity_sub.unregisterCallback();
+		exit_and_cleanup(desc);
+		return;
+	}
+
+	// Drain the trigger. The gyro paces the loop; its value is not used here.
+	vehicle_angular_velocity_s angular_velocity;
+	_vehicle_angular_velocity_sub.update(&angular_velocity);
+
 	if (_parameter_update_sub.updated()) {
 		parameter_update_s param_update{};
 		_parameter_update_sub.copy(&param_update);
@@ -90,8 +106,13 @@ void RoverAckermann::Run()
 		reset();
 		_ackermann_act_control.stopVehicle();
 		_was_armed = false;
+
+	} else {
+		_ackermann_act_control.stopVehicle();
 	}
 
+	// reschedule backup
+	ScheduleDelayed(100_ms);
 }
 
 void RoverAckermann::generateSetpoints()
@@ -112,6 +133,10 @@ void RoverAckermann::generateSetpoints()
 
 	case vehicle_status_s::NAVIGATION_STATE_MANUAL:
 		_manual_mode.manual();
+		break;
+
+	case vehicle_status_s::NAVIGATION_STATE_MANUAL_PARKING:
+		_manual_mode.manualParking();
 		break;
 
 	case vehicle_status_s::NAVIGATION_STATE_ACRO:
@@ -194,8 +219,8 @@ int RoverAckermann::task_spawn(int argc, char *argv[])
 	RoverAckermann *instance = new RoverAckermann();
 
 	if (instance) {
-		_object.store(instance);
-		_task_id = task_id_is_work_queue;
+		desc.object.store(instance);
+		desc.task_id = task_id_is_work_queue;
 
 		if (instance->init()) {
 			return PX4_OK;
@@ -206,8 +231,8 @@ int RoverAckermann::task_spawn(int argc, char *argv[])
 	}
 
 	delete instance;
-	_object.store(nullptr);
-	_task_id = -1;
+	desc.object.store(nullptr);
+	desc.task_id = -1;
 
 	return PX4_ERROR;
 }
@@ -237,5 +262,5 @@ Rover ackermann module.
 
 extern "C" __EXPORT int rover_ackermann_main(int argc, char *argv[])
 {
-	return RoverAckermann::main(argc, argv);
+	return ModuleBase::main(RoverAckermann::desc, argc, argv);
 }

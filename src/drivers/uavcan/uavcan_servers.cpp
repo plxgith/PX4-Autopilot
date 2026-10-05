@@ -56,6 +56,9 @@
 #include <uavcan_posix/dynamic_node_id_server/file_storage_backend.hpp>
 #include <uavcan_posix/firmware_version_checker.hpp>
 
+static uint8_t _buffer[512]
+px4_cache_aligned_data() = {};
+
 /**
  * @file uavcan_servers.cpp
  *
@@ -104,11 +107,16 @@ int UavcanServers::init()
 	}
 
 	/* Initialize trace in the UAVCAN_NODE_DB_PATH directory */
-	ret = _tracer.init(UAVCAN_LOG_FILE);
+	int32_t trace_en = 1;
+	(void)param_get(param_find("UAVCAN_TRACE_EN"), &trace_en);
 
-	if (ret < 0) {
-		PX4_ERR("FileEventTracer init: %d, errno: %d", ret, errno);
-		return ret;
+	if (trace_en) {
+		ret = _tracer.init(UAVCAN_LOG_FILE);
+
+		if (ret < 0) {
+			PX4_ERR("FileEventTracer init: %d, errno: %d", ret, errno);
+			return ret;
+		}
 	}
 
 	/* hardware version */
@@ -137,9 +145,52 @@ int UavcanServers::init()
 	*/
 	migrateFWFromRoot(UAVCAN_FIRMWARE_PATH, UAVCAN_SD_ROOT_PATH);
 
+	/*
+	Check for firmware in the staging directory. Using a staging dir avoids concurrent write conflicts.
+	*/
+	migrateFWFromRoot(UAVCAN_FIRMWARE_PATH, UAVCAN_SD_STAGING_PATH);
+
 	/*  Start the Node   */
 	return 0;
 }
+
+void UavcanServers::warn_if_node_id_allocation_table_full()
+{
+	/*
+	The table never evicts an entry, so a node ID spent on a board that is no longer present stays spent. Once
+	all of them are, every board the table has not seen before is refused a node ID, and the refusal is silent
+	on the bus and here - the node just never appears, which reads as a dead node rather than a full table.
+	Keep saying so: the table does not empty itself, so this is a fault someone has to clear.
+	*/
+	if (_server_instance.getNumAllocations() < uavcan::NodeID::MaxRecommendedForRegularNodes) {
+		return;
+	}
+
+	const hrt_abstime now = hrt_absolute_time();
+
+	if (_node_id_table_full_warned != 0 && now - _node_id_table_full_warned < NODE_ID_TABLE_FULL_WARN_INTERVAL) {
+		return;
+	}
+
+	_node_id_table_full_warned = now;
+	PX4_ERR("dynamic node ID table is full (%u/%u): no new node can join, delete %s and reboot",
+		static_cast<unsigned>(_server_instance.getNumAllocations()),
+		static_cast<unsigned>(uavcan::NodeID::MaxRecommendedForRegularNodes), UAVCAN_NODE_DB_PATH);
+}
+
+#ifdef CONFIG_MODULES_NFS_MOUNT
+void UavcanServers::check_nfs()
+{
+	nfs_up_s nfs_up{};
+
+	if (_nfs_up_sub.update(&nfs_up)) {
+		migrateFWFromRoot(UAVCAN_NFS_PATH, UAVCAN_NFS_STAGING_PATH);
+		_fw_version_checker.setFirmwareNfsBasePath(UAVCAN_NFS_PATH);
+		_fileserver_backend.setNfsRootPath(UAVCAN_NFS_PATH);
+		_node_info_retriever.invalidateAll();
+	}
+}
+#endif
 
 void UavcanServers::migrateFWFromRoot(const char *sd_path, const char *sd_root_path)
 {
@@ -157,14 +208,8 @@ void UavcanServers::migrateFWFromRoot(const char *sd_path, const char *sd_root_p
 	const size_t sd_root_path_len = strlen(sd_root_path);
 	struct stat sb;
 	int rv;
-	char dstpath[maxlen + 1];
 	char srcpath[maxlen + 1];
-
-	DIR *const sd_root_dir = opendir(sd_root_path);
-
-	if (!sd_root_dir) {
-		return;
-	}
+	char dstpath[maxlen + 1];
 
 	if (stat(sd_path, &sb) != 0 || !S_ISDIR(sb.st_mode)) {
 		rv = mkdir(sd_path, S_IRWXU | S_IRWXG | S_IRWXO);
@@ -175,19 +220,21 @@ void UavcanServers::migrateFWFromRoot(const char *sd_path, const char *sd_root_p
 		}
 	}
 
-	// Iterate over all bin files in root directory
+	// Phase 1: collect .bin filenames with directory open, then close
+	static constexpr int MaxBinFiles = 10;
+	char bin_names[MaxBinFiles][NAME_MAX + 1];
+	int bin_count = 0;
+
+	DIR *const sd_root_dir = opendir(sd_root_path);
+
+	if (!sd_root_dir) {
+		return;
+	}
+
 	struct dirent *dev_dirent = NULL;
 
-	while ((dev_dirent = readdir(sd_root_dir)) != nullptr) {
-
-		uavcan_posix::FirmwareVersionChecker::AppDescriptor descriptor{0};
-
-		// Looking for all uavcan.bin files.
-
+	while ((dev_dirent = readdir(sd_root_dir)) != nullptr && bin_count < MaxBinFiles) {
 		if (DIRENT_ISFILE(dev_dirent->d_type) && strstr(dev_dirent->d_name, ".bin") != nullptr) {
-
-			// Make sure the path fits
-
 			size_t filename_len = strlen(dev_dirent->d_name);
 			size_t srcpath_len = sd_root_path_len + 1 + filename_len;
 
@@ -196,35 +243,41 @@ void UavcanServers::migrateFWFromRoot(const char *sd_path, const char *sd_root_p
 				continue;
 			}
 
-			snprintf(srcpath, sizeof(srcpath), "%s%s", sd_root_path, dev_dirent->d_name);
-
-			if (uavcan_posix::FirmwareVersionChecker::getFileInfo(srcpath, descriptor, 1024) != 0) {
-				continue;
-			}
-
-			if (descriptor.image_crc == 0) {
-				continue;
-			}
-
-			snprintf(dstpath, sizeof(dstpath), "%s/%d.bin", sd_path, descriptor.board_id);
-
-			if (copyFw(dstpath, srcpath) >= 0) {
-				unlink(srcpath);
-			}
+			strncpy(bin_names[bin_count], dev_dirent->d_name, NAME_MAX);
+			bin_names[bin_count][NAME_MAX] = '\0';
+			bin_count++;
 		}
 	}
 
-	if (sd_root_dir != nullptr) {
-		(void)closedir(sd_root_dir);
+	(void)closedir(sd_root_dir);
+
+	// Phase 2: process collected files with directory closed
+	for (int i = 0; i < bin_count; i++) {
+		uavcan_posix::FirmwareVersionChecker::AppDescriptor descriptor{0};
+
+		snprintf(srcpath, sizeof(srcpath), "%s/%s", sd_root_path, bin_names[i]);
+
+		if (uavcan_posix::FirmwareVersionChecker::getFileInfo(srcpath, descriptor, 1024) != 0) {
+			continue;
+		}
+
+		if (descriptor.image_crc == 0) {
+			continue;
+		}
+
+		snprintf(dstpath, sizeof(dstpath), "%s/%d.bin", sd_path, descriptor.board_id);
+
+		if (copyFw(dstpath, srcpath) >= 0) {
+			unlink(srcpath);
+		}
 	}
 }
 
 int UavcanServers::copyFw(const char *dst, const char *src)
 {
 	int rv = 0;
-	uint8_t buffer[512] {};
 
-	int dfd = open(dst, O_WRONLY | O_CREAT, 0666);
+	int dfd = open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 
 	if (dfd < 0) {
 		PX4_ERR("copyFw: couldn't open dst");
@@ -242,7 +295,7 @@ int UavcanServers::copyFw(const char *dst, const char *src)
 	ssize_t size = 0;
 
 	do {
-		size = read(sfd, buffer, sizeof(buffer));
+		size = read(sfd, _buffer, sizeof(_buffer));
 
 		if (size < 0) {
 			PX4_ERR("copyFw: couldn't read");
@@ -255,7 +308,7 @@ int UavcanServers::copyFw(const char *dst, const char *src)
 			ssize_t written = 0;
 
 			do {
-				written = write(dfd, &buffer[total_written], remaining);
+				written = write(dfd, &_buffer[total_written], remaining);
 
 				if (written < 0) {
 					PX4_ERR("copyFw: couldn't write");

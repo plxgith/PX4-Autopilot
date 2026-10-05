@@ -33,7 +33,7 @@
 /**
  * @file rtl_mission_fast_reverse.h
  *
- * Helper class for RTL
+ * Helper class for Return
  *
  * @author Julian Oes <julian@oes.ch>
  * @author Anton Babushkin <anton.babushkin@me.com>
@@ -67,15 +67,20 @@ public:
 private:
 	bool setNextMissionItem() override;
 	void setActiveMissionItems() override;
+	MissionTraversalType traversalType() const override { return MissionTraversalType::IgnoreDoJump; }
 	void handleLanding(WorkItemType &new_work_item_type);
 
-	int _mission_index_prior_rtl{-1};
+	// Mission target recorded before RTL and the mission it belongs to.
+	int32_t _mission_index_prior_rtl{INT32_C(-1)};
+	uint32_t _mission_id_prior_rtl{0};
 
 	bool _in_landing_phase{false};
 
 	uORB::SubscriptionData<home_position_s> _home_pos_sub{ORB_ID(home_position)};		/**< home position subscription */
 	DEFINE_PARAMETERS_CUSTOM_PARENT(
 		RtlBase,
-		(ParamInt<px4::params::RTL_PLD_MD>)       _param_rtl_pld_md
+		(ParamInt<px4::params::RTL_PLD_MD>)       _param_rtl_pld_md,
+		(ParamFloat<px4::params::RTL_DESCEND_ALT>) _param_rtl_descend_alt,
+		(ParamFloat<px4::params::RTL_LAND_DELAY>)  _param_rtl_land_delay
 	)
 };

@@ -24,7 +24,7 @@
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/distance_sensor.h>
 #include <uORB/topics/parameter_update.h>
-#include <uORB/topics/sensor_gps.h>
+#include <uORB/topics/vehicle_gnss.h>
 #include <uORB/topics/landing_target_pose.h>
 #include <uORB/topics/vehicle_air_data.h>
 #include <uORB/topics/vehicle_odometry.h>
@@ -49,7 +49,6 @@ static const size_t N_DIST_SUBS = 4;
 
 // for fault detection
 // chi squared distribution, false alarm probability 0.0001
-// see fault_table.py
 // note skip 0 index so we can use degree of freedom as index
 static const float BETA_TABLE[7] = {0,
 				    8.82050518214,
@@ -60,7 +59,7 @@ static const float BETA_TABLE[7] = {0,
 				    19.6465647819,
 				   };
 
-class BlockLocalPositionEstimator : public ModuleBase<BlockLocalPositionEstimator>, public ModuleParams,
+class BlockLocalPositionEstimator : public ModuleBase, public ModuleParams,
 	public px4::WorkItem, public control::SuperBlock
 {
 // dynamics:
@@ -110,6 +109,8 @@ class BlockLocalPositionEstimator : public ModuleBase<BlockLocalPositionEstimato
 //      land (detects when landed)): pz (always measures agl = 0)
 //
 public:
+	static Descriptor desc;
+
 
 	BlockLocalPositionEstimator();
 	~BlockLocalPositionEstimator() override = default;
@@ -270,7 +271,7 @@ private:
 	uORB::SubscriptionData<vehicle_attitude_s> _sub_att{ORB_ID(vehicle_attitude)};
 	uORB::SubscriptionData<vehicle_angular_velocity_s> _sub_angular_velocity{ORB_ID(vehicle_angular_velocity)};
 	uORB::SubscriptionData<vehicle_optical_flow_s> _sub_flow{ORB_ID(vehicle_optical_flow)};
-	uORB::SubscriptionData<sensor_gps_s> _sub_gps{ORB_ID(vehicle_gps_position)};
+	uORB::SubscriptionData<vehicle_gnss_s> _sub_gnss{ORB_ID(vehicle_gnss)};
 	uORB::SubscriptionData<vehicle_odometry_s> _sub_visual_odom{ORB_ID(vehicle_visual_odometry)};
 	uORB::SubscriptionData<vehicle_odometry_s> _sub_mocap_odom{ORB_ID(vehicle_mocap_odometry)};
 	uORB::SubscriptionData<distance_sensor_s> _sub_dist0{ORB_ID(distance_sensor), 0};
@@ -297,12 +298,6 @@ private:
 
 	MapProjection _global_local_proj_ref{};
 	float _global_local_alt0{NAN};
-
-	// target mode paramters from landing_target_estimator module
-	enum TargetMode {
-		Target_Moving = 0,
-		Target_Stationary = 1
-	};
 
 	// flow gyro filter
 	BlockHighPass _flow_gyro_x_high_pass;
@@ -456,7 +451,6 @@ private:
 		(ParamFloat<px4::params::LPE_T_MAX_GRADE>) _param_lpe_t_max_grade,
 
 		(ParamFloat<px4::params::LPE_LT_COV>) _param_lpe_lt_cov,
-		(ParamInt<px4::params::LTEST_MODE>) _param_ltest_mode,
 
 		// init origin
 		(ParamInt<px4::params::LPE_FAKE_ORIGIN>) _param_lpe_fake_origin,

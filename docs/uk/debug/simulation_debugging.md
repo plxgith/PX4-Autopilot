@@ -8,7 +8,7 @@
 
 ```sh
 make clean # only required on first address sanitizer run after a normal build
-PX4_ASAN=1 make px4_sitl jmavsim
+PX4_ASAN=1 make px4_sitl_sih sihsim_quadx
 ```
 
 ## Valgrind
@@ -26,7 +26,7 @@ sudo apt-get install valgrind
 Для використання valgrind під час симуляції SITL:
 
 ```sh
-make px4_sitl_default jmavsim___valgrind
+make px4_sitl_default gazebo-classic___valgrind
 ```
 
 ## Запустіть Gazebo Classic SITL без відлагоджувача
@@ -36,7 +36,7 @@ make px4_sitl_default jmavsim___valgrind
 ```sh
 make px4_sitl_default gz
 make px4_sitl_default gazebo-classic
-make px4_sitl_default jmavsim
+make px4_sitl_sih sihsim_quadx
 ```
 
 Для Gazebo Classic (тільки) ви також можете запустити симулятор з прикріпленим відладчиком.
@@ -106,7 +106,7 @@ You can also start your simulation, and _then_ attach `gdb`:
    ```
 
    As the script runs, note the **SITL COMMAND:** output text located right above the large "PX4" text.
-   Він перерахує місце розташування вашого файлу px4 bin для подальшого використання.
+   It will list the location of your PX4 bin file for later use.
 
    ```sh
    SITL COMMAND: "<px4 bin file>" "<build dir>"/etc

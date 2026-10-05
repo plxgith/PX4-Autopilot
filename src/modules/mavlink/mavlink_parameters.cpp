@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2015-2018 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2015-2025 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,6 +38,7 @@
  * @author Anton Babushkin <anton.babushkin@me.com>
  * @author Lorenz Meier <lorenz@px4.io>
  * @author Beat Kueng <beat@px4.io>
+ * @author Hamish Willee <hamishwillee@gmail.com>
  */
 
 #include <stdio.h>
@@ -57,9 +58,95 @@ MavlinkParametersManager::get_size()
 	return MAVLINK_MSG_ID_PARAM_VALUE_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES;
 }
 
+#if defined(CONFIG_MAVLINK_UAVCAN_PARAMETERS)
+
+void
+MavlinkParametersManager::update_observed_camera_components()
+{
+	camera_status_s cam_status {};
+
+	while (_camera_status_sub.update(&cam_status)) {
+		if (cam_status.active_comp_id >= MAV_COMP_ID_CAMERA
+		    && cam_status.active_comp_id <= MAV_COMP_ID_CAMERA6) {
+			_camera_comp_last_seen[cam_status.active_comp_id - MAV_COMP_ID_CAMERA] = cam_status.timestamp;
+		}
+	}
+
+	// Warn once per comp ID when a MAVLink camera and a DroneCAN node share an
+	// ID in 100..105. Camera takes precedence at the UAVCAN bridge, so the CAN
+	// node's params become unreachable via MAVLink until the user reassigns
+	// the CAN node ID. Fires regardless of which side joined first.
+	static constexpr uint8_t kAllWarned = (1u << CAMERA_COMP_ID_COUNT) - 1;
+
+	if (_camera_cannode_collision_warned_mask == kAllWarned) {
+		return;
+	}
+
+	for (unsigned i = 0; i < CAMERA_COMP_ID_COUNT; ++i) {
+		const uint8_t warn_bit = 1u << i;
+
+		if (_camera_cannode_collision_warned_mask & warn_bit) {
+			continue;
+		}
+
+		if (_camera_comp_last_seen[i] == 0
+		    || hrt_elapsed_time(&_camera_comp_last_seen[i]) >= CAMERA_OBSERVATION_TIMEOUT) {
+			continue;
+		}
+
+		const uint8_t comp_id = MAV_COMP_ID_CAMERA + i;
+
+		if (is_dronecan_node_online(comp_id)) {
+			_camera_cannode_collision_warned_mask |= warn_bit;
+			mavlink_log_warning(_mavlink.get_mavlink_log_pub(),
+					    "CAN node %u blocked by MAV camera (reassign ID)",
+					    comp_id);
+		}
+	}
+}
+
+bool
+MavlinkParametersManager::is_observed_mavlink_camera(uint8_t target_component) const
+{
+	if (target_component < MAV_COMP_ID_CAMERA || target_component > MAV_COMP_ID_CAMERA6) {
+		return false;
+	}
+
+	const hrt_abstime last_seen = _camera_comp_last_seen[target_component - MAV_COMP_ID_CAMERA];
+
+	if (last_seen == 0) {
+		return false;
+	}
+
+	return hrt_elapsed_time(&last_seen) < CAMERA_OBSERVATION_TIMEOUT;
+}
+
+bool
+MavlinkParametersManager::is_dronecan_node_online(uint8_t node_id)
+{
+	dronecan_node_status_s status {};
+
+	for (auto &sub : _dronecan_node_status_subs) {
+		if (sub.copy(&status)
+		    && status.node_id == node_id
+		    && status.mode != dronecan_node_status_s::MODE_OFFLINE
+		    && hrt_elapsed_time(&status.timestamp) < CAMERA_OBSERVATION_TIMEOUT) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+#endif // CONFIG_MAVLINK_UAVCAN_PARAMETERS
+
 void
 MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 {
+#if defined(CONFIG_MAVLINK_UAVCAN_PARAMETERS)
+	update_observed_camera_components();
+#endif // CONFIG_MAVLINK_UAVCAN_PARAMETERS
+
 	switch (msg->msgid) {
 	case MAVLINK_MSG_ID_PARAM_REQUEST_LIST: {
 			/* request all parameters */
@@ -80,7 +167,7 @@ MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 #if defined(CONFIG_MAVLINK_UAVCAN_PARAMETERS)
 
 			if (req_list.target_system == mavlink_system.sysid && req_list.target_component < 127 &&
-			    !(req_list.target_component >= MAV_COMP_ID_CAMERA && req_list.target_component <= MAV_COMP_ID_CAMERA6) &&
+			    !is_observed_mavlink_camera(req_list.target_component) &&
 			    (req_list.target_component != mavlink_system.compid || req_list.target_component == MAV_COMP_ID_ALL)) {
 				// publish list request to UAVCAN driver via uORB.
 				uavcan_parameter_request_s req{};
@@ -116,6 +203,9 @@ MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 						_send_all_index = -1;
 					}
 
+					/* Error report that _HASH_CHECK parameter is read-only */
+					send_error(MAV_PARAM_ERROR_READ_ONLY, name, -1, msg->sysid, msg->compid);
+
 					/* No other action taken, return */
 					return;
 				}
@@ -125,10 +215,20 @@ MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 
 				if (param == PARAM_INVALID) {
 					PX4_ERR("unknown param: %s", name);
+					send_error(MAV_PARAM_ERROR_DOES_NOT_EXIST, name, -1, msg->sysid, msg->compid);
+
+				} else if (!((set.param_type == MAV_PARAM_TYPE_INT32) || (set.param_type == MAV_PARAM_TYPE_REAL32))) {
+					PX4_ERR("param type unsupported: %s", name);
+					send_error(MAV_PARAM_ERROR_TYPE_UNSUPPORTED, name, -1, msg->sysid, msg->compid);
 
 				} else if (!((param_type(param) == PARAM_TYPE_INT32 && set.param_type == MAV_PARAM_TYPE_INT32) ||
 					     (param_type(param) == PARAM_TYPE_FLOAT && set.param_type == MAV_PARAM_TYPE_REAL32))) {
 					PX4_ERR("param types mismatch param: %s", name);
+					send_error(MAV_PARAM_ERROR_TYPE_MISMATCH, name, -1, msg->sysid, msg->compid);
+
+				} else if (param_is_readonly(param)) {
+					PX4_WARN("param %s is read-only", name);
+					send_error(MAV_PARAM_ERROR_READ_ONLY, name, -1, msg->sysid, msg->compid);
 
 				} else {
 					// According to the mavlink spec we should always acknowledge a write operation.
@@ -140,7 +240,7 @@ MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 #if defined(CONFIG_MAVLINK_UAVCAN_PARAMETERS)
 
 			if (set.target_system == mavlink_system.sysid && set.target_component < 127 &&
-			    !(set.target_component >= MAV_COMP_ID_CAMERA && set.target_component <= MAV_COMP_ID_CAMERA6) &&
+			    !is_observed_mavlink_camera(set.target_component) &&
 			    (set.target_component != mavlink_system.compid || set.target_component == MAV_COMP_ID_ALL)) {
 				// publish set request to UAVCAN driver via uORB.
 				uavcan_parameter_request_s req{};
@@ -191,7 +291,9 @@ MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 						strncpy(param_value.param_id, HASH_PARAM, MAVLINK_MSG_PARAM_VALUE_FIELD_PARAM_ID_LEN);
 						param_value.param_type = MAV_PARAM_TYPE_UINT32;
 						memcpy(&param_value.param_value, &hash, sizeof(hash));
+						_mavlink.lock_send();
 						mavlink_msg_param_value_send_struct(_mavlink.get_channel(), &param_value);
+						_mavlink.unlock_send();
 
 					} else {
 						/* local name buffer to enforce null-terminated string */
@@ -200,18 +302,32 @@ MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 						/* enforce null termination */
 						name[MAVLINK_MSG_PARAM_VALUE_FIELD_PARAM_ID_LEN] = '\0';
 						/* attempt to find parameter and send it */
-						send_param(param_find_no_notification(name));
+
+						const int result = send_param(param_find_no_notification(name));
+
+						if (result == 1) {
+							PX4_ERR("Unknown param name: %s", name);
+							send_error(MAV_PARAM_ERROR_DOES_NOT_EXIST, name, -1, msg->sysid, msg->compid);
+
+						} else if (result == 2) {
+							PX4_ERR("Failed loading param from storage: %s", name);
+							send_error(MAV_PARAM_ERROR_READ_FAIL, name, -1, msg->sysid, msg->compid);
+						}
 					}
 
 				} else {
+
 					/* when index is >= 0, send this parameter again */
 					int ret = send_param(param_for_used_index(req_read.param_index));
 
 					if (ret == 1) {
-						PX4_ERR("unknown param ID: %i", req_read.param_index);
+						PX4_ERR("Unknown param index: %i", req_read.param_index);
+						send_error(MAV_PARAM_ERROR_DOES_NOT_EXIST, nullptr, req_read.param_index, msg->sysid, msg->compid);
 
 					} else if (ret == 2) {
-						PX4_ERR("failed loading param from storage ID: %i", req_read.param_index);
+						PX4_ERR("Failed loading param from storage index: %i", req_read.param_index);
+						send_error(MAV_PARAM_ERROR_READ_FAIL, nullptr, req_read.param_index, msg->sysid, msg->compid);
+
 					}
 				}
 			}
@@ -219,7 +335,7 @@ MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 #if defined(CONFIG_MAVLINK_UAVCAN_PARAMETERS)
 
 			if (req_read.target_system == mavlink_system.sysid && req_read.target_component < 127 &&
-			    !(req_read.target_component >= MAV_COMP_ID_CAMERA && req_read.target_component <= MAV_COMP_ID_CAMERA6) &&
+			    !is_observed_mavlink_camera(req_read.target_component) &&
 			    (req_read.target_component != mavlink_system.compid || req_read.target_component == MAV_COMP_ID_ALL)) {
 				// publish set request to UAVCAN driver via uORB.
 				uavcan_parameter_request_s req{};
@@ -474,6 +590,7 @@ MavlinkParametersManager::send_one()
 int
 MavlinkParametersManager::send_param(param_t param, int component_id)
 {
+
 	if (param == PARAM_INVALID) {
 		return 1;
 	}
@@ -544,18 +661,81 @@ MavlinkParametersManager::send_param(param_t param, int component_id)
 		msg.param_type = MAVLINK_TYPE_FLOAT;
 	}
 
+	// send_param can be called from the periodic send path (lock_send already
+	// held by Mavlink::task_main) or from the incoming handle_message path
+	// (no outer lock). Take lock_send here to cover the latter — the mutex
+	// is recursive so the nested case is fine.
+	_mavlink.lock_send();
+
 	/* default component ID */
 	if (component_id < 0) {
 		mavlink_msg_param_value_send_struct(_mavlink.get_channel(), &msg);
 
 	} else {
-		// Re-pack the message with a different component ID
+		// Re-pack the message with a passed component ID
 		mavlink_message_t mavlink_packet;
 		mavlink_msg_param_value_encode_chan(mavlink_system.sysid, component_id, _mavlink.get_channel(), &mavlink_packet, &msg);
 		_mavlink_resend_uart(_mavlink.get_channel(), &mavlink_packet);
 	}
 
+	_mavlink.unlock_send();
+
 	_last_param_sent = hrt_absolute_time();
+
+	return 0;
+}
+
+
+int MavlinkParametersManager:: send_error(MAV_PARAM_ERROR error, const char *param_id, const int param_index,
+		const int target_sysid, const int target_compid,
+		int component_id)
+{
+	/* no free TX buf to send this param error message */
+	if (_mavlink.get_free_tx_buf() < MAVLINK_MSG_ID_PARAM_ERROR_LEN) {
+		return 1;
+	}
+
+	mavlink_param_error_t msg;
+	msg.target_system = target_sysid;
+	msg.target_component = target_compid;
+	msg.error = error;
+
+	if (param_index > -1) { // param_id is not used
+
+		msg.param_index = param_index;
+
+	} else {
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+#endif
+		/*
+		 * coverity[buffer_size_warning : FALSE]
+		 *
+		 * The MAVLink spec does not require the string to be NUL-terminated if it
+		 * has length 16. In this case the receiving end needs to terminate it
+		 * when copying it.
+		 */
+		strncpy(msg.param_id, param_id, MAVLINK_MSG_PARAM_ERROR_FIELD_PARAM_ID_LEN);
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic pop
+#endif/* code */
+	}
+
+	_mavlink.lock_send();
+
+	/* default component ID */
+	if (component_id < 0) {
+		mavlink_msg_param_error_send_struct(_mavlink.get_channel(), &msg);
+
+	} else {
+		// Re-pack the message with a different component ID
+		mavlink_message_t mavlink_packet;
+		mavlink_msg_param_error_encode_chan(mavlink_system.sysid, component_id, _mavlink.get_channel(), &mavlink_packet, &msg);
+		_mavlink_resend_uart(_mavlink.get_channel(), &mavlink_packet);
+	}
+
+	_mavlink.unlock_send();
 
 	return 0;
 }
@@ -639,6 +819,12 @@ void MavlinkParametersManager::enque_uavcan_request(uavcan_parameter_request_s *
 	}
 
 	_uavcan_open_request_list_item *new_reqest = new _uavcan_open_request_list_item;
+
+	if (new_reqest == nullptr) {
+		PX4_ERR("uavcan request alloc failed");
+		return;
+	}
+
 	new_reqest->req = *req;
 	new_reqest->next = nullptr;
 

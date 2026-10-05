@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2022 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2022-2026 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -53,7 +53,7 @@
 #include <uORB/Publication.hpp>
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionCallback.hpp>
-#include <uORB/topics/sensor_gps.h>
+#include <uORB/topics/sensor_gnss.h>
 #include <uORB/topics/transponder_report.h>
 #include <uORB/topics/vehicle_land_detected.h>
 
@@ -65,9 +65,11 @@
 
 using namespace time_literals;
 
-class SagetechMXS : public ModuleBase<SagetechMXS>, public ModuleParams, public px4::ScheduledWorkItem
+class SagetechMXS : public ModuleBase, public ModuleParams, public px4::ScheduledWorkItem
 {
 public:
+	static Descriptor desc;
+
 	SagetechMXS(const char *port);
 	~SagetechMXS() override;
 
@@ -116,10 +118,8 @@ private:
 
 
 	// Subscriptions
-	uORB::Subscription                 _sensor_gps_sub{ORB_ID(sensor_gps)};
+	uORB::Subscription                 _sensor_gnss_sub{ORB_ID(sensor_gnss)};
 	uORB::SubscriptionInterval         _parameter_update_sub{ORB_ID(parameter_update), 1_s}; // subscription limited to 1 Hz updates
-	uORB::Subscription                 _vehicle_status_sub{ORB_ID(vehicle_status)};          // regular subscription for additional data
-	uORB::Subscription                 _transponder_report_sub{ORB_ID(transponder_report)};
 	uORB::Subscription                 _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
 
 
@@ -161,7 +161,7 @@ private:
 	uint64_t _loop_count;
 
 	// Cached Subscription Data
-	sensor_gps_s _gps;
+	sensor_gnss_s _gnss;
 	vehicle_land_detected_s _landed;
 
 	enum class MsgType : uint8_t {

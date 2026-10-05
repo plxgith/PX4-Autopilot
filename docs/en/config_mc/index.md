@@ -123,19 +123,21 @@ Tuning is the final step, carried out only after most other setup and configurat
   ::: info
   Automatic tuning works on frames that have reasonable authority and dynamics around all the body axes.
   It has primarily been tested on racing quads and X500, and is expected to be less effective on tricopters with a tiltable rotor.
-  
+
   Manual tuning using these guides are only needed if there is a problem with autotune:
-  
   - [MC PID Tuning (Manual/Basic)](../config_mc/pid_tuning_guide_multicopter_basic.md) — Manual tuning basic how to.
   - [MC PID Tuning Guide (Manual/Detailed)](../config_mc/pid_tuning_guide_multicopter.md) — Manual tuning with detailed explanation.
-  
-  :::
 
+  :::
 
 - [MC Filter/Control Latency Tuning](../config_mc/filter_tuning.md) — Trade off control latency and noise filtering.
 - [MC Setpoint Tuning (Trajectory Generator)](../config_mc/mc_trajectory_tuning.md)
   - [MC Jerk-limited Type Trajectory](../config_mc/mc_jerk_limited_type_trajectory.md)
 - [Multicopter Racer Setup](../config_mc/racer_setup.md)
+- [PID-Wise](https://www.altitude-rd.com/pid-wise) — a commercial web app for interactive multicopter tuning from a flight log.
+  Bugs and questions should be addressed to the maintainer: [Altitude R&D](https://www.altitude-rd.com/home) (not the PX4 forums).
+
+![Genius Tools](../../assets/config/mc/genius_tools.webp)
 
 <!--
 - Explain what you have to tune on PX4, what you can tune, and what each topic covers

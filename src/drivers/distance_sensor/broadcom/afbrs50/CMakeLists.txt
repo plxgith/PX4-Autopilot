@@ -45,11 +45,14 @@ px4_add_module(
 		Inc
 	SRCS
 		AFBRS50.cpp
+		AFBRS50_Calibration.cpp
 		AFBRS50.hpp
 		API/Src/irq.c
 		API/Src/s2pi.cpp
 		API/Src/timer.c
 		argus_hal_test.c
+	MODULE_CONFIG
+		parameters.yaml
 	DEPENDS
 		px4_work_queue
 		drivers_rangefinder

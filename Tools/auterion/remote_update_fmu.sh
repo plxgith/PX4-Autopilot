@@ -1,14 +1,15 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Flash PX4 to a device running AuterionOS in the local network
 if [ "$1" == "-h" ] || [ "$1" == "--help" ] || [ $# -lt 2 ]; then
-	echo "Usage: $0 -f <firmware.px4|.elf> [-c <configuration_dir>] -d <IP/Device> [-u <user>] [-p <ssh_port>] [--revert]"
+	echo "Usage: $0 -f <firmware.px4|.elf> [-c <configuration_dir>] [-x <canio_firmware.bin>] -d <IP/Device> [-u <user>] [-p <ssh_port>] [--revert]"
 	exit 1
 fi
 
 ssh_port=22
 ssh_user=root
+ssh_opts="-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
 
-while getopts ":f:c:d:p:u:r" opt; do
+while getopts ":f:c:x:d:p:u:r" opt; do
 	case ${opt} in
 		f )
 			if [ -n "$OPTARG" ]; then
@@ -23,6 +24,14 @@ while getopts ":f:c:d:p:u:r" opt; do
 				config_dir="$OPTARG"
 			else
 				echo "ERROR: -c configuration directory is empty or does not contain a valid rc.autostart"
+				exit 1
+			fi
+			;;
+		x )
+			if [ -f "$OPTARG" ]; then
+				external_firmware_files+=("$OPTARG")
+			else
+				echo "ERROR: -x requires a valid firmware file path."
 				exit 1
 			fi
 			;;
@@ -67,16 +76,27 @@ target_file_name="update-dev.tar"
 if [ "$revert" == true ]; then
 	# revert to the release version which was originally deployed
 	cmd="cp $target_dir/update.tar $target_dir/$target_file_name"
-	ssh -t -p $ssh_port $ssh_user@$device "$cmd"
+	ssh $ssh_opts -t -p $ssh_port $ssh_user@$device "$cmd"
 else
 	# create custom update-dev.tar
 	tmp_dir="$(mktemp -d)"
 	config_path=""
 	firmware_path=""
+	ufw_path=""
 
 	if [ -d "$config_dir" ]; then
 		cp -r "$config_dir" "$tmp_dir/config"
 		config_path=config
+	fi
+
+	if [ ${#external_firmware_files[@]} -gt 0 ]; then
+		mkdir -p "$tmp_dir/ufw"
+		for _ext_fw in "${external_firmware_files[@]}"; do
+			external_firmware_name="$(basename "$_ext_fw")"
+			cp "$_ext_fw" "$tmp_dir/ufw/$external_firmware_name"
+			echo "Including external firmware in update-dev.tar: ufw/$external_firmware_name"
+		done
+		ufw_path="ufw"
 	fi
 
 	if [ -f "$firmware_file" ]; then
@@ -91,7 +111,7 @@ else
 
 	pushd "$tmp_dir" &>/dev/null
 
-	if [ -z $firmware_path ] && [ -z $config_path ]; then
+	if [ -z "$firmware_path" ] && [ -z "$config_path" ] && [ -z "$ufw_path" ]; then
 		exit 1
 	fi
 
@@ -102,14 +122,28 @@ else
 		tar_name="gtar"
 	fi
 
-	$tar_name -C "$tmp_dir" --sort=name --owner=root:0 --group=root:0 --mtime='2019-01-01 00:00:00' -cvf $target_file_name $firmware_path $config_path
+	tar_entries=()
+	if [ -n "$firmware_path" ]; then
+		tar_entries+=("$firmware_path")
+	fi
+	if [ -n "$config_path" ]; then
+		tar_entries+=("$config_path")
+	fi
+	if [ -n "$ufw_path" ]; then
+		tar_entries+=("$ufw_path")
+	fi
+
+	if ! $tar_name -C "$tmp_dir" --sort=name --owner=root:0 --group=root:0 --mtime='2019-01-01 00:00:00' -cvf $target_file_name "${tar_entries[@]}"; then
+		echo "ERROR: Failed to create $target_file_name"
+		exit 1
+	fi
 
 	# send it to the target to start flashing
-	scp -P $ssh_port "$target_file_name" $ssh_user@"$device":$target_dir
+	scp $ssh_opts -P $ssh_port "$target_file_name" $ssh_user@"$device":$target_dir
 	popd &>/dev/null
 	rm -rf "$tmp_dir"
 fi
 
 # grab status output for flashing progress
 cmd="tail --follow=name $target_dir/update_status 2>/dev/null || true"
-ssh -t -p $ssh_port $ssh_user@$device "$cmd"
+ssh $ssh_opts -t -p $ssh_port $ssh_user@$device "$cmd"

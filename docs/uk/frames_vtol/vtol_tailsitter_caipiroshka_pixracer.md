@@ -4,7 +4,7 @@ The Caipiroshka VTOL is a slightly modified _TBS Caipirinha_.
 
 :::info
 The _TBS Caipirinha_ has been superseded and is no longer available.
-These instructions _should_ work with the updated vehicle: [TBS Caipirinha 2](https://team-blacksheep.com/products/prod:tbs_caipi2_pnp).
+These instructions _should_ work with the updated vehicle: [TBS Caipirinha 2](https://www.team-blacksheep.com/products/prod:tbs_caipi2_pnp).
 Кілька інших компонентів також було оновлено в списку деталей.
 :::
 
@@ -12,10 +12,10 @@ These instructions _should_ work with the updated vehicle: [TBS Caipirinha 2](ht
 
 ## Список деталей
 
-- TBS Caipirinha Wing (no longer available - try [TBS Caipirinha 2](https://team-blacksheep.com/products/prod:tbs_caipi2_pnp))
+- TBS Caipirinha Wing (no longer available - try [TBS Caipirinha 2](https://www.team-blacksheep.com/products/prod:tbs_caipi2_pnp))
 - Left and right 3D-printed motor mount (<a href="https://github.com/PX4/PX4-Autopilot/raw/main/docs/assets/airframes/vtol/caipiroshka/motor_mounts.zip" target="_blank">design files</a>)
-- CW 8045 propeller ([Eflight store](https://www.banggood.com/GEMFAN-Carbon-Nylon-8045-CWCCW-Propeller-For-Quadcopters-1-Pair-p-950874.html))
-- CCW 8045 propeller ([Eflight store](https://www.banggood.com/GEMFAN-Carbon-Nylon-8045-CWCCW-Propeller-For-Quadcopters-1-Pair-p-950874.html))
+- CW 8045 propeller ([Eflight store](https://www.banggood.com/GEMFAN-Carbon-Nylon-8045-8x4_5-8-Inch-Propeller-for-Quacopters-p-950874.html?akmClientCountry=America&))
+- CCW 8045 propeller ([Eflight store](https://www.banggood.com/GEMFAN-Carbon-Nylon-8045-8x4_5-8-Inch-Propeller-for-Quacopters-p-950874.html?akmClientCountry=America&))
 - 2x 1800 kV 120-180W двигуни
   - [ePower 2208](https://www.galaxus.ch/en/s5/product/epower-22081400-fuer-2-3-lipo-imax-rc-motors-8355913)
   - [Armattan 2208 1800kV Multirotor Motor](https://www.amazon.com/Armattan-2208-1800kV-Multirotor-Motor/dp/B00UWLW0C8)
@@ -24,7 +24,7 @@ These instructions _should_ work with the updated vehicle: [TBS Caipirinha 2](ht
   - [GetFPV](https://www.getfpv.com/lumenier-30a-blheli-s-esc-opto-2-4s.html)
 - BEC (3А, 5-5.3В) (потрібно лише у випадку, якщо використовуєте ESC, які не можуть діяти як джерело живлення 5В для вихідної рейки)
 - 3S 2200 mA LiPo акумулятор
-  - Team Orion 3S 11.1V 50 C ([Hobbyshop store](https://www.hobbyshop.ch/modellbau-elektronik/akku/team-orion-lipo-2200-3s-11-1v-50c-xt60-ori60163.html))
+  - Team Orion 3S 11.1V 50 C ([Hobbyshop store](https://www.hobbyshop.ch/team-orion-lipo-2200-3s-11-1v-50c-xt60-ori60163.html))
 - [Pixracer autopilot board + power module](../flight_controller/pixracer.md)
 - [Digital airspeed sensor](https://hobbyking.com/en_us/hkpilot-32-digital-air-speed-sensor-and-pitot-tube-set.html)
 

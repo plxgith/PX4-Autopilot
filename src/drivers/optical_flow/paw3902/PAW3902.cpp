@@ -38,6 +38,43 @@ static constexpr int16_t combine(uint8_t msb, uint8_t lsb)
 	return (msb << 8u) | lsb;
 }
 
+// SQUAL below which the datasheet treats a motion report as noise, per
+// operating mode (shared with the false-motion discard, which also requires
+// the shutter condition).
+static constexpr uint8_t SQUAL_THRESHOLD_BRIGHT          = 0x19;
+static constexpr uint8_t SQUAL_THRESHOLD_LOW_LIGHT       = 0x46;
+static constexpr uint8_t SQUAL_THRESHOLD_SUPER_LOW_LIGHT = 0x55;
+
+static constexpr uint8_t squal_threshold(Mode mode)
+{
+	switch (mode) {
+	case Mode::Bright:        return SQUAL_THRESHOLD_BRIGHT;
+
+	case Mode::LowLight:      return SQUAL_THRESHOLD_LOW_LIGHT;
+
+	case Mode::SuperLowLight: return SQUAL_THRESHOLD_SUPER_LOW_LIGHT;
+	}
+
+	return SQUAL_THRESHOLD_SUPER_LOW_LIGHT;
+}
+
+// sensor_optical_flow.quality promises 0 = worst, 255 = best, and EKF2 scales
+// the flow noise linearly with it. Raw SQUAL is mode dependent (the chip's own
+// floor is 25/70/85 across the three modes) and the DroneCAN flow message
+// drops the mode, so the same raw value would mean "solid" in bright light and
+// "one count above noise" in super low light. Map the mode floor to 0 and raw
+// 255 to 255.
+static uint8_t normalize_squal(uint8_t squal, Mode mode)
+{
+	const uint8_t threshold = squal_threshold(mode);
+
+	if (squal <= threshold) {
+		return 0;
+	}
+
+	return static_cast<uint8_t>(((squal - threshold) * 255u) / (255u - threshold));
+}
+
 PAW3902::PAW3902(const I2CSPIDriverConfig &config) :
 	SPI(config),
 	I2CSPIDriver(config),
@@ -89,6 +126,7 @@ bool PAW3902::Reset()
 	_state = STATE::RESET;
 	DataReadyInterruptDisable();
 	_drdy_timestamp_sample.store(0);
+	_timestamp_sample_last = 0;
 	ScheduleClear();
 	ScheduleNow();
 	return true;
@@ -301,7 +339,7 @@ void PAW3902::RunImpl()
 					sensor_optical_flow.mode = sensor_optical_flow_s::MODE_BRIGHT;
 
 					// quality < 25 (0x19) and shutter >= 8176 (0x1FF0)
-					if ((buffer.data.SQUAL < 0x19) && (shutter >= 0x1FF0)) {
+					if ((buffer.data.SQUAL < SQUAL_THRESHOLD_BRIGHT) && (shutter >= 0x1FF0)) {
 						// false motion report, discarding
 						data_valid = false;
 						perf_count(_false_motion_perf);
@@ -328,7 +366,7 @@ void PAW3902::RunImpl()
 					sensor_optical_flow.mode = sensor_optical_flow_s::MODE_LOWLIGHT;
 
 					// quality < 70 (0x46) and shutter >= 8176 (0x1FF0)
-					if ((buffer.data.SQUAL < 0x46) && (shutter >= 0x1FF0)) {
+					if ((buffer.data.SQUAL < SQUAL_THRESHOLD_LOW_LIGHT) && (shutter >= 0x1FF0)) {
 						// false motion report, discarding
 						data_valid = false;
 						perf_count(_false_motion_perf);
@@ -368,7 +406,7 @@ void PAW3902::RunImpl()
 					sensor_optical_flow.mode = sensor_optical_flow_s::MODE_SUPER_LOWLIGHT;
 
 					// quality < 85 (0x55) and shutter >= 3008 (0x0BC0)
-					if ((buffer.data.SQUAL < 0x55) && (shutter >= 0x0BC0)) {
+					if ((buffer.data.SQUAL < SQUAL_THRESHOLD_SUPER_LOW_LIGHT) && (shutter >= 0x0BC0)) {
 						// false motion report, discarding
 						data_valid = false;
 						perf_count(_false_motion_perf);
@@ -392,6 +430,15 @@ void PAW3902::RunImpl()
 					}
 
 					break;
+				}
+
+				// override the per-mode default with the actual interval between burst reads
+				// (the chip accumulates delta_x/delta_y until Motion_Burst is read), so the
+				// gyro integration window downstream lines up with what the chip actually saw.
+				if (_timestamp_sample_last != 0 && timestamp_sample > _timestamp_sample_last) {
+					const hrt_abstime dt = timestamp_sample - _timestamp_sample_last;
+					sensor_optical_flow.integration_timespan_us = math::constrain(static_cast<uint32_t>(dt),
+							static_cast<uint32_t>(1_ms), static_cast<uint32_t>(200_ms));
 				}
 
 				// motion in burst transfer
@@ -421,7 +468,7 @@ void PAW3902::RunImpl()
 						sensor_optical_flow.pixel_flow[0] = pixel_flow_rotated(0) * SCALE;
 						sensor_optical_flow.pixel_flow[1] = pixel_flow_rotated(1) * SCALE;
 
-						sensor_optical_flow.quality = buffer.data.SQUAL;
+						sensor_optical_flow.quality = normalize_squal(buffer.data.SQUAL, _mode);
 
 						publish = true;
 
@@ -439,7 +486,7 @@ void PAW3902::RunImpl()
 							sensor_optical_flow.pixel_flow[0] = 0;
 							sensor_optical_flow.pixel_flow[1] = 0;
 
-							sensor_optical_flow.quality = buffer.data.SQUAL;
+							sensor_optical_flow.quality = normalize_squal(buffer.data.SQUAL, _mode);
 
 							publish = true;
 						}
@@ -483,6 +530,10 @@ void PAW3902::RunImpl()
 				_shutter_prev = shutter;
 				_raw_data_sum_prev = buffer.data.RawData_Sum;
 				_quality_prev = buffer.data.SQUAL;
+
+				// chip clears its delta accumulator on every Motion_Burst read,
+				// regardless of whether we publish, so track every successful read.
+				_timestamp_sample_last = timestamp_sample;
 
 			} else {
 				perf_count(_bad_transfer_perf);

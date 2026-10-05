@@ -8,7 +8,7 @@ PX4 기능 추가 절차는 다음과 같습니다. 다음 예제를 따라 PX4�
 
 - [Sign up](https://github.com/signup) for github if you haven't already
 
-- Fork the PX4-Autopilot repo (see [here](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo))
+- Fork the PX4-Autopilot repo (see [here](https://docs.github.com/en/pull-requests/how-tos/work-with-forks/fork-a-repo))
 
 - 포크된 저장소를 로컬 컴퓨터에 복제합니다.
 
@@ -22,7 +22,7 @@ PX4 기능 추가 절차는 다음과 같습니다. 다음 예제를 따라 PX4�
   ```sh
   cd PX4-Autopilot
   git submodule update --init --recursive
-  git remote add upstream https://github.com/PX4/PX4-Autopilot.git
+  git remote add upstream https://github.com/PX4/PX4-Autopilot
   ```
 
 - You should have now two remote repositories: One repository is called `upstream` that points to PX4/PX4-Autopilot, and one repository `origin` that points to your forked copy of the PX4 repository.
@@ -49,17 +49,17 @@ PX4 기능 추가 절차는 다음과 같습니다. 다음 예제를 따라 PX4�
   git add <file name>
   ```
 
-  If you prefer having a GUI to add your files see [Gitk](https://git-scm.com/book/en/v2/Git-in-Other-Environments-Graphical-Interfaces) or [`git add -p`](https://nuclearsquid.com/writings/git-add/).
+  If you prefer having a GUI to add your files see [Gitk](https://git-scm.com/book/en/v2/Appendix-A:-Git-in-Other-Environments-Graphical-Interfaces) or [`git add -p`](https://nuclearsquid.com/writings/git-add/).
 
 - 변경 사항을 설명하는 메시지와 함께 추가된 파일을 커밋합니다.
 
   ```sh
-  git commit -m "<your commit message>"
+  git commit -s -m "feat(ekf2): add height fusion timeout"
   ```
 
-  For a good commit message, please refer to the [Source Code Management](../contribute/code.md#commits-and-commit-messages) section.
+  Use [conventional commits](https://www.conventionalcommits.org/) format: `type(scope): description`. For details on types and scopes, see the [Source Code Management](../contribute/code.md#commits-and-commit-messages) section.
 
-- Some time might have passed and the [upstream main](https://github.com/PX4/PX4-Autopilot.git) has changed.
+- Some time might have passed and the [upstream main](https://github.com/PX4/PX4-Autopilot) has changed.
   PX4 prefers a linear commit history and uses [git rebase](https://git-scm.com/book/en/v2/Git-Branching-Rebasing).
   To include the newest changes from upstream in your local branch, switch to your main branch
 
@@ -109,23 +109,23 @@ To switch between branches:
 
 1. Clean up the current branch, de-initializing submodule and removing all build artifacts:
 
-  ```sh
-  make clean
-  make distclean
-  ```
+   ```sh
+   make clean
+   make distclean
+   ```
 
 2. Switch to a new branch or tag (here we first fetch the fictional branch "PR_test_branch" from the `upstream` remote):
 
-  ```sh
-  git fetch upstream PR_test_branch
-  git checkout PR_test_branch
-  ```
+   ```sh
+   git fetch upstream PR_test_branch
+   git checkout PR_test_branch
+   ```
 
 3. Get the submodules for the new branch:
 
-  ```sh
-  make submodulesclean
-  ```
+   ```sh
+   make submodulesclean
+   ```
 
 <!-- FYI: Cleaning commands in https://github.com/PX4/PX4-Autopilot/blob/main/Makefile#L494 -->
 
@@ -138,35 +138,35 @@ To get the source code for a _specific older release_ (tag):
 
 1. Clone the PX4-Autopilot repo and navigate into _PX4-Autopilot_ directory:
 
-  ```sh
-  git clone https://github.com/PX4/PX4-Autopilot.git
-  cd PX4-Autopilot
-  ```
+   ```sh
+   git clone https://github.com/PX4/PX4-Autopilot
+   cd PX4-Autopilot
+   ```
 
-  :::note
+   :::note
 
-  You can reuse an existing repo rather than cloning a new one.
-  In this case clean the build environment (see [changing source trees](#changing-source-trees)):
+   You can reuse an existing repo rather than cloning a new one.
+   In this case clean the build environment (see [changing source trees](#changing-source-trees)):
 
-  ```sh
-  make clean
-  make distclean
-  ```
+   ```sh
+   make clean
+   make distclean
+   ```
 
 
 :::
 
 2. Checkout code for particular tag (e.g. for tag v1.13.0-beta2)
 
-  ```sh
-  git checkout v1.13.0-beta2
-  ```
+   ```sh
+   git checkout v1.13.0-beta2
+   ```
 
 3. Update submodules:
 
-  ```sh
-  make submodulesclean
-  ```
+   ```sh
+   make submodulesclean
+   ```
 
 ## Get a Release Branch
 
@@ -179,7 +179,7 @@ To get a release branch:
 - Clone the PX4-Autopilot repo and navigate into _PX4-Autopilot_ directory:
 
   ```sh
-  git clone https://github.com/PX4/PX4-Autopilot.git
+  git clone https://github.com/PX4/PX4-Autopilot
   cd PX4-Autopilot
   ```
 
@@ -292,7 +292,7 @@ If a conflict occurs during a `git rebase`, please refer to [this guide](https:/
 
 ### 풀 병합 충돌
 
-If a conflict occurs during a `git pull`, please refer to [this guide](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/addressing-merge-conflicts/resolving-a-merge-conflict-using-the-command-line#competing-line-change-merge-conflicts).
+If a conflict occurs during a `git pull`, please refer to [this guide](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/resolving-a-merge-conflict-using-the-command-line#competing-line-change-merge-conflicts).
 
 ### 오래된 git 태그로 인한 빌드 오류
 

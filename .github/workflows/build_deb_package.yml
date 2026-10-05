@@ -1,0 +1,241 @@
+name: SITL Packages and Containers
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths: &container_paths
+      - 'cmake/package.cmake'
+      - 'platforms/posix/CMakeLists.txt'
+      - 'Tools/packaging/**'
+      - 'Tools/ros2/ros2.repos'
+      - 'Tools/setup/ubuntu.sh'
+      - 'Tools/setup/requirements.txt'
+      - 'boards/px4/sitl/sih.px4board'
+      - '.github/workflows/build_deb_package.yml'
+      - '.github/actions/build-deb/**'
+  pull_request:
+    paths: *container_paths
+  schedule:
+    # RunsOn deletes cache files 10 days after they are saved, even if still
+    # in use. Rebuild main weekly so pull requests always have a cache to reuse.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      deploy_containers:
+        description: 'Push container images to registry'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+
+  # ---------------------------------------------------------------------------
+  # Setup: extract version and determine whether to push containers
+  # ---------------------------------------------------------------------------
+  setup:
+    name: Setup
+    runs-on: [runs-on,"runner=1cpu-linux-x64","image=ubuntu24-full-x64","run-id=${{ github.run_id }}",extras=s3-cache,spot=false]
+    outputs:
+      px4_version: ${{ steps.version.outputs.px4_version }}
+      should_push: ${{ steps.push.outputs.should_push }}
+    steps:
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set PX4 version
+        id: version
+        run: echo "px4_version=$(git describe --tags --match 'v[0-9]*')" >> $GITHUB_OUTPUT
+
+      - name: Check if we should push containers
+        id: push
+        run: |
+          if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]] || \
+             [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.deploy_containers }}" == "true" ]]; then
+            echo "should_push=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_push=false" >> $GITHUB_OUTPUT
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Build .deb packages (all distros, arches, targets)
+  # ---------------------------------------------------------------------------
+  build-deb:
+    name: "Build .deb (${{ matrix.target }}/${{ matrix.codename }}/${{ matrix.arch }})"
+    needs: setup
+    runs-on: [runs-on,"runner=4cpu-linux-${{ matrix.runner }}","image=ubuntu24-full-${{ matrix.runner }}","run-id=${{ github.run_id }}",extras=s3-cache,spot=false]
+    container:
+      image: ${{ matrix.container }}
+      volumes:
+        - /github/workspace:/github/workspace
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { codename: noble,  arch: amd64, runner: x64,   container: "ubuntu:24.04", target: default, setup_flags: "" }
+          - { codename: noble,  arch: arm64, runner: arm64, container: "ubuntu:24.04", target: default, setup_flags: "" }
+          - { codename: jammy,  arch: amd64, runner: x64,   container: "ubuntu:22.04", target: default, setup_flags: "" }
+          - { codename: jammy,  arch: arm64, runner: arm64, container: "ubuntu:22.04", target: default, setup_flags: "" }
+          - { codename: noble,  arch: amd64, runner: x64,   container: "ubuntu:24.04", target: sih, setup_flags: "--no-sim-tools" }
+          - { codename: noble,  arch: arm64, runner: arm64, container: "ubuntu:24.04", target: sih, setup_flags: "--no-sim-tools" }
+          - { codename: jammy,  arch: amd64, runner: x64,   container: "ubuntu:22.04", target: sih, setup_flags: "--no-sim-tools" }
+          - { codename: jammy,  arch: arm64, runner: arm64, container: "ubuntu:22.04", target: sih, setup_flags: "--no-sim-tools" }
+    env:
+      RUNS_IN_DOCKER: true
+    steps:
+      - uses: runs-on/action@v2
+
+      - name: Fix git in container
+        run: |
+          # Ubuntu's container hook otherwise empties the APT cache after every install.
+          rm -f /etc/apt/apt.conf.d/docker-clean
+          apt-get update && apt-get install -y git
+          git config --global --add safe.directory $(realpath .)
+
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Use AWS regional apt mirror
+        if: startsWith(runner.name, 'runs-on--')
+        run: ./Tools/ci/use_aws_apt_mirror.sh
+
+      - name: Cache apt packages
+        uses: actions/cache@v5
+        with:
+          path: /var/cache/apt/archives
+          key: apt-v2-${{ matrix.target }}-${{ matrix.codename }}-${{ matrix.arch }}-${{ hashFiles('Tools/setup/ubuntu.sh') }}
+          restore-keys: apt-v2-${{ matrix.target }}-${{ matrix.codename }}-${{ matrix.arch }}-
+
+      - name: Install dependencies
+        run: ./Tools/setup/ubuntu.sh --no-nuttx ${{ matrix.setup_flags }}
+
+      - name: Build and package .deb
+        uses: ./.github/actions/build-deb
+        with:
+          target: ${{ matrix.target }}
+          artifact-name: px4-sitl-debs-${{ matrix.target }}-${{ matrix.codename }}-${{ matrix.arch }}
+          ccache-key-prefix: deb-ccache-${{ matrix.target }}-${{ matrix.codename }}-${{ matrix.arch }}
+
+  # ---------------------------------------------------------------------------
+  # Build Docker images from Noble .debs
+  # ---------------------------------------------------------------------------
+  build-docker:
+    name: "Build Image (${{ matrix.image }}/${{ matrix.arch }})"
+    needs: [setup, build-deb]
+    runs-on: [runs-on,"runner=8cpu-linux-${{ matrix.runner }}","image=ubuntu24-full-${{ matrix.runner }}","run-id=${{ github.run_id }}",extras=s3-cache,spot=false]
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+        image: [sih, gazebo]
+        include:
+          - { arch: amd64, runner: x64 }
+          - { arch: arm64, runner: arm64 }
+          - { image: sih, target: sih }
+          - { image: gazebo, target: default }
+    steps:
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Download Noble .deb artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: px4-sitl-debs-${{ matrix.target }}-noble-${{ matrix.arch }}
+          path: docker-context
+
+      - name: Prepare build context
+        run: bash Tools/packaging/containers/prepare_context.sh
+
+      - name: Login to registries
+        if: needs.setup.outputs.should_push == 'true'
+        run: |
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+        id: buildx
+        with:
+          driver: docker-container
+          # Gazebo/ROS SBOMs exceed the 40 MiB attestation limit in BuildKit 0.32.
+          driver-opts: image=moby/buildkit:v0.33.0
+          platforms: linux/${{ matrix.arch }}
+
+      - name: Restore ROS compiler cache
+        uses: actions/cache@v5
+        id: ros-cache
+        with:
+          path: ros-ccache
+          key: ros-ccache-${{ matrix.arch }}-${{ matrix.image }}-${{ github.sha }}
+          restore-keys: |
+            ros-ccache-${{ matrix.arch }}-${{ matrix.image }}-
+            ros-ccache-${{ matrix.arch }}-
+
+      - name: Reuse compiler cache across image layers
+        uses: reproducible-containers/buildkit-cache-dance@v3
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-map: '{"ros-ccache": {"target": "/root/.cache/ccache", "sharing": "locked"}}'
+          skip-extraction: ${{ steps.ros-cache.outputs.cache-hit }}
+
+      - name: Build and push container images
+        uses: docker/bake-action@v7
+        env:
+          SIMULATOR: ${{ matrix.image }}
+          VERSION: ${{ needs.setup.outputs.px4_version }}
+          ARCH: ${{ matrix.arch }}
+          CACHE_GHA: "true"
+        with:
+          source: .
+          files: Tools/packaging/containers/docker-bake.hcl
+          push: ${{ needs.setup.outputs.should_push == 'true' }}
+          sbom: true
+          provenance: false
+
+  # ---------------------------------------------------------------------------
+  # Deploy: create multi-arch manifests and push to registries
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: "Deploy (${{ matrix.repo }})"
+    needs: [setup, build-docker]
+    if: needs.setup.outputs.should_push == 'true'
+    runs-on: [runs-on,"runner=1cpu-linux-x64","image=ubuntu24-full-x64","run-id=${{ github.run_id }}",extras=s3-cache,spot=false]
+    strategy:
+      matrix:
+        repo: [px4-sitl, px4-sitl-gazebo, px4-sitl-ros2, px4-sitl-gazebo-ros2]
+    steps:
+      - uses: runs-on/action@v2
+
+      - name: Login to registries
+        run: |
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Create and push multi-arch manifests
+        run: |
+          VERSION="${{ needs.setup.outputs.px4_version }}"
+
+          for REGISTRY in px4io ghcr.io/px4; do
+            IMAGE="${REGISTRY}/${{ matrix.repo }}"
+
+            docker buildx imagetools create \
+              --tag "${IMAGE}:${VERSION}" --tag "${IMAGE}:latest" \
+              "${IMAGE}:${VERSION}-arm64" "${IMAGE}:${VERSION}-amd64"
+          done

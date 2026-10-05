@@ -11,7 +11,7 @@ We recommend however to consider products built on industry standards, such as t
 This flight controller is not following the standard and uses a patented connector.
 :::
 
-The [Hex Cube Black](https://docs.cubepilot.org/user-guides/autopilot/the-cube) flight controller (previously known as Pixhawk 2.1) is a flexible autopilot intended primarily for manufacturers of commercial systems.
+The [Hex Cube Black](https://docs.cubepilot.org/autopilot/the-cube) flight controller (previously known as Pixhawk 2.1) is a flexible autopilot intended primarily for manufacturers of commercial systems.
 It is based on the [Pixhawk-project](https://pixhawk.org/) **FMUv3** open hardware design and runs PX4 on the [NuttX](https://nuttx.apache.org/) OS.
 
 ![Cube Black](../../assets/flight_controller/cube/cube_black_hero.png)
@@ -23,7 +23,7 @@ while a carrier board for a racer could includes ESCs form the frame of the vehi
 Cube includes vibration isolation on two of the IMU's, with a third fixed IMU as a reference / Backup.
 
 :::info
-The manufacturer [Cube User Guide](https://docs.cubepilot.org/user-guides/autopilot/the-cube) contains detailed information, including an overview of the [Differences between Cube Colours](https://docs.cubepilot.org/user-guides/autopilot/the-cube/introduction/specifications).
+The manufacturer [Cube User Guide](https://docs.cubepilot.org/autopilot/the-cube) contains detailed information, including an overview of the [Differences between Cube Colours](https://docs.cubepilot.org/autopilot/the-cube/introduction/specifications).
 :::
 
 :::tip
@@ -47,11 +47,9 @@ This autopilot is [supported](../flight_controller/autopilot_pixhawk_standard.md
 - High-power, multi-tone piezo audio indicator
 - microSD card for high-rate logging over extended periods of time
 
-<a id="stores"></a>
+## Where to Buy {#store}
 
-## 购买渠道
-
-[Cube Black](https://www.cubepilot.com/#/reseller/list) (Reseller list)
+[Cube Black](https://cubepilot.org/#/reseller/list) (Reseller list)
 
 ## 组装
 
@@ -124,15 +122,15 @@ Board schematics and other documentation can be found here: [The Cube Project](h
 
 ### 串口映射
 
-| UART   | 设备         | Port                                     |
-| ------ | ---------- | ---------------------------------------- |
-| USART1 | /dev/ttyS0 | <!-- IO debug? -->                       |
-| USART2 | /dev/ttyS1 | TELEM1 (flow control) |
-| USART3 | /dev/ttyS2 | TELEM2 (flow control) |
-| UART4  | /dev/ttyS3 | GPS1                                     |
-| USART6 | /dev/ttyS4 | PX4IO                                    |
-| UART7  | /dev/ttyS5 | CONSOLE                                  |
-| UART8  | /dev/ttyS6 | <!-- unknown -->                         |
+| UART   | 设备         | Port                           |
+| ------ | ---------- | ------------------------------ |
+| USART1 | /dev/ttyS0 | <!-- IO debug? -->             |
+| USART2 | /dev/ttyS1 | TELEM1 (流控) |
+| USART3 | /dev/ttyS2 | TELEM2 (流控) |
+| UART4  | /dev/ttyS3 | GPS1                           |
+| USART6 | /dev/ttyS4 | PX4IO                          |
+| UART7  | /dev/ttyS5 | CONSOLE                        |
+| UART8  | /dev/ttyS6 | <!-- unknown -->               |
 
 <!-- Note: Got ports using https://github.com/PX4/PX4-user_guide/pull/672#issuecomment-598198434 -->
 
@@ -155,7 +153,7 @@ It is pre-built and automatically installed by _QGroundControl_ when appropriate
 
 To [build PX4](../dev_setup/building_px4.md) for this target:
 
-```
+```sh
 make px4_fmu-v3_default
 ```
 
@@ -167,5 +165,5 @@ CAN1 and CAN2 silk screen on the Cube Black are flipped (CAN1 is CAN2 and vice v
 
 - [Cube Wiring Quickstart](../assembly/quick_start_cube.md)
 - Cube Docs (Manufacturer):
-  - [Cube User Guide](https://docs.cubepilot.org/user-guides/autopilot/the-cube)
-  - [Mini Carrier Board](https://docs.cubepilot.org/user-guides/carrier-boards/mini-carrier-board)
+  - [Cube User Guide](https://docs.cubepilot.org/autopilot/the-cube)
+  - [Mini Carrier Board](https://docs.cubepilot.org/carrier-boards/mini-carrier-board)

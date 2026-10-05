@@ -7,7 +7,7 @@
 Adding a feature to PX4 follows a defined workflow. In order to share your contributions on PX4, you can follow this example.
 
 - [Sign up](https://github.com/signup) for github if you haven't already
-- Fork the PX4-Autopilot repo (see [here](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo))
+- Fork the PX4-Autopilot repo (see [here](https://docs.github.com/en/pull-requests/how-tos/work-with-forks/fork-a-repo))
 - Clone your forked repository to your local computer
 
   ```sh
@@ -20,7 +20,7 @@ Adding a feature to PX4 follows a defined workflow. In order to share your contr
   ```sh
   cd PX4-Autopilot
   git submodule update --init --recursive
-  git remote add upstream https://github.com/PX4/PX4-Autopilot.git
+  git remote add upstream https://github.com/PX4/PX4-Autopilot
   ```
 
 - You should have now two remote repositories: One repository is called `upstream` that points to PX4/PX4-Autopilot, and one repository `origin` that points to your forked copy of the PX4 repository.
@@ -45,17 +45,17 @@ Adding a feature to PX4 follows a defined workflow. In order to share your contr
   git add <file name>
   ```
 
-  If you prefer having a GUI to add your files see [Gitk](https://git-scm.com/book/en/v2/Git-in-Other-Environments-Graphical-Interfaces) or [`git add -p`](https://nuclearsquid.com/writings/git-add/).
+  If you prefer having a GUI to add your files see [Gitk](https://git-scm.com/book/en/v2/Appendix-A:-Git-in-Other-Environments-Graphical-Interfaces) or [`git add -p`](https://nuclearsquid.com/writings/git-add/).
 
 - Commit the added files with a meaningful message explaining your changes
 
   ```sh
-  git commit -m "<your commit message>"
+  git commit -s -m "feat(ekf2): add height fusion timeout"
   ```
 
-  For a good commit message, please refer to the [Source Code Management](../contribute/code.md#commits-and-commit-messages) section.
+  Use [conventional commits](https://www.conventionalcommits.org/) format: `type(scope): description`. For details on types and scopes, see the [Source Code Management](../contribute/code.md#commits-and-commit-messages) section.
 
-- Some time might have passed and the [upstream main](https://github.com/PX4/PX4-Autopilot.git) has changed.
+- Some time might have passed and the [upstream main](https://github.com/PX4/PX4-Autopilot) has changed.
   PX4 prefers a linear commit history and uses [git rebase](https://git-scm.com/book/en/v2/Git-Branching-Rebasing).
   To include the newest changes from upstream in your local branch, switch to your main branch
 
@@ -134,7 +134,7 @@ To get the source code for a _specific older release_ (tag):
 1. Clone the PX4-Autopilot repo and navigate into _PX4-Autopilot_ directory:
 
    ```sh
-   git clone https://github.com/PX4/PX4-Autopilot.git
+   git clone https://github.com/PX4/PX4-Autopilot
    cd PX4-Autopilot
    ```
 
@@ -173,7 +173,7 @@ To get a release branch:
 - Clone the PX4-Autopilot repo and navigate into _PX4-Autopilot_ directory:
 
   ```sh
-  git clone https://github.com/PX4/PX4-Autopilot.git
+  git clone https://github.com/PX4/PX4-Autopilot
   cd PX4-Autopilot
   ```
 
@@ -273,7 +273,13 @@ git checkout <branch name>
 
 ### Force push to forked repository
 
-After having done the first PR, people from the PX4 community will review your changes. In most cases this means that you have to fix your local branch according to the review. After changing the files locally, the feature branch needs to be rebased again with the most recent upstream/main. However, after the rebase, it is no longer possible to push the feature branch to your forked repository directly, but instead you need to use a force push:
+After you open a PR, people from the PX4 community will review your changes.
+In most cases this means that you have to fix your local branch according to the review.
+Add the fixes as new commits and push them normally.
+Do not amend or squash commits that are already pushed: a force push erases the history a reviewer has read, and they can no longer see what changed since their last review.
+
+A force push is only needed after the feature branch has been rebased on the most recent upstream/main, for example to resolve merge conflicts.
+Keep the existing commits when rebasing, where possible:
 
 ```sh
 git push --force-with-lease origin <your feature branch name>
@@ -285,7 +291,7 @@ If a conflict occurs during a `git rebase`, please refer to [this guide](https:/
 
 ### Pull merge conflicts
 
-If a conflict occurs during a `git pull`, please refer to [this guide](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/addressing-merge-conflicts/resolving-a-merge-conflict-using-the-command-line#competing-line-change-merge-conflicts).
+If a conflict occurs during a `git pull`, please refer to [this guide](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/resolving-a-merge-conflict-using-the-command-line#competing-line-change-merge-conflicts).
 
 ### Build error due to git tags out of date
 

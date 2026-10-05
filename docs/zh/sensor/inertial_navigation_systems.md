@@ -9,6 +9,7 @@ However PX4 can also use some INS devices as either sources of raw data, or as a
 INS systems that can be used as a replacement for EKF2 in PX4:
 
 - [InertialLabs](../sensor/inertiallabs.md)
+- [MicroStrain](../sensor/microstrain.md): Includes VRU, AHRS, INS, and GNSS/INS devices.
 - [SBG Systems](../sensor/sbgecom.md): IMU/AHRS, GNSS/INS, Dual GNSS/INS systems that can be used as an external INS or as a source of raw sensor data.
 - [VectorNav](../sensor/vectornav.md): IMU/AHRS, GNSS/INS, Dual GNSS/INS systems that can be used as an external INS or as a source of raw sensor data.
 
@@ -48,5 +49,4 @@ Essentially it is an AHRS that also includes position/velocity estimation.
 
 ## 更多信息
 
-- [What is an Inertial Navigation System?](https://www.vectornav.com/resources/inertial-navigation-articles/what-is-an-ins) (VectorNav)
 - [Inertial Navigation Primer](https://www.vectornav.com/resources/inertial-navigation-primer) (VectorNav)

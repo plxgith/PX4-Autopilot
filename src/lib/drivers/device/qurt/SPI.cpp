@@ -94,6 +94,7 @@ SPI::SPI(const I2CSPIDriverConfig &config)
 	: SPI(config.devid_driver_index, config.module_name, config.bus, config.spi_devid, config.spi_mode,
 	      config.bus_frequency)
 {
+	set_external(config.external);
 }
 
 SPI::~SPI()
@@ -157,7 +158,11 @@ SPI::transfer(uint8_t *send, uint8_t *recv, unsigned len)
 
 			if (_spi_transfer != NULL) {
 				pthread_mutex_lock(&_mutex);
-				ret = _spi_transfer(_fd, send, recv, len);
+
+				if (recv) { ret = _spi_transfer(_fd, send, recv, len); }
+
+				else { ret = _spi_transfer(_fd, send, send, len); }
+
 				pthread_mutex_unlock(&_mutex);
 
 			} else {

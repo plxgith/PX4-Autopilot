@@ -31,6 +31,41 @@
 #
 ############################################################################
 
+# Homebrew's qt@5 is keg-only on macOS. gz-gui8 (pulled in by gz-sim8
+# from the Gazebo simulation modules) links against Qt5 and CMake
+# cannot locate it without a prefix hint. This file is included early
+# from the root CMakeLists.txt, before any add_subdirectory descends
+# into find_package(gz-sim8). Only runs when the user has not already
+# set Qt5_DIR.
+if(APPLE AND NOT DEFINED Qt5_DIR)
+	execute_process(
+		COMMAND brew --prefix qt@5
+		OUTPUT_VARIABLE _brew_qt5_prefix
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+		ERROR_QUIET
+	)
+	if(_brew_qt5_prefix AND EXISTS "${_brew_qt5_prefix}/lib/cmake/Qt5")
+		list(APPEND CMAKE_PREFIX_PATH "${_brew_qt5_prefix}")
+	endif()
+endif()
+
+# Homebrew's opencv formula is now OpenCV 5, which PX4-OpticalFlow does not
+# build against: OpenCV 5 removed <opencv2/core/types_c.h> and moved
+# cv::undistortPoints when calib3d was split. The compatible opencv@4 is
+# keg-only, so without a prefix hint find_package resolves to 5.x instead.
+# Only runs when the user has not already set OpenCV_DIR.
+if(APPLE AND NOT DEFINED OpenCV_DIR)
+	execute_process(
+		COMMAND brew --prefix opencv@4
+		OUTPUT_VARIABLE _brew_opencv4_prefix
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+		ERROR_QUIET
+	)
+	if(_brew_opencv4_prefix AND EXISTS "${_brew_opencv4_prefix}/lib/cmake/opencv4")
+		list(APPEND CMAKE_PREFIX_PATH "${_brew_opencv4_prefix}")
+	endif()
+endif()
+
 #=============================================================================
 #
 #	Defined functions in this file
@@ -224,6 +259,12 @@ function(px4_os_add_flags)
 
 		if(UNIX AND APPLE)
 			add_definitions(-D__PX4_DARWIN)
+
+			# Silence Apple ld warning about duplicate static libs. CMake intentionally
+			# re-emits them to resolve circular deps (px4_layer, px4_work_queue,
+			# px4_daemon, lockstep_scheduler). See also CMAKE_*_ARCHIVE_FINISH override
+			# at the top of the root CMakeLists.txt for the matching ranlib silence.
+			add_link_options(LINKER:-no_warn_duplicate_libraries)
 
 		elseif(CYGWIN)
 			add_definitions(

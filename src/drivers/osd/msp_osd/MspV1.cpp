@@ -151,7 +151,7 @@ bool MspV1::Send(const uint8_t message_id, const void *payload, uint32_t payload
 }
 
 
-int MspV1::Receive(uint8_t *payload, uint8_t *message_id)
+int MspV1::Receive(uint8_t *payload, uint8_t *message_id, size_t payload_capacity)
 {
 	uint8_t payload_size;
 	uint8_t crc;
@@ -170,7 +170,9 @@ int MspV1::Receive(uint8_t *payload, uint8_t *message_id)
 		}
 
 		while (bytes_available > 4) {
-			if ((ret = read(_fd, header, 1)) != 1) {
+			ret = read(_fd, header, 1);
+
+			if (ret != 1) {
 				return ret;
 			}
 
@@ -186,7 +188,9 @@ int MspV1::Receive(uint8_t *payload, uint8_t *message_id)
 			return -EWOULDBLOCK;
 		}
 
-		if ((ret = read(_fd, &header[1], 4)) != 4) {
+		ret = read(_fd, &header[1], 4);
+
+		if (ret != 4) {
 			return ret;
 		}
 
@@ -198,7 +202,16 @@ int MspV1::Receive(uint8_t *payload, uint8_t *message_id)
 	payload_size = header[3];
 	*message_id = header[4];
 
-	if ((ret = read(_fd, payload, payload_size + MSP_CRC_SIZE)) != payload_size + MSP_CRC_SIZE) {
+	// payload_size is attacker-controlled up to 255 and the trailing CRC byte is read into
+	// the same buffer, so the frame needs payload_size + MSP_CRC_SIZE bytes of room.
+	if ((size_t)payload_size + MSP_CRC_SIZE > payload_capacity) {
+		has_header = false;
+		return -EMSGSIZE;
+	}
+
+	ret = read(_fd, payload, payload_size + MSP_CRC_SIZE);
+
+	if (ret != payload_size + MSP_CRC_SIZE) {
 		if (ret != -EWOULDBLOCK) {
 			has_header = false;
 		}

@@ -45,6 +45,7 @@
 #include <lib/timesync/Timesync.hpp>
 
 #include <lib/perf/perf_counter.h>
+#include <systemlib/system_time_source.h>
 
 #if defined(CONFIG_NET) || defined(__PX4_POSIX)
 # define UXRCE_DDS_CLIENT_UDP 1
@@ -56,9 +57,11 @@
 #define STREAM_HISTORY  4
 #define BUFFER_SIZE (UXR_CONFIG_SERIAL_TRANSPORT_MTU * STREAM_HISTORY) // MTU==512 by default
 
-class UxrceddsClient : public ModuleBase<UxrceddsClient>, public ModuleParams
+class UxrceddsClient : public ModuleBase, public ModuleParams
 {
 public:
+	static Descriptor desc;
+
 	enum class Transport {
 		Serial,
 		Udp
@@ -71,6 +74,9 @@ public:
 
 	/** @see ModuleBase */
 	static int task_spawn(int argc, char *argv[]);
+
+	/** @see ModuleBase */
+	static int run_trampoline(int argc, char *argv[]);
 
 	/** @see ModuleBase */
 	static UxrceddsClient *instantiate(int argc, char *argv[]);
@@ -210,6 +216,8 @@ private:
 		(ParamInt<px4::params::UXRCE_DDS_SYNCC>) _param_uxrce_dds_syncc,
 		(ParamInt<px4::params::UXRCE_DDS_SYNCT>) _param_uxrce_dds_synct,
 		(ParamInt<px4::params::UXRCE_DDS_TX_TO>) _param_uxrce_dds_tx_to,
-		(ParamInt<px4::params::UXRCE_DDS_RX_TO>) _param_uxrce_dds_rx_to
+		(ParamInt<px4::params::UXRCE_DDS_RX_TO>) _param_uxrce_dds_rx_to,
+		(ParamInt<px4::params::UXRCE_DDS_FLCTRL>) _param_uxrce_dds_flctrl,
+		(ParamInt<px4::params::SYS_TIME_SRC>) _param_sys_time_src
 	)
 };

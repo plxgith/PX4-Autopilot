@@ -37,6 +37,8 @@
 
 using namespace matrix;
 
+ModuleBase::Descriptor SensorBaroSim::desc{task_spawn, custom_command, print_usage};
+
 SensorBaroSim::SensorBaroSim() :
 	ModuleParams(nullptr),
 	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::hp_default)
@@ -86,11 +88,21 @@ float SensorBaroSim::generate_wgn()
 	return X;
 }
 
+void SensorBaroSim::updateFailureConfig()
+{
+	_failure_config.update();
+
+	const failure_injection::Mode mode = _failure_config.mode(failure_injection_s::FAILURE_UNIT_SENSOR_BARO, 1);
+
+	_baro_blocked = (mode == failure_injection::Mode::Off);
+	_baro_stuck = (mode == failure_injection::Mode::Stuck);
+}
+
 void SensorBaroSim::Run()
 {
 	if (should_exit()) {
 		ScheduleClear();
-		exit_and_cleanup();
+		exit_and_cleanup(desc);
 		return;
 	}
 
@@ -103,6 +115,22 @@ void SensorBaroSim::Run()
 		_parameter_update_sub.copy(&param_update);
 
 		updateParams();
+	}
+
+	updateFailureConfig();
+
+	if (_baro_blocked) {
+		perf_end(_loop_perf);
+		return;
+	}
+
+	if (_baro_stuck) {
+		// Publish stuck (last known) values
+		_px4_baro.set_temperature(_last_temperature);
+		_px4_baro.update(hrt_absolute_time(), _last_pressure);
+
+		perf_end(_loop_perf);
+		return;
 	}
 
 	if (_vehicle_global_position_sub.updated()) {
@@ -123,53 +151,24 @@ void SensorBaroSim::Run()
 			const float pressure_msl = 101325.0f; // pressure at MSL
 			const float absolute_pressure = pressure_msl / pressure_ratio;
 
-			// generate Gaussian noise sequence using polar form of Box-Muller transformation
-			double y1;
-			{
-				double x1;
-				double x2;
-				double w;
-
-				if (!_baro_rnd_use_last) {
-					do {
-						x1 = 2. * (double)generate_wgn() - 1.;
-						x2 = 2. * (double)generate_wgn() - 1.;
-						w = x1 * x1 + x2 * x2;
-					} while (w >= 1.0);
-
-					w = sqrt((-2.0 * log(w)) / w);
-					// calculate two values - the second value can be used next time because it is uncorrelated
-					y1 = x1 * w;
-					_baro_rnd_y2 = x2 * w;
-					_baro_rnd_use_last = true;
-
-				} else {
-					// no need to repeat the calculation - use the second value from last update
-					y1 = _baro_rnd_y2;
-					_baro_rnd_use_last = false;
-				}
-			}
-
 			// Apply noise and drift
-			const float abs_pressure_noise = 1.f * (float)y1;  // 1 Pa RMS noise
+			const float abs_pressure_noise = 1.f * generate_wgn();  // 1 Pa RMS noise
 			_baro_drift_pa += _baro_drift_pa_per_sec * dt;
 			const float absolute_pressure_noisy = absolute_pressure + abs_pressure_noise + _baro_drift_pa;
 
-			// convert to hPa
+			// Apply pressure offset
 			float pressure = absolute_pressure_noisy + _sim_baro_off_p.get();
 
 			// calculate temperature in Celsius
 			float temperature = temperature_local - 273.0f + _sim_baro_off_t.get();
 
-			// publish
-			sensor_baro_s sensor_baro{};
-			sensor_baro.timestamp_sample = gpos.timestamp;
-			sensor_baro.device_id = 6620172; // 6620172: DRV_BARO_DEVTYPE_BAROSIM, BUS: 1, ADDR: 4, TYPE: SIMULATION
-			sensor_baro.pressure = pressure;
-			sensor_baro.temperature = temperature;
-			sensor_baro.timestamp = hrt_absolute_time();
-			_sensor_baro_pub.publish(sensor_baro);
+			// Store values for stuck mode
+			_last_pressure = pressure;
+			_last_temperature = temperature;
 
+			// publish
+			_px4_baro.set_temperature(temperature);
+			_px4_baro.update(gpos.timestamp, pressure);
 
 			_last_update_time = gpos.timestamp;
 		}
@@ -183,8 +182,8 @@ int SensorBaroSim::task_spawn(int argc, char *argv[])
 	SensorBaroSim *instance = new SensorBaroSim();
 
 	if (instance) {
-		_object.store(instance);
-		_task_id = task_id_is_work_queue;
+		desc.object.store(instance);
+		desc.task_id = task_id_is_work_queue;
 
 		if (instance->init()) {
 			return PX4_OK;
@@ -195,8 +194,8 @@ int SensorBaroSim::task_spawn(int argc, char *argv[])
 	}
 
 	delete instance;
-	_object.store(nullptr);
-	_task_id = -1;
+	desc.object.store(nullptr);
+	desc.task_id = -1;
 
 	return PX4_ERROR;
 }
@@ -228,5 +227,5 @@ int SensorBaroSim::print_usage(const char *reason)
 
 extern "C" __EXPORT int sensor_baro_sim_main(int argc, char *argv[])
 {
-	return SensorBaroSim::main(argc, argv);
+	return ModuleBase::main(SensorBaroSim::desc, argc, argv);
 }

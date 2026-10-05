@@ -38,10 +38,11 @@
 
 const char *const UavcanGnssRelativeBridge::NAME = "gnss_relative";
 
-UavcanGnssRelativeBridge::UavcanGnssRelativeBridge(uavcan::INode &node) :
-	UavcanSensorBridgeBase("uavcan_gnss_relative", ORB_ID(sensor_gnss_relative)),
+UavcanGnssRelativeBridge::UavcanGnssRelativeBridge(uavcan::INode &node, NodeInfoPublisher *node_info_publisher) :
+	UavcanSensorBridgeBase("uavcan_gnss_relative", ORB_ID(sensor_gnss_relative), node_info_publisher),
 	_sub_rel_pos_heading(node)
 {
+	set_device_type(DRV_GPS_DEVTYPE_UAVCAN);
 }
 
 int
@@ -62,7 +63,12 @@ void UavcanGnssRelativeBridge::rel_pos_heading_sub_cb(const
 {
 	sensor_gnss_relative_s sensor_gnss_relative{};
 
-	sensor_gnss_relative.timestamp_sample = uavcan::UtcTime(msg.timestamp).toUSec();
+	// A node timestamp that can't be used falls back to the receive time, which carries none of the receiver latency:
+	// timestamp_sample is left at 0 so that SENS_GNSSn_DELAY applies.
+	const hrt_abstime now = hrt_absolute_time();
+	const hrt_abstime timestamp_sample = uavcan_bridge::sample_timestamp(msg.timestamp.usec,
+					     _sub_rel_pos_heading.getNode().getUtcTime().toUSec(), now);
+	sensor_gnss_relative.timestamp_sample = (timestamp_sample != now) ? timestamp_sample : 0;
 
 	sensor_gnss_relative.heading_valid = msg.reported_heading_acc_available;
 	sensor_gnss_relative.heading = math::radians(msg.reported_heading_deg);
@@ -70,7 +76,14 @@ void UavcanGnssRelativeBridge::rel_pos_heading_sub_cb(const
 	sensor_gnss_relative.position_length = msg.relative_distance_m;
 	sensor_gnss_relative.position[2] = msg.relative_down_pos_m;
 
-	sensor_gnss_relative.device_id = get_device_id();
+	sensor_gnss_relative.device_id = make_uavcan_device_id(msg);
+
+	// Register GPS capability with NodeInfoPublisher after first successful message
+	if (_node_info_publisher != nullptr) {
+		_node_info_publisher->registerDeviceCapability(msg.getSrcNodeID().get(),
+				sensor_gnss_relative.device_id,
+				NodeInfoPublisher::DeviceCapability::GPS);
+	}
 
 	sensor_gnss_relative.timestamp = hrt_absolute_time();
 

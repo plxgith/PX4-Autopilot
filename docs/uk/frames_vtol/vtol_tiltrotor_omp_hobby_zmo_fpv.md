@@ -25,9 +25,9 @@ This build guide shows add a flight controller system (using [Auterion Skynode e
 
 ## Де купити
 
-- [OMP-Hobby](https://www.omphobby.com/OMPHOBBY-ZMO-VTOL-FPV-Aircraft-With-DJI-Goggles-And-Remote-Controller-p3069854.html)
 - [GetFPV](https://www.getfpv.com/omphobby-zmo-z3-vtol-fpv-1200mm-arf-plane-kit-no-fpv-system.html)
 - [FoxtechFPV](https://www.foxtechfpv.com/zmo-pro-fpv-vtol.html)
+- [RMRC](https://www.readymaderc.com/products/details/omp-hobby-zmo-vtol-fpv-airplane-rtf-goggles-radio)
 
 ## Політний контролер
 
@@ -43,7 +43,7 @@ This build guide shows add a flight controller system (using [Auterion Skynode e
 
 - [GPS F9P (включено в Skynode оціночний. комплект)](../gps_compass/rtk_gps_holybro_h-rtk-f9p.md)
 - [GPS M9N (дешевша альтернатива F9P)](../gps_compass/rtk_gps_holybro_h-rtk-m8p.md)
-- [Датчик швидкості (включено в Skynode eval. kit)](https://www.dualrc.com/parts/airspeed-sensor-sdp33) — рекомендований для покращення безпеки та продуктивності
+- [Датчик швидкості (включено в Skynode eval. kit)](https://www.dualrc.com/parts/p/airspeed-sensor-sdp33) — recommended for improved safety and performance
 - [Airspeed sensor (cheaper alternative)](https://holybro.com/products/digital-air-speed-sensor-ms4525do)
 - [Lidar Lightware lw20-c (включено в Skynode eval. kit)](../sensor/sfxx_lidar.md) (Необов'язково)
 - [Інфрачервоний сенсор вимірювання відстані Seeed Studio PSK-CM8JL65-CC5 (дешевший аналог)](https://www.seeedstudio.com/PSK-CM8JL65-CC5-Infrared-Distance-Measuring-Sensor-p-4028.html) (Опціонально)
@@ -79,7 +79,7 @@ This build guide shows add a flight controller system (using [Auterion Skynode e
 ### Підготовка
 
 Вийміть оригінальний контролер польоту, ESC регулятор швидкості та кабелі з'єднання крила.
-Також зніміть пропелери.
+Also remove the propellers.
 Це допоможе вам з управлінням транспортного засобу і зменшить ризик отримання травми внаслідок ненавмисного запуску двигуна.
 
 ZMO FPV в його початковому стані.
@@ -101,7 +101,7 @@ ZMO FPV в його початковому стані.
 
 4. Укоротіть дроти заднього двигуна та припаяйте їх на місце, як показано на малюнку.
 
-5. Припаяйте сигнальні та GND-дроти до входу PWM ESC регулятора швидкості.
+5. Solder signal and GND wires to the PWM input to the ESC.
 
    ![ESC 01](../../assets/airframes/vtol/omp_hobby_zmo_fpv/esc-01.jpg)
 
@@ -293,7 +293,7 @@ Next we load a [parameter file](https://github.com/PX4/PX4-Autopilot/raw/main/do
 
 The airspeed sensor can be enabled in the [Parameters](../advanced_config/parameters.md#finding-updating-parameters) tab.
 
-- If the [recommended airspeed sensor (SDP33)](https://www.dualrc.com/parts/airspeed-sensor-sdp33) is used, `SENS_EN_SDP3X` needs to be enabled.
+- If the [recommended airspeed sensor (SDP33)](https://www.dualrc.com/parts/p/airspeed-sensor-sdp33) is used, `SENS_EN_SDP3X` needs to be enabled.
 - Якщо [Lidar Lightware lw20-c (включено в Skynode eval. kit)](../sensor/sfxx_lidar.md) is used, `SENS_EN_SF1XX` needs to be set to 6 (SF/LW/20c).
 
 ### Калібрування сенсорів
@@ -313,7 +313,7 @@ The airspeed sensor can be enabled in the [Parameters](../advanced_config/parame
 [Відкалібруйте ваш RC Controller](../config/radio.md) та налаштуйте [перемикач режиму польоту](../config/flight_mode.md).
 
 Ми рекомендуємо вам призначити RC перемикачі для набору режимів, визначених у [Flight Mode Configuration > What Flight Modes and Switches Should I Set?](../config/flight_mode.md#what-flight-modes-and-switches-should-i-set).
-Зокрема, ви повинні призначити _VTOL Transition Switch_, _Kill Switch_ та перемикач для вибору [Режиму стабілізації](../flight_modes_fw/stabilized.md) та [Режиму позиціювання](../flight_modes_fw/position.md).
+In particular you should assign a _VTOL Transition Switch_, _Kill Switch_, and a switch to select [Stabilized mode](../flight_modes_fw/stabilized.md) and [Cruise mode](../flight_modes_fw/cruise.md).
 
 ### Налаштування приводу
 
@@ -388,5 +388,5 @@ The direction can't be changed in software because the vehicle does not use [DSh
 - Якщо використовується [kill-switch](../config/safety.md#kill-switch), переконайтеся, що він працює належним чином і не буде активований випадково в повітрі!
 - Включіть [режим стабілізації](../flight_modes_fw/stabilized.md) та перевірте, чи відповідають двигуни на команди, наприклад, перевалюємося вліво, збільшувати оберти на правому двигуні
 - Злетайте у режимі [стабілізованого положення](../flight_modes_fw/stabilized.md) і виконайте деякі базові маневри
-- Якщо все пройшло без проблем, злітайте у [Position mode](../flight_modes_fw/position.md) та зробіть перехід приблизно на висоті 50м.
+- If everything went without any issue, takeoff in [Cruise mode](../flight_modes_fw/cruise.md) and do a transition at around 50m.
   Якщо щось пішло не так, якнайшвидше перейдіть в режим мультикоптера (використовуючи перемикач переходу).

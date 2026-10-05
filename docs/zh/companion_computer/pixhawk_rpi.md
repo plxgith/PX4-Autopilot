@@ -1,6 +1,6 @@
 # Raspberry Pi Companion with Pixhawk
 
-This topic describes how to setup a Raspberry Pi ("RPi") companion companion running [ROS 2](../ros2/user_guide.md) on Linux Ubuntu OS, connecting to a [Pixhawk](../flight_controller/autopilot_pixhawk_standard.md) flight controller using a serial connection between the Pixhawk `TELEM2` port and the RPi's TX/RX pins.
+This topic describes how to setup a Raspberry Pi ("RPi") companion running [ROS 2](../ros2/user_guide.md) on Linux Ubuntu OS, connecting to a [Pixhawk](../flight_controller/autopilot_pixhawk_standard.md) flight controller using a serial connection between the Pixhawk `TELEM2` port and the RPi's TX/RX pins.
 
 These instructions should be readily extensible to other RPi and flight controller configurations.
 
@@ -145,7 +145,6 @@ Enter the following commands (in sequence) a terminal to configure Ubuntu for RP
    ```
 
 3. Go to the **Interface Option** and then click **Serial Port**.
-
    - Select **No** to disable serial login shell.
    - Select **Yes** to enable the serial interface.
    - Click **Finish** and restart the RPi.
@@ -164,7 +163,6 @@ Enter the following commands (in sequence) a terminal to configure Ubuntu for RP
    ```
 
 6. Then save the file and restart the RPi.
-
    - In `nano` you can save the file using the following sequence of keyboard shortcuts: **ctrl+x**, **ctrl+y**, **Enter**.
 
 7. Check that the serial port is available.
@@ -240,7 +238,7 @@ MAVProxy on RPi should now connect to the Pixhawk, via RX/TX pins.
 You should be able to see this in the RPi terminal.
 
 We have now verified that our connection is wired up properly.
-In the next section we'll set up the both Pixhawk and RPi to use uXRCE-DDS and ROS2 instead of MAVLink.
+In the next section we'll set up the both Pixhawk and RPi to use uXRCE-DDS and ROS 2 instead of MAVLink.
 
 ## ROS 2 and uXRCE-DDS
 
@@ -266,7 +264,7 @@ The configuration steps are:
    ```
 
    [MAV_1_CONFIG=0](../advanced_config/parameter_reference.md#MAV_1_CONFIG) and [UXRCE_DDS_CFG=102](../advanced_config/parameter_reference.md#UXRCE_DDS_CFG) disable MAVLink on TELEM2 and enable the uXRCE-DDS client on TELEM2, respectively.
-   The `SER_TEL2_BAUD` rate sets the comms link data rate.\
+   The `SER_TEL2_BAUD` rate sets the comms link data rate.
    You could similarly configure a connection to `TELEM1` using either `MAV_1_CONFIG` or `MAV_0_CONFIG`.
 
    ::: info

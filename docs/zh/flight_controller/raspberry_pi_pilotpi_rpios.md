@@ -67,8 +67,7 @@ Append `isolcpus=2` after the last word.
 console=tty1 root=PARTUUID=xxxxxxxx-xx rootfstype=ext4 elevator=deadline fsck.repair=yes rootwait isolcpus=2
 ```
 
-这告诉 Linux 内核不要在 CPU 核心2 上调度任何进程。
-我们将在稍后手动在该核心运行 PX4。
+这告诉 Linux 内核不要在 CPU 核心2 上调度任何进程。我们将在稍后手动在该核心运行 PX4。
 
 Reboot and SSH onto your RPi.
 
@@ -125,7 +124,7 @@ Don't forget to turn off the switch when it is not needed.
 #### CSI 相机
 
 :::info
-Enable CSI camera will stop anything works on I2C-0.
+Enabling CSI camera will stop anything that works on I2C-0.
 :::
 
 ```sh

@@ -70,6 +70,7 @@ I2C::I2C(uint8_t device_type, const char *name, const int bus, const uint16_t ad
 I2C::I2C(const I2CSPIDriverConfig &config)
 	: I2C(config.devid_driver_index, config.module_name, config.bus, config.i2c_address, config.bus_frequency)
 {
+	set_external(config.external);
 }
 
 I2C::~I2C()
@@ -103,6 +104,10 @@ I2C::init()
 {
 	int ret = PX4_ERROR;
 	unsigned bus_index;
+
+	if (_dev != nullptr) {
+		return PX4_OK;
+	}
 
 	// attach to the i2c bus
 	_dev = px4_i2cbus_initialize(get_device_bus());

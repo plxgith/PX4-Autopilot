@@ -35,7 +35,7 @@
 MEMORY
 {
   flash (rx)  : ORIGIN = 0x30020000, LENGTH = 4M-128K /* We have 64M but we do not want to wait to program it all */
-  sram  (rwx) : ORIGIN = 0x20240000, LENGTH = 2M-256k-512k
+  sram  (rwx) : ORIGIN = 0x20240000, LENGTH = 2M-256k
   itcm  (rwx) : ORIGIN = 0x00000000, LENGTH = 256K   /* TODO FlexRAM partition */
   dtcm  (rwx) : ORIGIN = 0x20000000, LENGTH = 256K
 }
@@ -46,7 +46,6 @@ EXTERN(g_flash_config)
 EXTERN(g_image_vector_table)
 EXTERN(g_boot_data)
 EXTERN(board_get_manifest)
-EXTERN(_bootdelay_signature)
 EXTERN(imxrt_flexspi_initialize)
 
 ENTRY(__start)
@@ -83,6 +82,7 @@ SECTIONS
         _sitcmfuncs = ABSOLUTE(.);
         FILL(0xFF)
         . = 0x40 ;
+        *(.ram_vectors)
         INCLUDE "itcm_static_functions.ld"
         INCLUDE "itcm_functions_includes.ld"
         . = ALIGN(8);
@@ -91,23 +91,11 @@ SECTIONS
 
     _fitcmfuncs = LOADADDR(.itcmfunc);
 
-    /* The RAM vector table (if present) should lie at the beginning of SRAM */
-
-    .ram_vectors (COPY) : {
-        *(.ram_vectors)
-    } > dtcm
-
     .text : ALIGN(4)
     {
         _stext = ABSOLUTE(.);
         *(.vectors)
 		. = ALIGN(32);
-		/*
-		This signature provides the bootloader with a way to delay booting
-		*/
-		_bootdelay_signature = ABSOLUTE(.);
-		FILL(0xffecc2925d7d05c5)
-		. += 8;
         *(.text .text.*)
         *(.fixup)
         *(.gnu.warning)

@@ -163,10 +163,12 @@ void NodeManager::HandleListResponse(const CanardRxTransfer &receive)
 		}
 
 		if (_access_request.setPortId(receive.metadata.remote_node_id, msg.name, NULL)) { //FIXME confirm handler
-			PX4_INFO("Set portID succesfull");
+			PX4_INFO("Set portID successful");
 
 		} else {
-			PX4_INFO("Register not found %.*s", msg.name.name.count, msg.name.name.elements);
+			PX4_INFO("Register not found %.*s",
+				 static_cast<int>(msg.name.name.count),
+				 msg.name.name.elements);
 		}
 	}
 }

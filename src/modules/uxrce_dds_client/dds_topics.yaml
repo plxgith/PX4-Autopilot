@@ -10,7 +10,9 @@ publications:
 
   - topic: /fmu/out/arming_check_request
     type: px4_msgs::msg::ArmingCheckRequest
-    rate_limit: 5.
+
+  - topic: /fmu/out/setpoint_config_reply
+    type: px4_msgs::msg::SetpointConfigReply
 
   - topic: /fmu/out/mode_completed
     type: px4_msgs::msg::ModeCompleted
@@ -50,6 +52,9 @@ publications:
     type: px4_msgs::msg::TimesyncStatus
     rate_limit: 10.
 
+  - topic: /fmu/out/transponder_report
+    type: px4_msgs::msg::TransponderReport
+
   # - topic: /fmu/out/vehicle_angular_velocity
   #   type: px4_msgs::msg::VehicleAngularVelocity
 
@@ -59,6 +64,7 @@ publications:
 
   - topic: /fmu/out/vehicle_attitude
     type: px4_msgs::msg::VehicleAttitude
+    rate_limit: 50.
 
   - topic: /fmu/out/vehicle_control_mode
     type: px4_msgs::msg::VehicleControlMode
@@ -71,8 +77,8 @@ publications:
     type: px4_msgs::msg::VehicleGlobalPosition
     rate_limit: 50.
 
-  - topic: /fmu/out/vehicle_gps_position
-    type: px4_msgs::msg::SensorGps
+  - topic: /fmu/out/vehicle_gnss
+    type: px4_msgs::msg::VehicleGnss
     rate_limit: 50.
 
   - topic: /fmu/out/vehicle_local_position
@@ -81,6 +87,7 @@ publications:
 
   - topic: /fmu/out/vehicle_odometry
     type: px4_msgs::msg::VehicleOdometry
+    rate_limit: 100.
 
   - topic: /fmu/out/vehicle_status
     type: px4_msgs::msg::VehicleStatus
@@ -101,6 +108,21 @@ publications:
     type: px4_msgs::msg::Wind
     rate_limit: 1.
 
+  - topic: /fmu/out/gimbal_device_attitude_status
+    type: px4_msgs::msg::GimbalDeviceAttitudeStatus
+    rate_limit: 20.
+
+  - topic: /fmu/out/config_overrides_confirm
+    type: px4_msgs::msg::ConfigOverrides
+
+  - topic: /fmu/out/vtx
+    type: px4_msgs::msg::Vtx
+    rate_limit: 1.
+
+  - topic: /fmu/out/input_rc
+    type: px4_msgs::msg::InputRc
+    rate_limit: 10.
+
 # Create uORB::Publication
 subscriptions:
   - topic: /fmu/in/register_ext_component_request
@@ -108,6 +130,9 @@ subscriptions:
 
   - topic: /fmu/in/unregister_ext_component
     type: px4_msgs::msg::UnregisterExtComponent
+
+  - topic: /fmu/in/setpoint_config
+    type: px4_msgs::msg::SetpointConfig
 
   - topic: /fmu/in/config_overrides_request
     type: px4_msgs::msg::ConfigOverrides
@@ -120,9 +145,6 @@ subscriptions:
 
   - topic: /fmu/in/mode_completed
     type: px4_msgs::msg::ModeCompleted
-
-  - topic: /fmu/in/config_control_setpoints
-    type: px4_msgs::msg::VehicleControlMode
 
   - topic: /fmu/in/distance_sensor
     type: px4_msgs::msg::DistanceSensor
@@ -181,9 +203,6 @@ subscriptions:
   - topic: /fmu/in/actuator_servos
     type: px4_msgs::msg::ActuatorServos
 
-  - topic: /fmu/in/aux_global_position
-    type: px4_msgs::msg::VehicleGlobalPosition
-
   - topic: /fmu/in/fixed_wing_longitudinal_setpoint
     type: px4_msgs::msg::FixedWingLongitudinalSetpoint
 
@@ -217,5 +236,9 @@ subscriptions:
   - topic: /fmu/in/landing_gear
     type: px4_msgs::msg::LandingGear
 
-# Create uORB::PublicationMulti
+# Subscriptions multiplexed to uORB multi-instances (optionally demultiplexed based on a message field)
 subscriptions_multi:
+  - topic: /fmu/in/aux_global_position
+    type: px4_msgs::msg::AuxGlobalPosition
+    route_field: id
+    max_instances: 4

@@ -2,49 +2,110 @@
 
 <img src="../../assets/site/position_fixed.svg" title="Position fix required (e.g. GPS)" width="30px" />
 
+:::: warning
+
+Offboard control with ROS 2 requires _significant care_ to ensure that it is used safely.
+Please read [ROS 2 Offboard Control](#ros-2-offboard-control) carefully to fully understand the risks involved when using it.
+A good understanding of [PX4 controller diagrams](../flight_stack/controller_diagrams.md) is advised.
+
+:::tip
+[PX4 ROS 2 Interface Library](../ros2/px4_ros2_interface_lib.md) provides a safer alternative.
+:::
+
+::::
+
 Апарат зберігає данні про положення, швидкість, прискорення, орієнтацію, значення сили тяги, відповідно заданим значенням, наданим деяким джерелом, зовнішнім по відношенню до польотного контролера, наприклад комп’ютером.
 The setpoints may be provided using MAVLink (or a MAVLink API such as [MAVSDK](https://mavsdk.mavlink.io/)) or by [ROS 2](../ros2/index.md).
 
+## Технічний підсумок
+
 PX4 requires that the external controller provides a continuous 2Hz "proof of life" signal, by streaming any of the supported MAVLink setpoint messages or the ROS 2 [OffboardControlMode](../msg_docs/OffboardControlMode.md) message.
-PX4 вмикає функції в оф-борді лише після отримання сигналу протягом більш ніж секунди, і відновлює керування якщо зупиняється сигнал.
+The stream should be active before switching to Offboard mode, and PX4 will trigger the configured Offboard-loss failsafe action ([COM_OBL_RC_ACT](../advanced_config/parameter_reference.md#COM_OBL_RC_ACT)) if proof-of-life messages are not received within the timeout configured by [COM_OF_LOSS_T](#COM_OF_LOSS_T).
 
 ::: info
 
-- Для цього режиму потрібна інформація про позицію або орієнтацію за допомогою вказівника, наприклад, від GPS, оптичного потоку, візуально-інерційної одометрії, MoCap та ін.
-- RC control is disabled except to change modes (you can also fly without any manual controller at all by setting the parameter [COM_RC_IN_MODE](../advanced_config/parameter_reference.md#COM_RC_IN_MODE) to 4: Stick input disabled).
-- The vehicle must be already be receiving a stream of MAVLink setpoint messages or ROS 2 [OffboardControlMode](../msg_docs/OffboardControlMode.md) messages before arming in offboard mode or switching to offboard mode when flying.
-- The vehicle will exit offboard mode if MAVLink setpoint messages or `OffboardControlMode` are not received at a rate of > 2Hz.
+- This mode requires position or pose/attitude information - e.g. GPS, optical flow, visual-inertial odometry, mocap, etc. depending on the type of offboard setpoints that the external controller sends.
+- Manual control is disabled except to change modes (you can also fly without any manual controller at all by setting the parameter [COM_RC_IN_MODE](../advanced_config/parameter_reference.md#COM_RC_IN_MODE) to `4: Disable manual control`).
+- The vehicle must already be receiving a stream of MAVLink setpoint messages or ROS 2 [OffboardControlMode](../msg_docs/OffboardControlMode.md) messages before arming in offboard mode or switching to offboard mode when flying.
+- The vehicle will exit Offboard mode if MAVLink setpoint messages or `OffboardControlMode` messages stop being received for longer than the timeout configured by [COM_OF_LOSS_T](#COM_OF_LOSS_T).
 - Не всі значення координат та параметрів, дозволені MAVLink підтримуються для усіх повідомлень та транспортних засобів.
   Read the sections below _carefully_ to ensure only supported values are used.
 
 :::
 
+<!-- AUTO-GENERATED: mode_requirements_fixed_wing_offboard -->
+
+### Mode Requirements — Fixed-Wing
+
+The following requirements must be met to arm in this mode, or to switch to this mode when it is armed.
+
+- [`mode_req_angular_velocity`](../flight_modes/mode_requirements.md#mode_req_angular_velocity) — Angular velocity
+- [`mode_req_attitude`](../flight_modes/mode_requirements.md#mode_req_attitude) — Attitude/pose
+- [`mode_req_offboard_signal`](../flight_modes/mode_requirements.md#mode_req_offboard_signal) — Offboard heartbeat
+
+<!-- END AUTO-GENERATED: mode_requirements_fixed_wing_offboard -->
+
+<!-- AUTO-GENERATED: mode_requirements_rotary_wing_offboard -->
+
+### Mode Requirements — Multicopter
+
+The following requirements must be met to arm in this mode, or to switch to this mode when it is armed.
+
+- [`mode_req_angular_velocity`](../flight_modes/mode_requirements.md#mode_req_angular_velocity) — Angular velocity
+- [`mode_req_attitude`](../flight_modes/mode_requirements.md#mode_req_attitude) — Attitude/pose
+- [`mode_req_offboard_signal`](../flight_modes/mode_requirements.md#mode_req_offboard_signal) — Offboard heartbeat
+
+<!-- END AUTO-GENERATED: mode_requirements_rotary_wing_offboard -->
+
 ## Опис
 
-Режим офборду використовується для керування транспортним засобом, встановленням положення, швидкості, прискорення, відносним положенням або індексом тяги/заданими значеннями крутного моменту.
-
-PX4 must receive a stream of MAVLink setpoint messages or the ROS 2 [OffboardControlMode](../msg_docs/OffboardControlMode.md) at 2 Hz as proof that the external controller is healthy.
-Потік повинен бути відправлений як мінімум за секунду, перш ніж PX4 буде задіяно в режимі офборду, або переключено на режим офборду при польоті.
-If the rate falls below 2Hz while under external control PX4 will switch out of offboard mode after a timeout ([COM_OF_LOSS_T](#COM_OF_LOSS_T)), and attempt to land or perform some other failsafe action.
+Offboard mode is used for controlling vehicle movement and attitude, by setting position, velocity, acceleration, attitude, attitude rates or thrust/torque setpoints.
+PX4 must receive a stream of MAVLink setpoint messages or the ROS 2 [OffboardControlMode](../msg_docs/OffboardControlMode.md) message as proof that the external controller is healthy.
+The stream should be active before PX4 arms in Offboard mode or switches to Offboard mode when flying.
+If MAVLink setpoint messages or `OffboardControlMode` messages stop being received for longer than the timeout configured by [COM_OF_LOSS_T](#COM_OF_LOSS_T), PX4 will switch out of Offboard mode and attempt to land or perform some other failsafe action.
 The action depends on whether or not RC control is available, and is defined in the parameter [COM_OBL_RC_ACT](#COM_OBL_RC_ACT).
 
-При використанні MAVLink повідомлення передають обидва сигнали, щоб вказати, що зовнішнє джерело є "живим" і значення має цінність.
-Для того, щоб утримувати позицію в даному випадку, апарат повинен отримати потік заданих точок для поточного положення.
+When using MAVLink the setpoint messages convey both the signal to indicate that the external source is "alive", and the setpoint value itself.
+In order to hold position in this case the vehicle must receive a stream of setpoints for the current position.
 
 When using ROS 2 the proof that the external source is alive is provided by a stream of [OffboardControlMode](../msg_docs/OffboardControlMode.md) messages, while the actual setpoint is provided by publishing to one of the setpoint uORB topics, such as [TrajectorySetpoint](../msg_docs/TrajectorySetpoint.md).
 In order to hold position in this case the vehicle must receive a stream of `OffboardControlMode` but would only need the `TrajectorySetpoint` once.
 
-Зверніть увагу, що офборд режим підтримує дуже обмежений набір команд MAVLink і повідомлень.
-Операції, як-от зліт, посадка, повернення на місце запуску, можуть найкраще бути виконаними з використанням відповідних режимів.
-Операції такі як завантаження, місії можуть бути виконані в будь-якому режимі.
+Note that offboard mode only supports a very limited set of MAVLink commands and messages.
+Operations, like taking off, landing, return to launch, may be best handled using the appropriate modes.
+Operations like uploading, downloading missions can be performed in any mode.
 
-## Повідомлення ROS 2
+## ROS 2 Offboard Control
 
-Наступні повідомлення ROS 2 та їх конкретні поля та значення полів допускаються для вказаних кадрів.
+This section describes how to perform offboard control through one of the direct ROS 2 interfaces: UXRCE-DDS or Zenoh.
+
+When using direct ROS 2 offboard control, PX4 setpoint messages generated by external controllers are injected into the [PX4 control pipeline](../flight_stack/controller_diagrams.md).
+Because messages from internal and external controllers are indistinguishable within PX4, precise synchronization is required in order to avoid the controllers writing conflicting messages to the same topic.
+
+In Offboard mode (only), an external system can use [`OffboardControlMode`](#the-offboardcontrolmode-px4-message) to specify which setpoint topics PX4 should publish/not publish, allowing them to be written safely by an external controller.
+
+::: warning
+
+PX4 has no means of filtering and distinguishing ROS 2 messages from internal messages, in any mode.
+In order to interwork safely, the external controller must:
+
+- Publish PX4 setpoint messages **ONLY** in Offboard mode.
+- Specify which setpoints it will write using the `OffboardControlMode` topic.
+- Stream the `OffboardControlMode` topic as a keep-alive signal.
+- Stream the setpoints it wants: unlike with MAVLink, PX4 won't trigger a failsafe if setpoints aren't sent regularly.
+
+If external setpoints are sent in any other flight mode, or they overwrite topics that have not been disabled by PX4 when in offboard mode, collisions are likely.
+This will result in unexpected, and possibly catastrophic, behaviour.
+
+:::
+
+### The `OffboardControlMode` PX4 message
+
+The following ROS 2 messages and their particular fields and field values are allowed for the specified frames.
 In addition to providing heartbeat functionality, `OffboardControlMode` has two other main purposes:
 
-1. Controls the level of the [PX4 control architecture](../flight_stack/controller_diagrams.md) at which offboard setpoints must be injected, and disables the bypassed controllers.
-2. Визначає, які допустимі оцінки (положення або швидкості) необхідні, а також які повідомлення відповідно до заданих значень мають бути використані.
+1. Controls which internal PX4 control modules of the [PX4 control architecture](../flight_stack/controller_diagrams.md) shall remain active and which ones shall be disabled when the vehicle is in Offboard Mode.
+2. Determines which valid estimates (position, velocity, etc.) are required.
 
 The `OffboardControlMode` message is defined as shown.
 
@@ -62,69 +123,162 @@ bool thrust_and_torque
 bool direct_actuator
 ```
 
+:::warning
+The following list shows the `OffboardControlMode` options for copter, fixed-wing, and VTOL.
+For rovers see the [rover section](#rover).
+:::
+
 The fields are ordered in terms of priority such that `position` takes precedence over `velocity` and later fields, `velocity` takes precedence over `acceleration`, and so on.
-Перше поле, яке має ненульове значення (зверху вниз), визначає, яка допустима оцінка необхідна для використання режиму безпілотного керування, а також повідомлення заданих значень, які можуть бути використані.
-For example, if the `acceleration` field is the first non-zero value, then PX4 requires a valid `velocity estimate`, and the setpoint must be specified using the `TrajectorySetpoint` message.
+The first field that has a non-zero value (from top to bottom) defines what valid estimate is required in order to use offboard mode, and the setpoint message(s) that can be used.
+For example, if the `acceleration` field is the first non-zero value, then PX4 requires a valid `attitude estimate`, and the setpoint must be specified using the `TrajectorySetpoint` message.
 
-| бажана кількість контролю                       | поле положення | поле швидкості | поле прискорення | поле орієнтації | поле кутової швидкості тіла | поле тяги та крутного момент | поле прямого приводу | необхідна оцінка | необхідне повідомлення                                                                                                          |
-| ----------------------------------------------- | -------------- | -------------- | ---------------- | --------------- | --------------------------- | ---------------------------- | -------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| положення (NED)              | ✓              | -              | -                | -               | -                           | -                            | -                    | положення        | [TrajectorySetpoint](../msg_docs/TrajectorySetpoint.md)                                                                         |
-| швидкість (NED)              | ✗              | ✓              | -                | -               | -                           | -                            | -                    | швидкість        | [TrajectorySetpoint](../msg_docs/TrajectorySetpoint.md)                                                                         |
-| прискорення (NED)            | ✗              | ✗              | ✓                | -               | -                           | -                            | -                    | швидкість        | [TrajectorySetpoint](../msg_docs/TrajectorySetpoint.md)                                                                         |
-| орієнтація (FRD)             | ✗              | ✗              | ✗                | ✓               | -                           | -                            | -                    | нічого           | [VehicleAttitudeSetpoint](../msg_docs/VehicleAttitudeSetpoint.md)                                                               |
-| кутова швидкість (FRD)       | ✗              | ✗              | ✗                | ✗               | ✓                           | -                            | -                    | нічого           | [VehicleRatesSetpoint](../msg_docs/VehicleRatesSetpoint.md)                                                                     |
-| тяга та крутний момент (FRD) | ✗              | ✗              | ✗                | ✗               | ✗                           | ✓                            | -                    | нічого           | [VehicleThrustSetpoint](../msg_docs/VehicleThrustSetpoint.md) and [VehicleTorqueSetpoint](../msg_docs/VehicleTorqueSetpoint.md) |
-| двигуни та серво                                | ✗              | ✗              | ✗                | ✗               | ✗                           | ✗                            | ✓                    | нічого           | [ActuatorMotors](../msg_docs/ActuatorMotors.md) and [ActuatorServos](../msg_docs/ActuatorServos.md)                             |
+| desired control quantity                                | position field | velocity field | acceleration field | attitude field | body_rate field | thrust_and_torque field | direct_actuator field | required estimate | required message                                                                                                                |
+| ------------------------------------------------------- | -------------- | -------------- | ------------------ | -------------- | ------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| position (NED)                       | ✓              | -              | -                  | -              | -                                    | -                                                                 | -                                          | position          | [TrajectorySetpoint](../msg_docs/TrajectorySetpoint.md)                                                                         |
+| velocity (NED)                       | ✗              | ✓              | -                  | -              | -                                    | -                                                                 | -                                          | velocity          | [TrajectorySetpoint](../msg_docs/TrajectorySetpoint.md)                                                                         |
+| acceleration (NED)                   | ✗              | ✗              | ✓                  | -              | -                                    | -                                                                 | -                                          | attitude          | [TrajectorySetpoint](../msg_docs/TrajectorySetpoint.md)                                                                         |
+| attitude (FRD)                       | ✗              | ✗              | ✗                  | ✓              | -                                    | -                                                                 | -                                          | attitude          | [VehicleAttitudeSetpoint](../msg_docs/VehicleAttitudeSetpoint.md)                                                               |
+| body_rate (FRD) | ✗              | ✗              | ✗                  | ✗              | ✓                                    | -                                                                 | -                                          | angular velocity  | [VehicleRatesSetpoint](../msg_docs/VehicleRatesSetpoint.md)                                                                     |
+| thrust and torque (FRD)              | ✗              | ✗              | ✗                  | ✗              | ✗                                    | ✓                                                                 | -                                          | none              | [VehicleThrustSetpoint](../msg_docs/VehicleThrustSetpoint.md) and [VehicleTorqueSetpoint](../msg_docs/VehicleTorqueSetpoint.md) |
+| direct motors and servos                                | ✗              | ✗              | ✗                  | ✗              | ✗                                    | ✗                                                                 | ✓                                          | none              | [ActuatorMotors](../msg_docs/ActuatorMotors.md) and [ActuatorServos](../msg_docs/ActuatorServos.md)                             |
 
-where ✓ means that the bit is set, ✘ means that the bit is not set and `-` means that the bit is value is irrelevant.
+where ✓ means that the bit is set, ✘ means that the bit is not set and `-` means that the bit value is irrelevant.
 
 :::info
 Before using offboard mode with ROS 2, please spend a few minutes understanding the different [frame conventions](../ros2/user_guide.md#ros-2-px4-frame-conventions) that PX4 and ROS 2 use.
 :::
 
-### Коптер
+In the following, the different setpoint messages for the main supported airframes are explained.
+For fixed-wing offboard control, please refer to the [PX4 ROS 2 Interface Library](../ros2/px4_ros2_interface_lib.md).
+
+### Мультикоптери
 
 - [px4_msgs::msg::TrajectorySetpoint](https://github.com/PX4/PX4-Autopilot/blob/main/msg/versioned/TrajectorySetpoint.msg)
-  - Підтримуються наступні вхідні комбінації:
+
+  - The following input combinations are supported:
     - Position setpoint (`position` different from `NaN`). Non-`NaN` values of velocity and acceleration are used as feedforward terms for the inner loop controllers.
-    - Velocity setpoint (`velocity` different from `NaN` and `position` set to `NaN`). Non-`NaN` values acceleration are used as feedforward terms for the inner loop controllers.
+    - Velocity setpoint (`velocity` different from `NaN` and `position` set to `NaN`). Non-`NaN` values of acceleration are used as feedforward terms for the inner loop controllers.
     - Acceleration setpoint (`acceleration` different from `NaN` and `position` and `velocity` set to `NaN`)
 
-  - Всі значення інтерпретуються в NED (Nord, East, Down) координатну систему і одиниці вимірювання, є \[m/s\] і \[m/s^2\] для позиції, швидкості і прискорення, відповідно.
+  - All values are interpreted in NED (North, East, Down) coordinate system and the units are `[m]`, `[m/s]` and `[m/s^2]` for position, velocity and acceleration, respectively.
+
+  ::: warning
+
+  Position, velocity and acceleration control for multicopters are all handled by the `mc_pos_control` module.
+  This module is enabled if any of `position`, `velocity` and `acceleration` fields are set to true.
+  However, only the content of the `TrajectorySetpoint` messages determines which of the three controllers shall run.
+
+  This means that even if `OffboardControlMode` messages carry the intention of velocity control (only `velocity` field is set) but non-`NaN` position values are sent in the `TrajectorySetpoint` messages, then PX4 will keep running the position controller.
+
+
+:::
 
 - [px4_msgs::msg::VehicleAttitudeSetpoint](https://github.com/PX4/PX4-Autopilot/blob/main/msg/versioned/VehicleAttitudeSetpoint.msg)
-  - Підтримується наступна комбінація введення:
+  - The following input combination is supported:
     - quaternion `q_d` + thrust setpoint `thrust_body`.
-      Non-`NaN` values of `yaw_sp_move_rate` are used as feedforward terms expressed in Earth frame and in \[rad/s\].
+      Non-`NaN` values of `yaw_sp_move_rate` are used as feedforward terms expressed in Earth frame and in `[rad/s]`.
 
-  - Кватерніон представляє обертання між корпусом дрона у системі координат FRD (перед, праворуч, вниз) та системою координат NED. Тяга у корпусі дрона виражена у системі координат FRD та у нормалізованих значеннях.
+  - The quaternion represents the rotation between the drone body FRD (front, right, down) frame and the NED frame.
+    The thrust is in the drone body FRD frame and expressed in normalized \[-1, 1\] values.
 
 - [px4_msgs::msg::VehicleRatesSetpoint](https://github.com/PX4/PX4-Autopilot/blob/main/msg/versioned/VehicleRatesSetpoint.msg)
-  - Підтримується наступна комбінація введення:
+  - The following input combination is supported:
     - `roll`, `pitch`, `yaw` and `thrust_body`.
 
-  - Всі значення подані в для дрона в системі FRD. Значення в \[rad/s\] і thrust_body нормалізовано в \[-1, 1\].
+  - All the values are in the drone body FRD frame.
+    The rates are in `[rad/s]` while thrust_body is normalized in `[-1, 1]`.
 
-### Універсальний апарат
+### Rover
 
-Наступні режими керування з відбором оминуть всі внутрішні контрольні системи PX4 і повинні використовуватися з великою обережністю.
+Rover modules must set the control mode using `OffboardControlMode` and use the appropriate messages to configure the corresponding setpoints.
+The approach is similar to other vehicle types, but the allowed control mode combinations and setpoints are different:
+
+| Category                                                                               | Використання            | Setpoints                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------------------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (Recommended) [Rover Setpoints](#rover-setpoints)                   | General rover control   | [RoverPositionSetpoint](../msg_docs/RoverPositionSetpoint.md), [RoverSpeedSetpoint](../msg_docs/RoverSpeedSetpoint.md), [RoverAttitudeSetpoint](../msg_docs/RoverAttitudeSetpoint.md), [RoverRateSetpoint](../msg_docs/RoverRateSetpoint.md), [RoverThrottleSetpoint](../msg_docs/RoverThrottleSetpoint.md), [RoverSteeringSetpoint](../msg_docs/RoverSteeringSetpoint.md) |
+| [Actuator Setpoints](#actuator-setpoints)                                              | Direct actuator control | [ActuatorMotors](../msg_docs/ActuatorMotors.md), [ActuatorServos](../msg_docs/ActuatorServos.md)                                                                                                                                                                                                                                                                           |
+| (Deprecated) [Trajectory Setpoint](#deprecated-trajectory-setpoint) | General vehicle control | [TrajectorySetpoint](../msg_docs/TrajectorySetpoint.md)                                                                                                                                                                                                                                                                                                                    |
+
+#### Rover Setpoints
+
+The rover modules use a hierarchical structure to propagate setpoints:
+
+![Rover Control Structure](../../assets/middleware/ros2/px4_ros2_interface_lib/rover_control_structure.svg)
+
+The "highest" setpoint that is provided will be used within the PX4 rover modules to generate the setpoints that are below it (overriding them!).
+With this hierarchy there are clear rules for providing a valid control input:
+
+- Provide a position setpoint **or**
+- One of the setpoints on the "left" (speed **or** throttle) **and** one of the setpoints on the "right" (attitude, rate **or** steering).
+  All combinations of "left" and "right" setpoints are valid.
+
+The following are all valid setpoint combinations and their respective control flags that must be set through [OffboardControlMode](../msg_docs/OffboardControlMode.md) (set all others to _false_).
+Additionally, for some combinations we require certain setpoints to be published with `NAN` values so that the setpoints of interest are not overridden by the rover module (due to the hierarchy above).
+&check; are the relevant setpoints we publish, and &cross; are the setpoint that need to be published with `NAN` values.
+
+| Setpoint Combination | Control Flag                                                | [RoverPositionSetpoint](../msg_docs/RoverPositionSetpoint.md) | [RoverSpeedSetpoint](../msg_docs/RoverSpeedSetpoint.md) | [RoverThrottleSetpoint](../msg_docs/RoverThrottleSetpoint.md) | [RoverAttitudeSetpoint](../msg_docs/RoverAttitudeSetpoint.md) | [RoverRateSetpoint](../msg_docs/RoverRateSetpoint.md) | [RoverSteeringSetpoint](../msg_docs/RoverSteeringSetpoint.md) |
+| -------------------- | ----------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------- |
+| Положення            | position                                                    | &check;                                   |                                                         |                                                               |                                                               |                                                       |                                                               |
+| Speed + Attitude     | velocity                                                    |                                                               | &check;                             |                                                               | &check;                                   |                                                       |                                                               |
+| Speed + Rate         | velocity                                                    |                                                               | &check;                             |                                                               | &cross;                                   | &check;                           |                                                               |
+| Speed + Steering     | velocity                                                    |                                                               | &check;                             |                                                               | &cross;                                   | &cross;                           | &check;                                   |
+| Throttle + Attitude  | attitude                                                    |                                                               |                                                         | &check;                                   | &check;                                   |                                                       |                                                               |
+| Throttle + Rate      | body_rate                              |                                                               |                                                         | &check;                                   |                                                               | &check;                           |                                                               |
+| Throttle + Steering  | thrust_and_torque |                                                               |                                                         | &check;                                   |                                                               |                                                       | &check;                                   |
+
+:::info
+If you intend to use the rover setpoints, we recommend using the [PX4 ROS 2 Interface Library](../ros2/px4_ros2_interface_lib.md) instead since it simplifies the publishing of these setpoints.
+:::
+
+#### Actuator Setpoints
+
+Instead of controlling the vehicle using position, speed, rate and other setpoints, you can directly control the motors and actuators using [ActuatorMotors](../msg_docs/ActuatorMotors.md) and [ActuatorServos](../msg_docs/ActuatorServos.md).
+In [OffboardControlMode](../msg_docs/OffboardControlMode.md) set `direct_actuator` to _true_ and all other flags to _false_.
+
+:::info
+This bypasses the rover modules including any limits on steering rates or accelerations and the inverse kinematics step.
+We recommend using [RoverSteeringSetpoint](../msg_docs/RoverSteeringSetpoint.md) and [RoverThrottleSetpoint](../msg_docs/RoverThrottleSetpoint.md) instead for low level control (see [Rover Setpoints](#rover-setpoints)).
+:::
+
+#### (Deprecated) Trajectory Setpoint
+
+:::warning
+The [Rover Setpoints](#rover-setpoints) are a replacement for the [TrajectorySetpoint](../msg_docs/TrajectorySetpoint.md) and we highly recommend using those instead as they have a well defined behaviour and offer more flexibility.
+:::
+
+The rover modules support the _position_, _velocity_ and _yaw_ fields of the [TrajectorySetpoint](../msg_docs/TrajectorySetpoint.md).
+However, only one of the fields is active at a time and is defined by the flags of [OffboardControlMode](../msg_docs/OffboardControlMode.md):
+
+| Control Mode Flag | Active Trajectory Setpoint Field |
+| ----------------- | -------------------------------- |
+| position          | position                         |
+| velocity          | velocity                         |
+| attitude          | yaw                              |
+
+:::info
+Ackermann rovers do not support the yaw setpoint.
+:::
+
+### Generic Vehicle
+
+The following offboard control modes bypass all internal PX4 control loops and should be used with great care.
 
 - [px4_msgs::msg::VehicleThrustSetpoint](https://github.com/PX4/PX4-Autopilot/blob/main/msg/VehicleThrustSetpoint.msg) + [px4_msgs::msg::VehicleTorqueSetpoint](https://github.com/PX4/PX4-Autopilot/blob/main/msg/VehicleTorqueSetpoint.msg)
-  - Підтримується наступна комбінація введення:
+  - The following input combination is supported:
     - `xyz` for thrust and `xyz` for torque.
-  - Усі значення виражені у системі координат тіла дрона FRD та нормалізовані у діапазоні \[-1, 1\].
+  - All the values are in the drone body FRD frame and normalized in \[-1, 1\].
 
 - [px4_msgs::msg::ActuatorMotors](https://github.com/PX4/PX4-Autopilot/blob/main/msg/versioned/ActuatorMotors.msg) + [px4_msgs::msg::ActuatorServos](https://github.com/PX4/PX4-Autopilot/blob/main/msg/versioned/ActuatorServos.msg)
-  - Ви безпосередньо керуєте вихідними сигналами моторів та/або сервоприводів.
-  - Currently works at lower level than then `control_allocator` module. Do not publish these messages when not in offboard mode.
-  - Усі значення нормалізовані у діапазоні \[-1, 1\]. For outputs that do not support negative values, negative entries map to `NaN`.
+  - You directly control the motor outputs and/or servo outputs.
+  - All the values normalized in `[-1, 1]`.
+    For outputs that do not support negative values, negative entries map to `NaN`.
   - `NaN` maps to disarmed.
 
-## Повідомлення MAVLink
+## MAVLink Offboard Control
 
-Наступні повідомлення MAVLink та їх конкретні поля та значення полів дозволені для вказаних кадрів літального апарату.
+The following MAVLink messages and their particular fields and field values are allowed for the specified vehicle frames.
 
-### Коптер/ВТОЛ
+### Copter/VTOL
 
 - [SET_POSITION_TARGET_LOCAL_NED](https://mavlink.io/en/messages/common.html#SET_POSITION_TARGET_LOCAL_NED)
   - The following input combinations are supported: <!-- https://github.com/PX4/PX4-Autopilot/blob/main/src/lib/FlightTasks/tasks/Offboard/FlightTaskOffboard.cpp#L166-L170 -->
@@ -151,14 +305,14 @@ Before using offboard mode with ROS 2, please spend a few minutes understanding 
 
     - Position setpoint **and** velocity setpoint (the velocity setpoint is used as feedforward; it is added to the output of the position controller and the result is used as the input to the velocity controller).
 
-  - PX4 supports the following `coordinate_frame` values (only): [MAV_FRAME_GLOBAL](https://mavlink.io/en/messages/common.html#MAV_FRAME_GLOBAL).
+  - PX4 supports the following `coordinate_frame` values (only): [MAV_FRAME_GLOBAL_INT](https://mavlink.io/en/messages/common.html#MAV_FRAME_GLOBAL_INT), [MAV_FRAME_GLOBAL_RELATIVE_ALT_INT](https://mavlink.io/en/messages/common.html#MAV_FRAME_GLOBAL_RELATIVE_ALT_INT), [MAV_FRAME_GLOBAL_TERRAIN_ALT_INT](https://mavlink.io/en/messages/common.html#MAV_FRAME_GLOBAL_TERRAIN_ALT_INT).
 
 - [SET_ATTITUDE_TARGET](https://mavlink.io/en/messages/common.html#SET_ATTITUDE_TARGET)
-  - Підтримуються наступні вхідні комбінації:
+  - The following input combinations are supported:
     - Attitude/orientation (`SET_ATTITUDE_TARGET.q`) with thrust setpoint (`SET_ATTITUDE_TARGET.thrust`).
     - Body rate (`SET_ATTITUDE_TARGET` `.body_roll_rate` ,`.body_pitch_rate`, `.body_yaw_rate`) with thrust setpoint (`SET_ATTITUDE_TARGET.thrust`).
 
-### Літак з фіксованим крилом
+### Fixed-wing
 
 - [SET_POSITION_TARGET_LOCAL_NED](https://mavlink.io/en/messages/common.html#SET_POSITION_TARGET_LOCAL_NED)
   - The following input combinations are supported (via `type_mask`): <!-- https://github.com/PX4/PX4-Autopilot/blob/main/src/lib/FlightTasks/tasks/Offboard/FlightTaskOffboard.cpp#L166-L170 -->
@@ -169,14 +323,15 @@ Before using offboard mode with ROS 2, please spend a few minutes understanding 
 
 :::
 
-        Значення:
+        The values are:
 
-        - 292: планування.Це налаштовує TECS на пріорітезацію швидкості над висотою, щоб змусити безпілотник планувати, коли немає тяги (тобто кут крену контролюється для регулювання швидкості).
+        - 292: Gliding setpoint.
+          This configures TECS to prioritize airspeed over altitude in order to make the vehicle glide when there is no thrust (i.e. pitch is controlled to regulate airspeed).
           It is equivalent to setting `type_mask` as `POSITION_TARGET_TYPEMASK_Z_IGNORE`, `POSITION_TARGET_TYPEMASK_VZ_IGNORE`, `POSITION_TARGET_TYPEMASK_AZ_IGNORE`.
-        - 4096: Точка взльоту.
-        - 8192: Точка посадки.
-        - 12288: Задання Loiter (політ по колу, центрованому на заданій точці).
-        - 16384: Задання бездіяльності (нульовий газ, нульовий крен/тангаж).
+        - 4096: Takeoff setpoint.
+        - 8192: Land setpoint.
+        - 12288: Loiter setpoint (fly a circle centred on setpoint).
+        - 16384: Idle setpoint (zero throttle, zero roll / pitch).
 
   - PX4 supports the coordinate frames (`coordinate_frame` field): [MAV_FRAME_LOCAL_NED](https://mavlink.io/en/messages/common.html#MAV_FRAME_LOCAL_NED) and [MAV_FRAME_BODY_NED](https://mavlink.io/en/messages/common.html#MAV_FRAME_BODY_NED).
 
@@ -190,75 +345,62 @@ Before using offboard mode with ROS 2, please spend a few minutes understanding 
 
 :::
 
-        Значення:
+        The values are:
 
-        - 4096: Точка взльоту.
-        - 8192: Точка посадки.
-        - 12288: Задання Loiter (політ по колу, центрованому на заданій точці).
-        - 16384: Задання бездіяльності (нульовий газ, нульовий крен/тангаж).
+        - 4096: Takeoff setpoint.
+        - 8192: Land setpoint.
+        - 12288: Loiter setpoint (fly a circle centred on setpoint).
+        - 16384: Idle setpoint (zero throttle, zero roll / pitch).
 
-  - PX4 supports the following `coordinate_frame` values (only): [MAV_FRAME_GLOBAL](https://mavlink.io/en/messages/common.html#MAV_FRAME_GLOBAL).
+  - PX4 supports the following `coordinate_frame` values (only): [MAV_FRAME_GLOBAL_INT](https://mavlink.io/en/messages/common.html#MAV_FRAME_GLOBAL_INT), [MAV_FRAME_GLOBAL_RELATIVE_ALT_INT](https://mavlink.io/en/messages/common.html#MAV_FRAME_GLOBAL_RELATIVE_ALT_INT), [MAV_FRAME_GLOBAL_TERRAIN_ALT_INT](https://mavlink.io/en/messages/common.html#MAV_FRAME_GLOBAL_TERRAIN_ALT_INT).
 
 - [SET_ATTITUDE_TARGET](https://mavlink.io/en/messages/common.html#SET_ATTITUDE_TARGET)
-  - Підтримуються наступні вхідні комбінації:
+  - The following input combinations are supported:
     - Attitude/orientation (`SET_ATTITUDE_TARGET.q`) with thrust setpoint (`SET_ATTITUDE_TARGET.thrust`).
     - Body rate (`SET_ATTITUDE_TARGET` `.body_roll_rate` ,`.body_pitch_rate`, `.body_yaw_rate`) with thrust setpoint (`SET_ATTITUDE_TARGET.thrust`).
 
-### Ровер
+### Rover
 
-- [SET_POSITION_TARGET_LOCAL_NED](https://mavlink.io/en/messages/common.html#SET_POSITION_TARGET_LOCAL_NED)
-  - The following input combinations are supported (in `type_mask`): <!-- https://github.com/PX4/PX4-Autopilot/blob/main/src/lib/FlightTasks/tasks/Offboard/FlightTaskOffboard.cpp#L166-L170 -->
-    - Position setpoint (only `x`, `y`, `z`)
-      - Specify the _type_ of the setpoint in `type_mask`:
+Rover supports offboard control using the generic MAVLink position/velocity setpoint messages listed below.
+These are converted into a [TrajectorySetpoint](../msg_docs/TrajectorySetpoint.md) internally, and then into rover setpoints by the rover offboard modes.
+For rover-specific control setpoints and better behaviour we recommend using the [Rover Setpoints](#rover-setpoints) via ROS 2.
 
-        ::: info
-        The _setpoint type_ values below are not part of the MAVLink standard for the `type_mask` field.
-        ::
-
-        Значення:
-
-        - 12288: задане значення Loiter (пристрій зупиняється, коли вже достатньо близько, щоб встановити точку).
-
-    - Velocity setpoint (only `vx`, `vy`, `vz`)
-
-  - PX4 supports the coordinate frames (`coordinate_frame` field): [MAV_FRAME_LOCAL_NED](https://mavlink.io/en/messages/common.html#MAV_FRAME_LOCAL_NED) and [MAV_FRAME_BODY_NED](https://mavlink.io/en/messages/common.html#MAV_FRAME_BODY_NED).
-
-- [SET_POSITION_TARGET_GLOBAL_INT](https://mavlink.io/en/messages/common.html#SET_POSITION_TARGET_GLOBAL_INT)
-  - The following input combinations are supported (in `type_mask`): <!-- https://github.com/PX4/PX4-Autopilot/blob/main/src/lib/FlightTasks/tasks/Offboard/FlightTaskOffboard.cpp#L166-L170 -->
-    - Position setpoint (only `lat_int`, `lon_int`, `alt`)
-
-  - Specify the _type_ of the setpoint in `type_mask` (not part of the MAVLink standard).
-    Значення:
-    - Якщо наступні біти не встановлені, то виконується звичайна поведінка.
-    - 12288: задане значення Loiter (пристрій зупиняється, коли вже достатньо близько, щоб встановити точку).
-
-  - PX4 supports the coordinate frames (`coordinate_frame` field): [MAV_FRAME_GLOBAL](https://mavlink.io/en/messages/common.html#MAV_FRAME_GLOBAL).
-
-- [SET_ATTITUDE_TARGET](https://mavlink.io/en/messages/common.html#SET_ATTITUDE_TARGET)
-  - Підтримуються наступні вхідні комбінації:
-    - Attitude/orientation (`SET_ATTITUDE_TARGET.q`) with thrust setpoint (`SET_ATTITUDE_TARGET.thrust`).
-      ::: info
-      Only the yaw setting is actually used/extracted.
-
+:::info
+Rover MAVLink setpoints are gated by the MAVLink parameter [MAV_FWDEXTSP](../advanced_config/parameter_reference.md#MAV_FWDEXTSP) (Forward external setpoint messages).
 :::
 
-## Параметри для відключення
+- [SET_POSITION_TARGET_LOCAL_NED](https://mavlink.io/en/messages/common.html#SET_POSITION_TARGET_LOCAL_NED)
+  - Position setpoint: `x`, `y` in [MAV_FRAME_LOCAL_NED](https://mavlink.io/en/messages/common.html#MAV_FRAME_LOCAL_NED) (`z` is ignored by rover modules).
+  - Velocity setpoint: `vx`, `vy` in [MAV_FRAME_LOCAL_NED](https://mavlink.io/en/messages/common.html#MAV_FRAME_LOCAL_NED) or [MAV_FRAME_BODY_NED](https://mavlink.io/en/messages/common.html#MAV_FRAME_BODY_NED).
+  - `yaw`/`yaw_rate`:
+    - Ackermann/Differential: ignored (in velocity control the yaw setpoint is derived from the velocity direction).
+    - Mecanum: can be controlled independently (decoupled) using `yaw`/`yaw_rate`.
+  - Acceleration setpoints (`afx`, `afy`, `afz`) are ignored by rover modules.
+
+- [SET_POSITION_TARGET_GLOBAL_INT](https://mavlink.io/en/messages/common.html#SET_POSITION_TARGET_GLOBAL_INT)
+  - Position setpoint: `lat_int`, `lon_int`, `alt` (converted into local NED internally; rover modules only use the horizontal components).
+  - Velocity setpoint: `vx`, `vy`, `vz` (rover modules use only the horizontal components).
+  - PX4 supports the following `coordinate_frame` values (only): [MAV_FRAME_GLOBAL_INT](https://mavlink.io/en/messages/common.html#MAV_FRAME_GLOBAL_INT), [MAV_FRAME_GLOBAL_RELATIVE_ALT_INT](https://mavlink.io/en/messages/common.html#MAV_FRAME_GLOBAL_RELATIVE_ALT_INT), [MAV_FRAME_GLOBAL_TERRAIN_ALT_INT](https://mavlink.io/en/messages/common.html#MAV_FRAME_GLOBAL_TERRAIN_ALT_INT).
+
+- [SET_ATTITUDE_TARGET](https://mavlink.io/en/messages/common.html#SET_ATTITUDE_TARGET)
+  - Not supported for rover offboard control.
+
+## Offboard Parameters
 
 _Offboard mode_ is affected by the following parameters:
 
-| Параметр                                                                                                                                                                | Опис                                                                                                                                                                                                                                                                  |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a id="COM_OF_LOSS_T"></a>[COM_OF_LOSS_T](../advanced_config/parameter_reference.md#COM_OF_LOSS_T)       | Time-out (in seconds) to wait when offboard connection is lost before triggering offboard lost failsafe (`COM_OBL_RC_ACT`)                                                                                                      |
-| <a id="COM_OBL_RC_ACT"></a>[COM_OBL_RC_ACT](../advanced_config/parameter_reference.md#COM_OBL_RC_ACT)    | Flight mode to switch to if offboard control is lost (Values are - `0`: _Position_, `1`: _Altitude_, `2`: _Manual_, `3`: \*Return, `4`: \*Land\*). |
-| <a id="COM_RC_OVERRIDE"></a>[COM_RC_OVERRIDE](../advanced_config/parameter_reference.md#COM_RC_OVERRIDE)                      | Controls whether stick movement on a multicopter (or VTOL in MC mode) causes a mode change to [Position mode](../flight_modes_mc/position.md). За замовчуванням це неможливо ввімкнути в режимі автопілоту.        |
-| <a id="COM_RC_STICK_OV"></a>[COM_RC_STICK_OV](../advanced_config/parameter_reference.md#COM_RC_STICK_OV) | Кількість рухів стиків, яка викликає перехід у [режим Положення](../flight_modes_mc/position.md) (якщо [COM_RC_OVERRIDE](#COM_RC_OVERRIDE) увімкнено).                                   |
-| <a id="COM_RCL_EXCEPT"></a>[COM_RCL_EXCEPT](../advanced_config/parameter_reference.md#COM_RCL_EXCEPT)                         | Вкажіть режими, в яких втрата радіокерування ігнорується, а запобіжний алгоритм не виконуватиметься. Set bit `2` to ignore RC loss in Offboard mode.                                                                                  |
+| Parameter                                                                                                                                                            | Опис                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| <a id="COM_OF_LOSS_T"></a>[COM_OF_LOSS_T](../advanced_config/parameter_reference.md#COM_OF_LOSS_T)    | Time-out (in seconds) to wait when offboard connection is lost before triggering offboard lost failsafe (`COM_OBL_RC_ACT`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| <a id="COM_OBL_RC_ACT"></a>[COM_OBL_RC_ACT](../advanced_config/parameter_reference.md#COM_OBL_RC_ACT) | Flight mode to switch to if offboard control is lost.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| <a id="MAN_OVERRIDE_SPD"></a>[MAN_OVERRIDE_SPD](../advanced_config/parameter_reference.md#MAN_OVERRIDE_SPD)                | Speed (normalized stick travel per second) above which moving the sticks controlling a multicopter (or VTOL in hover) gives control back to the pilot by switching to [Position mode](../flight_modes_mc/position.md) (or Altitude mode if position is unavailable). At the default value of 1 a half-stick movement in ~0.5 s triggers it; lower is more sensitive. A stick held statically has zero speed and will not trigger. Set to -1 to disable. <Badge type="tip" text="PX4 v1.18" /> |
+| <a id="COM_RCL_EXCEPT"></a>[COM_RCL_EXCEPT](../advanced_config/parameter_reference.md#COM_RCL_EXCEPT)                      | Specify modes in which RC loss is ignored and the failsafe action not triggered. Set bit `2` to ignore RC loss in Offboard mode.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
-## Ресурси Розробника
+## Developer Resources
 
 Typically developers do not directly work at the MAVLink layer, but instead use a robotics API like [MAVSDK](https://mavsdk.mavlink.io/) or [ROS](https://www.ros.org/) (these provide a developer friendly API, and take care of managing and maintaining connections, sending messages and monitoring responses - the minutiae of working with _Offboard mode_ and MAVLink).
 
-Наступні ресурси можуть бути корисними для аудиторії розробників:
+The following resources may be useful for a developer audience:
 
 - [Offboard Control from Linux](../ros/offboard_control.md)
 - [ROS/MAVROS Offboard Example (C++)](../ros/mavros_offboard_cpp.md)

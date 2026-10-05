@@ -38,6 +38,8 @@
 #include <uORB/PublicationMulti.hpp>
 #include <uORB/topics/distance_sensor.h>
 
+#include <lib/failure_injection/FailureInjection.hpp>
+
 class PX4Rangefinder
 {
 public:
@@ -58,14 +60,22 @@ public:
 	void set_max_distance(const float distance) { _distance_sensor_pub.get().max_distance = distance; }
 	void set_min_distance(const float distance) { _distance_sensor_pub.get().min_distance = distance; }
 
+	void set_variance(const float variance) { _distance_sensor_pub.get().variance = variance; }
+
 	void set_orientation(const uint8_t device_orientation = distance_sensor_s::ROTATION_DOWNWARD_FACING);
 
 	void set_mode(const uint8_t mode) { _distance_sensor_pub.get().mode = mode; }
 
-	void update(const hrt_abstime &timestamp_sample, const float distance, const int8_t quality = -1);
+	// update with quaterion sensor orientation with respect to the vehicle body frame
+	void update(const hrt_abstime &timestamp_sample, const float distance, const int8_t quality = -1, const float *q = nullptr,
+		    uint8_t q_len = 4);
 
 	int get_instance() { return _distance_sensor_pub.get_instance(); };
+	uint32_t get_device_id() { return _distance_sensor_pub.get().device_id; };
 
 private:
 	uORB::PublicationMultiData<distance_sensor_s> _distance_sensor_pub{ORB_ID(distance_sensor)};
+
+	failure_injection::Config _failure_config;
+	failure_injection::Stuck<distance_sensor_s> _stuck;
 };

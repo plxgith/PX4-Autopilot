@@ -47,9 +47,11 @@
 
 using namespace time_literals;
 
-class RPMCapture : public ModuleBase<RPMCapture>, public px4::ScheduledWorkItem, public ModuleParams
+class RPMCapture : public ModuleBase, public px4::ScheduledWorkItem, public ModuleParams
 {
 public:
+	static Descriptor desc;
+
 	RPMCapture();
 	virtual ~RPMCapture();
 
@@ -72,7 +74,7 @@ public:
 private:
 	static constexpr hrt_abstime RPM_PULSE_TIMEOUT = 1_s;
 	static constexpr float RPM_MAX_VALUE = 50e3f;
-	static constexpr float RPM_FILTER_TIME_CONSTANT = .5f;
+	static constexpr hrt_abstime RPM_FILTER_TIME_CONSTANT = 500_ms;
 
 	void Run() override;
 

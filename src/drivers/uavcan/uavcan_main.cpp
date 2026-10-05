@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2014-2022 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2014-2025 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -46,6 +46,7 @@
 #include <px4_platform_common/tasks.h>
 
 #include <inttypes.h>
+#include <cctype>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
@@ -58,6 +59,7 @@
 #include <uORB/topics/esc_status.h>
 
 #include <drivers/drv_hrt.h>
+#include <mathlib/math/Functions.hpp>
 
 #include "uavcan_module.hpp"
 #include "uavcan_main.hpp"
@@ -107,6 +109,7 @@ UavcanNode::UavcanNode(uavcan::ICanDriver &can_driver, uavcan::ISystemClock &sys
 	_time_sync_slave(_node),
 	_node_status_monitor(_node),
 	_node_info_retriever(_node),
+	_node_info_publisher(_node, _node_info_retriever),
 	_master_timer(_node),
 	_param_getset_client(_node),
 	_param_opcode_client(_node),
@@ -119,8 +122,7 @@ UavcanNode::UavcanNode(uavcan::ICanDriver &can_driver, uavcan::ISystemClock &sys
 	}
 
 #if defined(CONFIG_UAVCAN_OUTPUTS_CONTROLLER)
-	_mixing_interface_esc.mixingOutput().setMaxTopicUpdateRate(1000000 / UavcanEscController::MAX_RATE_HZ);
-	_mixing_interface_servo.mixingOutput().setMaxTopicUpdateRate(1000000 / UavcanServoController::MAX_RATE_HZ);
+	_mixing_interface_servo.mixingOutput().setMaxTopicUpdateRate(1000000 / _servo_controller.max_rate_hz());
 #endif
 }
 
@@ -467,7 +469,7 @@ UavcanNode::fill_node_info()
 	char fw_git_short[9] = {};
 	std::memmove(fw_git_short, px4_firmware_version_string(), 8);
 	char *end = nullptr;
-	swver.vcs_commit = std::strtol(fw_git_short, &end, 16);
+	swver.vcs_commit = std::strtoul(fw_git_short, &end, 16);
 	swver.optional_field_flags |= swver.OPTIONAL_FIELD_FLAG_VCS_COMMIT;
 
 	// Too verbose for normal operation
@@ -495,7 +497,24 @@ UavcanNode::init(uavcan::NodeID node_id, UAVCAN_DRIVER::BusEvent &bus_events)
 {
 	bus_events.registerSignalCallback(UavcanNode::busevent_signal_trampoline);
 
-	_node.setName("org.pixhawk.pixhawk");
+	// NodeInfo.name is reverse-domain, lowercase, 80 characters max; px4_board_name() is
+	// <VENDOR>_<MODEL> in upper snake case.
+	char node_name[81] {};
+	const char *board = px4_board_name();
+	const char *model = strchr(board, '_');
+
+	if (model != nullptr) {
+		snprintf(node_name, sizeof(node_name), "org.%.*s.%s", static_cast<int>(model - board), board, model + 1);
+
+	} else {
+		snprintf(node_name, sizeof(node_name), "org.%s", board);
+	}
+
+	for (char *c = node_name; *c != '\0'; c++) {
+		*c = (*c == '_') ? '-' : static_cast<char>(tolower(static_cast<unsigned char>(*c)));
+	}
+
+	_node.setName(node_name);
 
 	_node.setNodeID(node_id);
 
@@ -503,12 +522,19 @@ UavcanNode::init(uavcan::NodeID node_id, UAVCAN_DRIVER::BusEvent &bus_events)
 
 	int ret;
 
-	// UAVCAN_PUB_ARM
+#if defined(CONFIG_UAVCAN_ARMING_CONTROLLER) || defined(CONFIG_UAVCAN_OUTPUTS_CONTROLLER)
+	int32_t uavcan_enable = 0;
+	(void)param_get(param_find("UAVCAN_ENABLE"), &uavcan_enable);
+#endif
+
+	// Publish ArmingStatus when ESC output is enabled. Many DroneCAN ESCs
+	// ignore RawCommand unless they see STATUS_FULLY_ARMED, including during actuator tests.
+	// UAVCAN_PUB_ARM still enables it for sensor-only buses.
 #if defined(CONFIG_UAVCAN_ARMING_CONTROLLER)
 	int32_t uavcan_pub_arm = 0;
-	param_get(param_find("UAVCAN_PUB_ARM"), &uavcan_pub_arm);
+	(void)param_get(param_find("UAVCAN_PUB_ARM"), &uavcan_pub_arm);
 
-	if (uavcan_pub_arm == 1) {
+	if (uavcan_pub_arm == 1 || uavcan_enable > 2) {
 		ret = _arming_status_controller.init();
 
 		if (ret < 0) {
@@ -529,8 +555,6 @@ UavcanNode::init(uavcan::NodeID node_id, UAVCAN_DRIVER::BusEvent &bus_events)
 
 	// Actuators
 #if defined(CONFIG_UAVCAN_OUTPUTS_CONTROLLER)
-	int32_t uavcan_enable = -1;
-	(void)param_get(param_find("UAVCAN_ENABLE"), &uavcan_enable);
 
 	if (uavcan_enable > 2) {
 
@@ -539,6 +563,8 @@ UavcanNode::init(uavcan::NodeID node_id, UAVCAN_DRIVER::BusEvent &bus_events)
 		if (ret < 0) {
 			return ret;
 		}
+
+		_mixing_interface_esc.mixingOutput().setMaxTopicUpdateRate(1000000 / _esc_controller.max_rate_hz());
 	}
 
 #endif
@@ -595,7 +621,7 @@ UavcanNode::init(uavcan::NodeID node_id, UAVCAN_DRIVER::BusEvent &bus_events)
 	}
 
 	// Sensor bridges
-	IUavcanSensorBridge::make_all(_node, _sensor_bridges);
+	IUavcanSensorBridge::make_all(_node, _sensor_bridges, &_node_info_publisher);
 
 	for (const auto &br : _sensor_bridges) {
 		ret = br->init();
@@ -607,6 +633,10 @@ UavcanNode::init(uavcan::NodeID node_id, UAVCAN_DRIVER::BusEvent &bus_events)
 
 		PX4_DEBUG("sensor bridge '%s' init ok", br->get_name());
 	}
+
+#if defined(CONFIG_UAVCAN_OUTPUTS_CONTROLLER)
+	_esc_controller.set_node_info_publisher(&_node_info_publisher);
+#endif
 
 	/* Set up shared service clients */
 	_param_getset_client.setCallback(GetSetCallback(this, &UavcanNode::cb_getset));
@@ -746,11 +776,44 @@ UavcanNode::Run()
 		_node_info_retriever.invalidateAll();
 	}
 
+	// propagate armed state to firmware version checker
+	if (_actuator_armed_sub.updated() && _servers != nullptr) {
+		actuator_armed_s actuator_armed{};
+		_actuator_armed_sub.copy(&actuator_armed);
+		_servers->setArmed(actuator_armed.armed || actuator_armed.prearmed);
+	}
+
+	if (_servers != nullptr) {
+		_servers->warn_if_node_id_allocation_table_full();
+	}
+
+#ifdef CONFIG_MODULES_NFS_MOUNT
+
+	if (_servers != nullptr) {
+		_servers->check_nfs();
+	}
+
+#endif
+
 	_node.spinOnce(); // expected to be non-blocking
+
+	apply_can_failure_injection();
 
 	publish_can_interface_statuses();
 
 	publish_node_statuses();
+
+	if (_servers != nullptr) {
+		const bool pending = _servers->hasPendingFirmwareUpdates();
+
+		if (pending != _fw_update_pending_last) {
+			_fw_update_pending_last = pending;
+			uavcan_firmware_update_s fw_update{};
+			fw_update.timestamp = hrt_absolute_time();
+			fw_update.pending_updates = pending;
+			_fw_update_pub.publish(fw_update);
+		}
+	}
 
 	// check for parameter updates
 	if (_parameter_update_sub.updated()) {
@@ -964,6 +1027,10 @@ UavcanNode::Run()
 		}
 	}
 
+#if defined(CONFIG_UAVCAN_OUTPUTS_CONTROLLER) && defined(CONFIG_UAVCAN_ARMING_CONTROLLER)
+	_arming_status_controller.setActuatorTestRunning(_mixing_interface_esc.isActuatorTestRunning());
+#endif
+
 	perf_end(_cycle_perf);
 
 	pthread_mutex_unlock(&_node_mutex);
@@ -982,12 +1049,46 @@ UavcanNode::Run()
 	}
 }
 
+void UavcanNode::apply_can_failure_injection()
+{
+#if defined(CONFIG_MODULES_FAILURE_INJECTION_MANAGER) && defined(UAVCAN_STM32H7_NUTTX)
+	// FAILURE_UNIT_BUS_CAN: instance i+1 selects CAN interface i. FAILURE_TYPE_OFF holds
+	// the FDCAN peripheral in Init mode so the node leaves the bus entirely (no TX/RX/ACK);
+	// FAILURE_TYPE_OK rejoins it. No-op unless the failure-injection manager is built.
+	_failure_config.update();
+
+	for (uint8_t i = 0; i < can->driver.getNumIfaces(); i++) {
+		UAVCAN_DRIVER::CanIface *iface = can->driver.getIface(i);
+
+		if (iface == nullptr) {
+			continue;
+		}
+
+		const bool off = _failure_config.mode(failure_injection_s::FAILURE_UNIT_BUS_CAN, i + 1)
+				 == failure_injection::Mode::Off;
+
+		if (off == iface->isInInitMode()) {
+			continue;
+		}
+
+		if (off) {
+			iface->setOffline();
+
+		} else {
+			iface->setOnline();
+		}
+	}
+
+#endif // CONFIG_MODULES_FAILURE_INJECTION_MANAGER && UAVCAN_STM32H7_NUTTX
+}
+
 void UavcanNode::publish_can_interface_statuses()
 {
 	constexpr hrt_abstime status_pub_interval = 100_ms;
+	const hrt_abstime now = hrt_absolute_time();
 
-	if (hrt_absolute_time() - _last_can_status_pub >= status_pub_interval) {
-		_last_can_status_pub = hrt_absolute_time();
+	if (now - _last_can_status_pub >= status_pub_interval) {
+		_last_can_status_pub = now;
 
 		for (int i = 0; i < _node.getDispatcher().getCanIOManager().getCanDriver().getNumIfaces(); i++) {
 			if (i > UAVCAN_NUM_IFACES) {
@@ -1002,7 +1103,7 @@ void UavcanNode::publish_can_interface_statuses()
 
 			auto iface_perf_cnt = _node.getDispatcher().getCanIOManager().getIfacePerfCounters(i);
 			can_interface_status_s status{
-				.timestamp = hrt_absolute_time(),
+				.timestamp = now,
 				.io_errors = iface_perf_cnt.errors,
 				.frames_tx = iface_perf_cnt.frames_tx,
 				.frames_rx = iface_perf_cnt.frames_rx,
@@ -1022,13 +1123,15 @@ void UavcanNode::publish_can_interface_statuses()
 void UavcanNode::publish_node_statuses()
 {
 	constexpr hrt_abstime status_pub_interval = 100_ms;
+	const hrt_abstime now = hrt_absolute_time();
 
-	if (hrt_absolute_time() - _last_node_status_pub >= status_pub_interval) {
-		_last_node_status_pub = hrt_absolute_time();
+	if (now - _last_node_status_pub >= status_pub_interval) {
+		_last_node_status_pub = now;
 
 		_node_status_monitor.forEachNode([this](uavcan::NodeID node_id, uavcan::NodeStatusMonitor::NodeStatus node_status) {
+			auto node_id_val = node_id.get();
 
-			if (node_id.get() == 0) {
+			if (node_id_val == 0) {
 				return;
 			}
 
@@ -1036,7 +1139,7 @@ void UavcanNode::publish_node_statuses()
 			int uorb_index = -1;
 
 			for (uint8_t i = 0; i < ORB_MULTI_MAX_INSTANCES; i++) {
-				if (_node_status_uorb_index_map[i] == node_id.get()) {
+				if (_node_status_uorb_index_map[i] == node_id_val) {
 					uorb_index = i;
 					break;
 				}
@@ -1046,10 +1149,10 @@ void UavcanNode::publish_node_statuses()
 				// use next available index
 				for (uint8_t i = 0; i < ORB_MULTI_MAX_INSTANCES; i++) {
 					if (_node_status_uorb_index_map[i] == 0) {
-						_node_status_uorb_index_map[i] = node_id.get();
+						_node_status_uorb_index_map[i] = node_id_val;
 						uorb_index = i;
 						// advertise
-						PX4_INFO("advertising node_id %u on index %u", node_id.get(), i);
+						PX4_INFO("advertising node_id %u on index %u", node_id_val, i);
 						int instance{0};
 						_node_status_pub_handles[i] = orb_advertise_multi(ORB_ID(dronecan_node_status), nullptr, &instance);
 						break;
@@ -1062,7 +1165,7 @@ void UavcanNode::publish_node_statuses()
 				dronecan_node_status_s status{
 					.timestamp = hrt_absolute_time(),
 					.uptime_sec = node_status.uptime_sec,
-					.node_id = node_id.get(),
+					.node_id = node_id_val,
 					.vendor_specific_status_code = node_status.vendor_specific_status_code,
 					.health = node_status.health,
 					.mode = node_status.mode,
@@ -1078,11 +1181,38 @@ void UavcanNode::publish_node_statuses()
 }
 
 #if defined(CONFIG_UAVCAN_OUTPUTS_CONTROLLER)
-bool UavcanMixingInterfaceESC::updateOutputs(uint16_t outputs[MAX_ACTUATORS], unsigned num_outputs,
-		unsigned num_control_groups_updated)
+bool UavcanMixingInterfaceESC::updateOutputs(float outputs[MAX_ACTUATORS], unsigned num_outputs, unsigned num_control_groups_updated)
 {
 	if (_esc_controller.initialized()) {
-		_esc_controller.update_outputs(outputs, num_outputs);
+		// num_outputs is the maximum possible number of outputs (8)
+		// output_array_size adapts to the highest output index that is mapped (4 for a quad)
+		// this allows for sending less CAN frames depending on what output indices are mapped
+		uint8_t output_array_size = 0;
+
+		for (int i = MAX_ACTUATORS - 1; i >= 0; i--) {
+			if (mixingOutput().isFunctionSet(i)) {
+				output_array_size = i + 1;
+				break;
+			}
+		}
+
+		// Reversible motors: send reverse as a signed RawCommand (negative = reverse). Encoded in
+		// place so actuator_outputs reflects the actual wire value sent to the ESC. Done here rather
+		// than via minValue()/maxValue() (as DShot does for its 3D range) because those are uint16_t
+		// and can't hold the negative bound a signed RawCommand would need.
+		const uint32_t reversible = mixingOutput().reversibleOutputs();
+
+		for (unsigned i = 0; i < output_array_size; i++) {
+			// Encode armed outputs only; a stopped channel sits at the disarmed value and must
+			// not be inverted to full reverse (the disarmed < min invariant is not guaranteed).
+			if ((reversible & (1u << i)) && outputs[i] > (float)mixingOutput().disarmedValue(i)) {
+				const float min_i = (float)mixingOutput().minValue(i);
+				const float max_i = (float)mixingOutput().maxValue(i);
+				outputs[i] = math::interpolate(outputs[i], min_i, max_i, -max_i, max_i);
+			}
+		}
+
+		_esc_controller.update_outputs(outputs, output_array_size);
 	}
 
 	return true;
@@ -1111,8 +1241,7 @@ void UavcanMixingInterfaceESC::mixerChanged()
 	_esc_controller.set_rotor_count(rotor_count);
 }
 
-bool UavcanMixingInterfaceServo::updateOutputs(uint16_t outputs[MAX_ACTUATORS], unsigned num_outputs,
-		unsigned num_control_groups_updated)
+bool UavcanMixingInterfaceServo::updateOutputs(float outputs[MAX_ACTUATORS], unsigned num_outputs, unsigned num_control_groups_updated)
 {
 	_servo_controller.update_outputs(outputs, num_outputs);
 	return true;
@@ -1139,6 +1268,13 @@ UavcanNode::print_info()
 
 	printf("\n");
 
+#if !defined(UAVCAN_SOCKETCAN_NUTTX)
+	// See https://github.com/PX4/PX4-Autopilot/issues/22871
+	printf("WARNING: CAN error counter values below may increase during this function call due to internal counter reading implementation.\n");
+	printf("Do not fully trust these counters until this issue is fixed.\n");
+	printf("\n");
+#endif
+
 	// UAVCAN node perfcounters
 	printf("UAVCAN node status:\n");
 	printf("\tInternal failures: %" PRIu64 "\n", _node.getInternalFailureCount());
@@ -1155,12 +1291,29 @@ UavcanNode::print_info()
 		auto iface = _node.getDispatcher().getCanIOManager().getCanDriver().getIface(i);
 
 		if (iface) {
+#if defined(UAVCAN_SOCKETCAN_NUTTX)
+			UAVCAN_DRIVER::CanIface::BusErrors bus;
+
+			if (static_cast<UAVCAN_DRIVER::CanIface *>(iface)->lastErrors(bus)) {
+				printf("\tBus state: %s (TEC %u, REC %u)\n", UAVCAN_DRIVER::CanIface::busStateName(bus.state), bus.tec, bus.rec);
+				printf("\tRX overruns: %" PRIu32 "\n", bus.rx_overruns);
+
+			} else {
+				printf("\tBus state: unavailable\n");
+			}
+
+#endif
 			printf("\tHW errors: %" PRIu64 "\n", iface->getErrorCount());
 
 			auto iface_perf_cnt = _node.getDispatcher().getCanIOManager().getIfacePerfCounters(i);
 			printf("\tIO errors: %" PRIu64 "\n", iface_perf_cnt.errors);
 			printf("\tRX frames: %" PRIu64 "\n", iface_perf_cnt.frames_rx);
 			printf("\tTX frames: %" PRIu64 "\n", iface_perf_cnt.frames_tx);
+
+			auto txq = _node.getDispatcher().getCanIOManager().getTxQueuePerfCounters(i);
+			printf("\tTX queue peak: %" PRIu16 "/%" PRIu16 " blocks\n", txq.peak_used_blocks, txq.block_limit);
+			printf("\tTX rejected:   %" PRIu32 " frames (%" PRIu32 " expired, %" PRIu32 " no memory)\n",
+			       txq.rejected_frames, txq.expired_frames, txq.out_of_memory_frames);
 		}
 	}
 

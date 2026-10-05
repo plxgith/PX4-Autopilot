@@ -33,13 +33,14 @@
 /**
  * @file rtl_mission_fast.cpp
  *
- * Helper class for RTL
+ * Helper class for Return
  *
  * @author Julian Oes <julian@oes.ch>
  * @author Anton Babushkin <anton.babushkin@me.com>
  */
 
 #include "rtl_mission_fast.h"
+#include "mission_item_utils.h"
 #include "navigator.h"
 
 #include <drivers/drv_hrt.h>
@@ -57,21 +58,44 @@ void RtlMissionFast::on_inactive()
 	MissionBase::on_inactive();
 	_vehicle_status_sub.update();
 	_mission_index_prior_rtl = _vehicle_status_sub.get().nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION ?
-				   _mission.current_seq : -1;
+				   _mission.current_seq : INT32_C(-1);
+	_mission_id_prior_rtl = _mission.mission_id;
 }
 
 void RtlMissionFast::on_activation()
 {
 	_home_pos_sub.update();
 
+	// Discard the saved index if the mission was replaced.
+	if (_mission.mission_id != _mission_id_prior_rtl) {
+		_mission_index_prior_rtl = INT32_C(-1);
+	}
+
 	// set mission item to closest item if not already in mission
-	if (_mission_index_prior_rtl < 0) {
+	if (_mission_index_prior_rtl < INT32_C(0)) {
 		_is_current_planned_mission_item_valid = setMissionToClosestItem(_global_pos_sub.get().lat, _global_pos_sub.get().lon,
 				_global_pos_sub.get().alt, _home_pos_sub.get().alt, _vehicle_status_sub.get()) == PX4_OK;
 
 	} else {
-		setMissionIndex(_mission_index_prior_rtl);
-		_is_current_planned_mission_item_valid = isMissionValid();
+		int32_t next_mission_item_index;
+		size_t num_found_items{0U};
+		getNextPositionItems(_mission_index_prior_rtl, &next_mission_item_index, num_found_items, UINT8_C(1));
+
+		if (num_found_items > 0U) {
+			setMissionIndex(next_mission_item_index);
+			_is_current_planned_mission_item_valid = isMissionValid();
+
+		} else {
+			// No more position items left. Set it to the land item if it exists
+			if (_mission.land_index > 0) {
+				setMissionIndex(_mission.land_index);
+				_is_current_planned_mission_item_valid = isMissionValid();
+
+			} else {
+				// Nothing we can do, set the validity to false to trigger end of mission reaction
+				_is_current_planned_mission_item_valid = false;
+			}
+		}
 	}
 
 	if (_land_detected_sub.get().landed) {
@@ -84,13 +108,14 @@ void RtlMissionFast::on_activation()
 
 bool RtlMissionFast::setNextMissionItem()
 {
-	return (goToNextPositionItem(true) == PX4_OK);
+	return (goToNextPositionItem() == PX4_OK);
 }
 
 void RtlMissionFast::setActiveMissionItems()
 {
 	WorkItemType new_work_item_type{WorkItemType::WORK_ITEM_TYPE_DEFAULT};
 	position_setpoint_triplet_s *pos_sp_triplet = _navigator->get_position_setpoint_triplet();
+	const position_setpoint_s current_setpoint_copy = pos_sp_triplet->current;
 
 	/* Skip VTOL/FW Takeoff item if in air, fixed-wing and didn't start the takeoff already*/
 	if ((_mission_item.nav_cmd == NAV_CMD_VTOL_TAKEOFF || _mission_item.nav_cmd == NAV_CMD_TAKEOFF) &&
@@ -109,19 +134,7 @@ void RtlMissionFast::setActiveMissionItems()
 		}
 	}
 
-	// Transition to fixed wing if necessary.
-	if (_vehicle_status_sub.get().vehicle_type == vehicle_status_s::VEHICLE_TYPE_ROTARY_WING &&
-	    _vehicle_status_sub.get().is_vtol &&
-	    !_land_detected_sub.get().landed && _work_item_type == WorkItemType::WORK_ITEM_TYPE_DEFAULT) {
-		set_vtol_transition_item(&_mission_item, vtol_vehicle_status_s::VEHICLE_VTOL_STATE_FW);
-		_mission_item.yaw = _navigator->get_local_position()->heading;
-
-		// keep current setpoints (FW position controller generates wp to track during transition)
-		pos_sp_triplet->current.type = position_setpoint_s::SETPOINT_TYPE_POSITION;
-
-		new_work_item_type = WorkItemType::WORK_ITEM_TYPE_TRANSITION_AFTER_TAKEOFF;
-
-	} else if (item_contains_position(_mission_item)) {
+	if (mission_item_contains_position(_mission_item)) {
 
 		static constexpr size_t max_num_next_items{1u};
 		int32_t next_mission_items_index[max_num_next_items];
@@ -158,10 +171,7 @@ void RtlMissionFast::setActiveMissionItems()
 			_mission_item.autocontinue = true;
 			_mission_item.time_inside = 0.0f;
 
-			pos_sp_triplet->previous = pos_sp_triplet->current;
 		}
-
-
 
 		if (num_found_items > 0) {
 			mission_item_to_position_setpoint(next_mission_items[0u], &pos_sp_triplet->next);
@@ -169,8 +179,20 @@ void RtlMissionFast::setActiveMissionItems()
 
 		mission_item_to_position_setpoint(_mission_item, &pos_sp_triplet->current);
 
-		if (_vehicle_status_sub.get().vehicle_type == vehicle_status_s::VEHICLE_TYPE_FIXED_WING && isLanding() &&
-		    _mission_item.nav_cmd == NAV_CMD_WAYPOINT) {
+		// Only set the previous position item if the current one really changed
+		if ((_work_item_type != WorkItemType::WORK_ITEM_TYPE_MOVE_TO_LAND) &&
+		    !position_setpoint_equal(&pos_sp_triplet->current, &current_setpoint_copy)) {
+			pos_sp_triplet->previous = current_setpoint_copy;
+		}
+
+		const bool fw_on_mission_landing = _vehicle_status_sub.get().vehicle_type == vehicle_status_s::VEHICLE_TYPE_FIXED_WING
+						   && isLanding() &&
+						   _mission_item.nav_cmd == NAV_CMD_WAYPOINT;
+		const bool mc_landing_after_transition = _vehicle_status_sub.get().vehicle_type ==
+				vehicle_status_s::VEHICLE_TYPE_ROTARY_WING && _vehicle_status_sub.get().is_vtol &&
+				new_work_item_type == WorkItemType::WORK_ITEM_TYPE_MOVE_TO_LAND;
+
+		if (fw_on_mission_landing || mc_landing_after_transition) {
 			pos_sp_triplet->current.alt_acceptance_radius = FLT_MAX;
 		}
 	}

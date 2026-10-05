@@ -10,7 +10,7 @@ _Follow Me_ mode allows a multicopter to autonomously hold position and altitude
 - Mode requires at least a valid local position estimate (does not require a global position).
   - Flying vehicles can't switch to this mode without valid local position.
   - Flying vehicles will failsafe if they lose the position estimate.
-- Mode prevents arming (vehicle must be armed when switching to this mode).
+- Mode prevents arming (vehicle cannot be armed while this mode is selected).
 - Mode requires wind and flight time are within allowed limits (specified via parameters).
 - This mode is currently only supported on multicopter (or VTOL in MC mode).
 - The follow target must also be able to supply position information.
@@ -19,6 +19,21 @@ _Follow Me_ mode allows a multicopter to autonomously hold position and altitude
 <!-- https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/commander/ModeUtil/mode_requirements.cpp -->
 
 :::
+
+<!-- AUTO-GENERATED: mode_requirements_rotary_wing_auto_follow_target -->
+
+### Mode Requirements
+
+The following requirements must be met to arm in this mode, or to switch to this mode when it is armed.
+
+- [`mode_req_angular_velocity`](../flight_modes/mode_requirements.md#mode_req_angular_velocity) — Angular velocity
+- [`mode_req_attitude`](../flight_modes/mode_requirements.md#mode_req_attitude) — Attitude/pose
+- [`mode_req_local_alt`](../flight_modes/mode_requirements.md#mode_req_local_alt) — Local altitude relative to EKF2 origin ('0') position
+- [`mode_req_local_position`](../flight_modes/mode_requirements.md#mode_req_local_position) — Position relative to EKF2 origin ('0') point
+- [`mode_req_prevent_arming`](../flight_modes/mode_requirements.md#mode_req_prevent_arming) — Mode prevents arming
+- [`mode_req_wind_and_flight_time_compliance`](../flight_modes/mode_requirements.md#mode_req_wind_and_flight_time_compliance) — Safety compliance limits on wind and flight time.
+
+<!-- END AUTO-GENERATED: mode_requirements_rotary_wing_auto_follow_target -->
 
 ## Overview
 
@@ -31,7 +46,7 @@ By default it will follow from directly behind the target at a distance of 8 met
 Users can adjust the follow angle, height and distance using an RC controller as shown above:
 
 - _Follow Height_ is controlled with the `up-down` input ("Throttle").
-  Center the stick to keep follow the target at a constant hight. Raise or lower the stick to adjust height.
+  Center the stick to keep follow the target at a constant height. Raise or lower the stick to adjust height.
 - _Follow Distance_ is controlled with the `forward-back` input ("Pitch").
   Pushing the stick forward increases the follow distance, pulling it back decreases the distance.
 - _Follow Angle_ is controlled with the `left-right` input ("Roll").
@@ -115,10 +130,9 @@ The altitude control mode determine whether the vehicle altitude is relative to 
   The relative distance to the drone to the target will change as you ascend and descend (use with care in hilly terrain).
 
 - `2D + Terrain` makes the drone follow at a fixed height relative to the terrain underneath it, using information from a distance sensor.
-
   - If the vehicle does not have a distance sensor following will be identical to `2D tracking`.
   - Distance sensors aren't always accurate and vehicles may be "jumpy" when flying in this mode.
-  - Note that that height is relative to the ground underneath the vehicle, not the follow target.
+  - Note that height is relative to the ground underneath the vehicle, not the follow target.
     The drone may not follow altitude changes of the target!
 
 - `3D tracking` mode makes the drone follow at a height relative to the follow target, as supplied by its GPS sensor.
@@ -162,7 +176,6 @@ The follow-me behavior can be configured using the following parameters:
 3. Using the RC Adjustment for height, distance and angle, you can get some creative camera shots.
 
    <lite-youtube videoid="o3DhvCL_M1E" title="YUN0012 almostCinematic"/>
-
 
    This video demonstrates a Google-Earth view perspective, by adjusting the height to around 50 meters (high), distance to 1 meter (close). Which allows a perspective as shot from a satellite.
 

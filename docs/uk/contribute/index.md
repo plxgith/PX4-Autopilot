@@ -7,7 +7,7 @@ const { site } = useData();
 
 <div v-if="site.title !== 'PX4 Guide (main)'">
   <div class="custom-block danger">
-    <p class="custom-block-title">Ця сторінка може бути застарілою. <a href="https://docs.px4.io/main/en/contribute/">Переглянути останню версію</a>.</p>
+    <p class="custom-block-title">This page may be out of date. <a href="https://docs.px4.io/main/en/contribute/">Переглянути останню версію</a>.</p>
   </div>
 </div>
 
@@ -20,9 +20,10 @@ We pledge to adhere to the [PX4 code of conduct](https://github.com/PX4/PX4-Auto
 Цей розділ містить інформацію про те, як ви можете зустрітися зі спільнотою та зробити внесок до PX4:
 
 - [Dev Call](../contribute/dev_call.md) - Discuss architecture, pull requests, impacting issues with the dev team
-- [Maintainers](./maintainers.md) - Maintainers of PX4 Subsystems and Ecosystem
+- [Maintainers](./maintainers.md) - Maintainer roles, types, and how to become one
 - [Support](../contribute/support.md) - Get help and raise issues
 - [Source Code Management](../contribute/code.md) - Work with PX4 code
+- [AI Coding Assistants](../contribute/ai_assistants.md) - Rules for contributing with AI coding tools
 - [Documentation](../contribute/docs.md) - Improve the docs
 - [Translation](../contribute/translation.md) - Translate using Crowdin
 - [Terminology/Notation](../contribute/notation.md) - Terms and symbols used in the docs

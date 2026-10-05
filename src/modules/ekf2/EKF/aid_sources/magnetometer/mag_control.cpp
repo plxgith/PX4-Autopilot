@@ -54,7 +54,9 @@ void Ekf::controlMagFusion(const imuSample &imu_sample)
 		_control_status.flags.mag_aligned_in_flight = false;
 	}
 
-	if (_params.ekf2_mag_type == MagFuseType::NONE) {
+	_fc.mag.available = _params.ekf2_mag_type != static_cast<int32_t>(MagFuseType::NONE);
+
+	if (!_fc.mag.intended()) {
 		stopMagFusion();
 		return;
 	}
@@ -73,16 +75,19 @@ void Ekf::controlMagFusion(const imuSample &imu_sample)
 			stopMagFusion();
 
 			_mag_lpf.reset(mag_sample.mag);
+			_mag_lpf_time_last_us = mag_sample.time_us;
 			_mag_counter = 1;
 
-			if (!_control_status.flags.in_air) {
+			if (!_control_status.flags.in_air && !_control_status.flags.yaw_manual) {
 				// Assume that a reset on the ground is caused by a change in mag calibration
 				// Clear alignment to force a clean reset
 				_control_status.flags.yaw_align = false;
 			}
 
 		} else {
-			_mag_lpf.update(mag_sample.mag);
+			// the filter runs once per magnetometer sample, not once per EKF update
+			_mag_lpf.update(mag_sample.mag, mag_sample.time_us - _mag_lpf_time_last_us);
+			_mag_lpf_time_last_us = mag_sample.time_us;
 			_mag_counter++;
 		}
 
@@ -137,8 +142,7 @@ void Ekf::controlMagFusion(const imuSample &imu_sample)
 		Vector3f mag_innov;
 		Vector3f innov_var;
 
-		// Observation jacobian and Kalman gain vectors
-		VectorState H;
+		VectorState H; // Observation jacobian
 		sym::ComputeMagInnovInnovVarAndHx(_state.vector(), P, mag_sample.mag, R_MAG, FLT_EPSILON, &mag_innov, &innov_var, &H);
 
 		updateAidSourceStatus(aid_src,
@@ -149,15 +153,10 @@ void Ekf::controlMagFusion(const imuSample &imu_sample)
 				      innov_var,                               // innovation variance
 				      math::max(_params.ekf2_mag_gate, 1.f)); // innovation gate
 
-		// Perform an innovation consistency check and report the result
-		_innov_check_fail_status.flags.reject_mag_x = (aid_src.test_ratio[0] > 1.f);
-		_innov_check_fail_status.flags.reject_mag_y = (aid_src.test_ratio[1] > 1.f);
-		_innov_check_fail_status.flags.reject_mag_z = (aid_src.test_ratio[2] > 1.f);
-
 		// determine if we should use mag fusion
-		bool continuing_conditions_passing = ((_params.ekf2_mag_type == MagFuseType::INIT)
-						      || (_params.ekf2_mag_type == MagFuseType::AUTO)
-						      || (_params.ekf2_mag_type == MagFuseType::HEADING))
+		bool continuing_conditions_passing = ((_params.ekf2_mag_type == static_cast<int32_t>(MagFuseType::INIT))
+						      || (_params.ekf2_mag_type == static_cast<int32_t>(MagFuseType::AUTO))
+						      || (_params.ekf2_mag_type == static_cast<int32_t>(MagFuseType::HEADING)))
 						     && _control_status.flags.tilt_align
 						     && (_control_status.flags.yaw_align || (!_control_status.flags.ev_yaw && !_control_status.flags.yaw_align))
 						     && mag_sample.mag.longerThan(0.f)
@@ -173,7 +172,16 @@ void Ekf::controlMagFusion(const imuSample &imu_sample)
 
 		checkMagHeadingConsistency(mag_sample);
 
+		if (_control_status.flags.mag_fault && _control_status.flags.mag_heading_consistent
+		    && _control_status.flags.mag
+		    && isTimedOut(_time_last_heading_fuse, _params.reset_timeout_max)) {
+			_control_status.flags.mag_fault = false;
+		}
+
+		const bool no_ne_aiding_or_not_moving = !isNorthEastAidingActive() || _control_status.flags.vehicle_at_rest;
+
 		{
+
 			const bool mag_consistent_or_no_ne_aiding = _control_status.flags.mag_heading_consistent || !isNorthEastAidingActive();
 			const bool common_conditions_passing = _control_status.flags.mag
 							       && ((_control_status.flags.yaw_align && mag_consistent_or_no_ne_aiding)
@@ -182,18 +190,21 @@ void Ekf::controlMagFusion(const imuSample &imu_sample)
 							       && !_control_status.flags.mag_field_disturbed
 							       && !_control_status.flags.ev_yaw
 							       && !_control_status.flags.gnss_yaw
-							       && (!_control_status.flags.yaw_manual || _control_status.flags.mag_aligned_in_flight);
+							       && (!_control_status.flags.yaw_manual || _control_status.flags.mag_aligned_in_flight)
+							       && !_control_status.flags.constant_pos;
 
 			_control_status.flags.mag_3D = common_conditions_passing
-						       && (_params.ekf2_mag_type == MagFuseType::AUTO)
+						       && (_params.ekf2_mag_type == static_cast<int32_t>(MagFuseType::AUTO))
 						       && _control_status.flags.mag_aligned_in_flight;
 
 			_control_status.flags.mag_hdg = common_conditions_passing
-							&& ((_params.ekf2_mag_type == MagFuseType::HEADING)
-							    || (_params.ekf2_mag_type == MagFuseType::AUTO && !_control_status.flags.mag_3D));
-		}
+							&& ((_params.ekf2_mag_type == static_cast<int32_t>(MagFuseType::HEADING))
+							    || (_params.ekf2_mag_type == static_cast<int32_t>(MagFuseType::AUTO) && !_control_status.flags.mag_3D));
 
-		// TODO: allow clearing mag_fault if mag_3d is good?
+			// if we are using 3-axis magnetometer fusion, but without external NE aiding,
+			// then the declination must be fused as an observation to prevent long term heading drift
+			_control_status.flags.mag_dec = _control_status.flags.mag && no_ne_aiding_or_not_moving;
+		}
 
 		if (_control_status.flags.mag_3D && !_control_status_prev.flags.mag_3D) {
 			ECL_INFO("starting mag 3D fusion");
@@ -202,20 +213,25 @@ void Ekf::controlMagFusion(const imuSample &imu_sample)
 			ECL_INFO("stopping mag 3D fusion");
 		}
 
-		// if we are using 3-axis magnetometer fusion, but without external NE aiding,
-		// then the declination must be fused as an observation to prevent long term heading drift
-		const bool no_ne_aiding_or_not_moving = !isNorthEastAidingActive() || _control_status.flags.vehicle_at_rest;
-		_control_status.flags.mag_dec = _control_status.flags.mag && no_ne_aiding_or_not_moving;
-
 		if (_control_status.flags.mag) {
 
 			if (continuing_conditions_passing && _control_status.flags.yaw_align) {
 
-				if ((checkHaglYawResetReq() && (_control_status.flags.mag_hdg || _control_status.flags.mag_3D
-								|| _control_status.flags.yaw_manual))
-				    || (wmm_updated && no_ne_aiding_or_not_moving)) {
+				if (checkHaglYawResetReq() && (_control_status.flags.mag_hdg || _control_status.flags.mag_3D
+							       || _control_status.flags.yaw_manual)) {
 					ECL_INFO("reset to %s", AID_SRC_NAME);
-					const bool reset_heading = _control_status.flags.mag_hdg || _control_status.flags.mag_3D;
+					const bool reset_heading = isHeadingResetToMagAllowed()
+								   && !isNorthEastAidingActive(); // NE aiding makes heading observable
+
+					resetMagStates(_mag_lpf.getState(), reset_heading);
+
+					// record the start time for the magnetic field alignment
+					_control_status.flags.mag_aligned_in_flight = true;
+					_flt_mag_align_start_time = _time_delayed_us;
+					aid_src.time_last_fuse = imu_sample.time_us;
+
+				} else if (wmm_updated && no_ne_aiding_or_not_moving) {
+					const bool reset_heading = isHeadingResetToMagAllowed();
 					resetMagStates(_mag_lpf.getState(), reset_heading);
 					aid_src.time_last_fuse = imu_sample.time_us;
 
@@ -243,7 +259,7 @@ void Ekf::controlMagFusion(const imuSample &imu_sample)
 						    && PX4_ISFINITE(_wmm_declination_rad)
 						   ) {
 							// using declination from the world magnetic model
-							fuseDeclination(_wmm_declination_rad, 0.5f, update_all_states, update_tilt);
+							fuseDeclination(_wmm_declination_rad, R_DECL, update_all_states, update_tilt);
 
 						} else if ((_params.ekf2_decl_type & GeoDeclinationMask::SAVE_GEO_DECL)
 							   && PX4_ISFINITE(_params.ekf2_mag_decl) && (fabsf(_params.ekf2_mag_decl) > 0.f)
@@ -265,7 +281,8 @@ void Ekf::controlMagFusion(const imuSample &imu_sample)
 				if (is_fusion_failing) {
 					if (no_ne_aiding_or_not_moving) {
 						ECL_WARN("%s fusion failing, resetting", AID_SRC_NAME);
-						resetMagStates(_mag_lpf.getState(), _control_status.flags.mag_hdg || _control_status.flags.mag_3D);
+						const bool reset_heading = isHeadingResetToMagAllowed();
+						resetMagStates(_mag_lpf.getState(), reset_heading);
 						aid_src.time_last_fuse = imu_sample.time_us;
 
 					} else {
@@ -378,6 +395,12 @@ bool Ekf::checkHaglYawResetReq() const
 	return false;
 }
 
+bool Ekf::isHeadingResetToMagAllowed() const
+{
+	return (_control_status.flags.mag_hdg || _control_status.flags.mag_3D)
+	       && !_control_status.flags.yaw_manual; // do not override manual reset
+}
+
 void Ekf::resetMagStates(const Vector3f &mag, bool reset_heading)
 {
 	// reinit mag states
@@ -448,12 +471,6 @@ void Ekf::resetMagStates(const Vector3f &mag, bool reset_heading)
 			 (double)mag_B_before_reset(0), (double)mag_B_before_reset(1), (double)mag_B_before_reset(2),
 			 (double)_state.mag_B(0), (double)_state.mag_B(1), (double)_state.mag_B(2));
 	}
-
-	// record the start time for the magnetic field alignment
-	if (_control_status.flags.in_air && (reset_heading || _control_status.flags.yaw_manual)) {
-		_control_status.flags.mag_aligned_in_flight = true;
-		_flt_mag_align_start_time = _time_delayed_us;
-	}
 }
 
 void Ekf::checkMagHeadingConsistency(const magSample &mag_sample)
@@ -475,16 +492,17 @@ void Ekf::checkMagHeadingConsistency(const magSample &mag_sample)
 	const Vector3f mag_earth_pred = R_to_earth * (mag_sample.mag - mag_bias);
 	const float declination = getMagDeclination();
 	const float measured_hdg = -atan2f(mag_earth_pred(1), mag_earth_pred(0)) + declination;
+	float innovation = wrap_pi(getEulerYaw(_R_to_earth) - measured_hdg);
 
 	if (_control_status.flags.yaw_align) {
-		const float innovation = wrap_pi(getEulerYaw(_R_to_earth) - measured_hdg);
 		_mag_heading_innov_lpf.update(innovation);
 
 	} else {
-		_mag_heading_innov_lpf.reset(0.f);
+		innovation = 0.f;
+		_mag_heading_innov_lpf.reset(innovation);
 	}
 
-	if (fabsf(_mag_heading_innov_lpf.getState()) < _params.ekf2_head_noise) {
+	if ((fabsf(_mag_heading_innov_lpf.getState()) < _params.ekf2_head_noise) && (fabsf(innovation) < _params.ekf2_head_noise)) {
 		// Check if there has been enough change in horizontal velocity to make yaw observable
 
 		if (isNorthEastAidingActive() && (_accel_horiz_lpf.getState().longerThan(_params.ekf2_mag_acclim))) {

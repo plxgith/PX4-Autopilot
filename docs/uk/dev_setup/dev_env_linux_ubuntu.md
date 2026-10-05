@@ -1,24 +1,20 @@
 # Середовище розробки Ubuntu
 
-The following instructions use a bash script to set up the PX4 development environment on the [Ubuntu Linux LTS](https://wiki.ubuntu.com/LTS) versions supported by PX4: Ubuntu 24.04 (Nimble Numbat) and Ubuntu 22.04 (Jammy Jellyfish).
+The following instructions use a bash script to set up the PX4 development environment on the [Ubuntu Linux LTS](https://ubuntu.com/about/release-cycle) versions supported by PX4: Ubuntu 24.04 (Nimble Numbat) and Ubuntu 22.04 (Jammy Jellyfish).
 
 The environment includes:
 
-- [Gazebo Simulator](../sim_gazebo_gz/index.md) ("Harmonic")
-- [Build toolchain for Pixhawk (and other NuttX-based hardware)](../dev_setup/building_px4.md#nuttx-pixhawk-based-boards).
-
-On Ubuntu 22.04:
-
-- [Gazebo Classic Simulator](../sim_gazebo_classic/index.md) can be used instead of Gazebo.
-  Gazebo is nearing feature-parity with Gazebo-Classic on PX4, and will soon replace it for all use cases.
+- [Gazebo Simulator](../sim_gazebo_gz/index.md) (Gazebo Harmonic)
+- [Build toolchain for Pixhawk (and other NuttX-based hardware)](../dev_setup/building_px4.md#nuttx-pixhawk-based-boards) using the `gcc-arm-none-eabi` compiler from the Ubuntu package manager.
 
 The build toolchain for other flight controllers, simulators, and working with ROS are discussed in the [Other Targets](#other-targets) section below.
 
-:::details
-Can I use an older version of Ubuntu?
-PX4 supports the current and last Ubuntu LTS release where possible.
-Older releases are not supported (so you can't raise defects against them), but may still work.
-For example, Gazebo Classic setup is included in our standard build instructions for macOS, Ubuntu 18.04 and 20.04, and Windows on WSL2 for the same hosts.
+:::info
+The current CI and release target is **Ubuntu 24.04**, with build tests also run on **Ubuntu 22.04**.
+Ubuntu 26.04 is not yet supported.
+
+More generally, PX4 supports all currently active Ubuntu LTS releases, dropping versions when they reach end-of-life.
+Support for a new LTS release is added once it provides the toolchain packages required by CI — including the ability to build for hardware targets and run SIH-based integration tests.
 :::
 
 ## Симуляція та NuttX (Pixhawk)
@@ -52,9 +48,7 @@ The script is intended to be run on _clean_ Ubuntu LTS installations, and may no
    - При появі підказки по ходу виконання скрипту підтвердить вибір.
    - You can use the `--no-nuttx` and `--no-sim-tools` options to omit the NuttX and/or simulation tools.
 
-3. If you need Gazebo Classic (Ubuntu 22.04 only) then you can manually remove Gazebo and install it by following the instructions in [Gazebo Classic > Installation](../sim_gazebo_classic/index.md#installation).
-
-4. Перезавантажте комп'ютер при завершенні.
+3. Перезавантажте комп'ютер при завершенні.
 
 :::details
 Additional notes
@@ -63,10 +57,11 @@ These notes are provided "for information only":
 - This setup is supported by the PX4 Dev Team.
   Інструкції також можуть працювати на інших системах заснованих на Debian Linux.
 
-- You can verify the NuttX installation by confirming the `gcc` version as shown:
+- You can verify the NuttX installation by confirming `gcc` is available.
+  The version depends on your Ubuntu release (e.g. GCC 13.2.1 on Ubuntu 24.04):
 
   ```sh
-  $arm-none-eabi-gcc --version
+  $ arm-none-eabi-gcc --version
 
   arm-none-eabi-gcc (15:13.2.rel1-2) 13.2.1 20231009
   Copyright (C) 2023 Free Software Foundation, Inc.

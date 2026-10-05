@@ -43,7 +43,7 @@ static constexpr int16_t combine(uint8_t msb, uint8_t lsb)
 QMC5883P::QMC5883P(const I2CSPIDriverConfig &config) :
 	I2C(config),
 	I2CSPIDriver(config),
-	_px4_mag(get_device_id(), config.rotation)
+	_px4_mag(get_device_id(), config.rotation, config.external)
 {
 }
 
@@ -244,6 +244,8 @@ void QMC5883P::RunImpl()
 
 bool QMC5883P::Configure()
 {
+	RegisterWrite(Register::REG_29, 0x06);
+
 	// first set and clear all configured register bits
 	for (const auto &reg_cfg : _register_cfg) {
 		RegisterSetAndClearBits(reg_cfg.reg, reg_cfg.set_bits, reg_cfg.clear_bits);
@@ -260,6 +262,7 @@ bool QMC5883P::Configure()
 	}
 
 	_px4_mag.set_scale(1.f / 12000.f); // 12000 LSB/Gauss (Field Range = ±2G)
+	_px4_mag.set_range(2.f);
 
 	return success;
 }

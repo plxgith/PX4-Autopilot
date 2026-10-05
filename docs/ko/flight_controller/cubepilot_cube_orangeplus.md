@@ -5,13 +5,13 @@ PX4 does not manufacture this (or any) autopilot.
 Contact the [manufacturer](https://cubepilot.org/#/home) for hardware support or compliance issues.
 :::
 
-The [Cube Orange+](https://www.cubepilot.com/#/cube/features) flight controller is a flexible autopilot intended primarily for manufacturers of commercial systems.
-Cube Orange+ is similar to Cube Orange, but has a more powerful dual-core processor (STM32H757, and some different sensors parts.
+The [Cube Orange+](https://cubepilot.org/#/cube/features) flight controller is a flexible autopilot intended primarily for manufacturers of commercial systems.
+Cube Orange+ is similar to Cube Orange, but has a more powerful dual-core processor (STM32H757), and some different sensor parts.
 
 ![Cube Orange](../../assets/flight_controller/cube/orangeplus/cubepilot_cube_orangeplus_standard_set.jpg)
 
 배선을 줄이고 신뢰성을 높이며 조립을 쉽게하기 위해 도메인별 캐리어 보드와 함께 사용하도록 설계되었습니다.
-예를 들어, 상용 검사 기체 캐리어보드에는 보조 컴퓨터용 연결이 포함될 수 있는 반면, 레이서 용 캐리어보드는 기체 프레임을 형성하는 ESC를 포함할 수 있습니다.
+For example, a carrier board for a commercial inspection vehicle might include connections for a companion computer, while a carrier board for a racer could include ESCs for the frame of the vehicle.
 
 The ADS-B carrier board includes a customized 1090MHz ADSB-In receiver from uAvionix.
 This provides attitude and location of commercial manned aircraft within the range of Cube.
@@ -20,7 +20,11 @@ This is automatically configured and enabled in the default PX4 firmware.
 Cube에는 2 개의 IMU에 진동 차단이 포함되어 있으며, 세 번째 고정 IMU는 참조 백업용으로 사용됩니다.
 
 :::tip
-The manufacturer [Cube User Guide](https://docs.cubepilot.org/user-guides/autopilot/the-cube) contains detailed information, including an overview of the [Differences between Cube Colours](https://docs.cubepilot.org/user-guides/autopilot/the-cube/introduction/specifications).
+The manufacturer [Cube User Guide](https://docs.cubepilot.org/autopilot/the-cube) contains detailed information, including an overview of the [Differences between Cube Colours](https://docs.cubepilot.org/autopilot/the-cube/introduction/specifications).
+:::
+
+:::info
+This flight controller is [manufacturer supported](../flight_controller/autopilot_manufacturer_supported.md).
 :::
 
 ## 주요 특징
@@ -37,11 +41,9 @@ The manufacturer [Cube User Guide](https://docs.cubepilot.org/user-guides/autopi
 - 고전력 멀티톤 피에조 오디오 표시기
 - 장기간 고속 로깅용 microSD 카드
 
-<a id="stores"></a>
+## Where to Buy {#store}
 
-## 구매처
-
-- [Reseller list](https://www.cubepilot.com/#/reseller/list)
+- [Reseller list](https://cubepilot.org/#/reseller/list)
 
 ## 조립
 
@@ -232,7 +234,7 @@ The firmware for Orange+ will be present in releases from PX4 v1.14.
 
 To [build PX4](../dev_setup/building_px4.md) for this target, open up the terminal and enter:
 
-```
+```sh
 make cubepilot_cubeorangeplus
 ```
 
@@ -249,5 +251,5 @@ Board schematics and other documentation can be found here: [The Cube Project](h
 
 - [Cube Wiring Quickstart](../assembly/quick_start_cube.md)
 - Cube 문서 (제조사) :
-  - [Cube User Guide](https://docs.cubepilot.org/user-guides/autopilot/the-cube)
-  - [Mini Carrier Board](https://docs.cubepilot.org/user-guides/carrier-boards/mini-carrier-board)
+  - [Cube User Guide](https://docs.cubepilot.org/autopilot/the-cube)
+  - [Mini Carrier Board](https://docs.cubepilot.org/carrier-boards/mini-carrier-board)

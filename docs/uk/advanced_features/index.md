@@ -3,6 +3,7 @@
 Цей розділ містить теми, пов'язані з деякими більш розширеними функціями автопілота PX4:
 
 - [Уникнення повітряного трафіку: ADS-B/FLARM/UTM](../peripherals/adsb_flarm.md)
+- [Detect And Avoid](../advanced_features/detect_and_avoid.md)
 - [Комп'ютерний зір](../computer_vision/index.md)
   - [Попередження зіткнень](../computer_vision/collision_prevention.md) (може використовувати комп'ютер-компаньйон або датчики на польотному контролері)
   - [Захоплення руху (MoCap)](../computer_vision/motion_capture.md)
@@ -10,3 +11,5 @@
 - [Система супутникового зв'язку Iridium/RockBlock](../advanced_features/satcom_roadblock.md)
 - [Точна посадка](../advanced_features/precland.md)
 - [RTK GNSS (GPS)](../gps_compass/rtk_gps.md)
+- [Vision Target Estimator](../advanced_features/vision_target_estimator.md)
+  - [Vision Target Estimator Deep Dive](../advanced_features/vision_target_estimator_advanced.md)

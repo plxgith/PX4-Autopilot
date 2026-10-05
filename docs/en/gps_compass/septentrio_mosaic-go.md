@@ -2,8 +2,8 @@
 
 The Septentrio mosaic-go receivers are evaluation kits for their mosaic-X5 and mosaic-H receiver modules.
 Because of their small size and low weight, they are ideal for autopilot applications.
-The available variants are the [mosaic-go](https://www.septentrio.com/en/products/gps/gnss-receiver-modules/mosaic-go-evaluation-kit)
-and [mosaic-go heading](https://www.septentrio.com/en/products/gps/gnss-receiver-modules/mosaic-h-evaluation-kit).
+The available variants are the [mosaic-go](https://www.septentrio.com/en/products/gnss-receivers/gnss-receiver-modules/mosaic-go-evaluation-kit)
+and [mosaic-go heading](https://www.septentrio.com/en/products/gnss-receivers/gnss-receiver-modules/mosaic-h-evaluation-kit).
 
 ![Mosaic go Highly Accurate GNSS Receiver Module](../../assets/hardware/gps/septentrio_sbf/mosaic-go.png)
 
@@ -105,10 +105,10 @@ To enable multi-antenna attitude determination, follow the following procedure:
    For best accuracy, try to maximize the distance between the antennas, and avoid significant height difference between the antenna ARPs.
 2. In practice, the two antenna ARPs may not be exactly at the same height in the vehicle frame, or the main-aux1 baseline may not be exactly parallel or perpendicular to the longitudinal axis of the vehicle.
    This leads to offsets in the computed attitude angles.
-   These can be compensated for with the heading parameters provided by the Septentrio driver in PX4.
+   PX4 compensates for these from the antenna positions (see [GNSS-Based Heading](../gps_compass/septentrio.md#gnss-based-heading)).
 
 ::: info
-For optimal heading results, the two antennas should be seperated by at least 30cm / 11.8 in (ideally 50cm / 19.7in or more).
+For optimal heading results, the two antennas should be separated by at least 30cm / 11.8 in (ideally 50cm / 19.7in or more).
 
 For additional configuration of the dual antenna setup, please refer to our [Knowledge Base](https://support.septentrio.com/l/858493/2022-04-19/xgrqd) or the [hardware manual](https://web.septentrio.com/l/858493/2022-04-19/xgrql).
 :::

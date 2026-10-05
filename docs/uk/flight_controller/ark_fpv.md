@@ -13,7 +13,7 @@ The USA-built ARK FPV flight controller is based on the [ARKV6X](https://arkelec
 This flight controller is [manufacturer supported](../flight_controller/autopilot_manufacturer_supported.md).
 :::
 
-## Де купити
+## Where To Buy {#store}
 
 Order from [Ark Electronics](https://arkelectron.com/product/arkv6x/) (US)
 
@@ -23,8 +23,8 @@ See the documentation [Ark Electronics GitBook](https://arkelectron.gitbook.io/a
 
 ## Датчики
 
-- [Invensense IIM-42653 Industrial IMU](https://invensense.tdk.com/products/smartindustrial/iim-42653/)
-- [Bosch BMP390 Barometer](https://www.bosch-sensortec.com/products/environmental-sensors/pressure-sensors/bmp390/)
+- [Invensense IIM-42653 Industrial IMU](https://www.invensense.tdk.com/en-us/products/6-axis/iim-42653)
+- [Bosch BMP390 Barometer](https://www.bosch-sensortec.com/en/products/environmental-sensors/pressure-sensors/bmp390/)
 - [ST IIS2MDC Magnetometer](https://www.st.com/en/mems-and-sensors/iis2mdc.html)
 
 ## Мікропроцесор
@@ -76,7 +76,7 @@ See the documentation [Ark Electronics GitBook](https://arkelectron.gitbook.io/a
 
 ## Додаткова інформація
 
-- Weight: 7.5 g g with MicroSD card
+- Weight: 7.5 g with MicroSD card
 - Dimensions: 3.6 x 3.6 x 0.8 cm
 - USA Built - NDAA compliant
 - Heater: 1W for warming sensors in extreme cold

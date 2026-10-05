@@ -48,10 +48,13 @@
 #include <drivers/drv_hrt.h>
 #include <mathlib/math/Limits.hpp>
 #include <mathlib/math/Functions.hpp>
+#include <Sticks.hpp>
 
 #include "AttitudeControl/AttitudeControlMath.hpp"
 
 using namespace matrix;
+
+ModuleBase::Descriptor MulticopterAttitudeControl::desc{task_spawn, custom_command, print_usage};
 
 MulticopterAttitudeControl::MulticopterAttitudeControl(bool vtol) :
 	ModuleParams(nullptr),
@@ -94,8 +97,13 @@ MulticopterAttitudeControl::parameters_updated()
 
 	// angular rate limits
 	using math::radians;
+
 	_attitude_control.setRateLimit(Vector3f(radians(_param_mc_rollrate_max.get()), radians(_param_mc_pitchrate_max.get()),
 						radians(_param_mc_yawrate_max.get())));
+
+	_attitude_control.setRefModelFrequency(_param_mc_ref_w_n.get());
+	_attitude_control.setFeedForwardGain(_param_mc_ref_ff.get());
+	_attitude_control.setFeedForwardLimit(math::radians(_param_mc_ref_ff_max.get()));
 
 	// Update from hover thrust parameter if there's no valid estimate in use
 	if (!PX4_ISFINITE(_hover_thrust_estimate)) {
@@ -141,12 +149,15 @@ MulticopterAttitudeControl::generate_attitude_setpoint(const Quatf &q, float dt)
 	// Avoid accumulating absolute yaw error with arming stick gesture
 	const bool arming_gesture = (_manual_control_setpoint.throttle < -.9f) && (_param_mc_airmode.get() != 2);
 
-	if (arming_gesture || !_heading_good_for_control) {
+	if (arming_gesture) {
 		_yaw_setpoint_stabilized = NAN;
+		_stick_yaw.resetYawspeed();
 	}
 
 	const float yaw = Eulerf(q).psi();
-	const float yaw_stick_input = math::expo_deadzone(_manual_control_setpoint.yaw, .6f, _param_man_deadzone.get());
+	const float yaw_stick_input = arming_gesture
+				      ? 0.f
+				      : Sticks::expoDeadzone(_manual_control_setpoint.yaw, .6f, _param_man_deadzone.get());
 	_stick_yaw.generateYawSetpoint(attitude_setpoint.yaw_sp_move_rate, _yaw_setpoint_stabilized, yaw_stick_input, yaw, dt,
 				       _unaided_heading);
 
@@ -206,7 +217,7 @@ MulticopterAttitudeControl::Run()
 {
 	if (should_exit()) {
 		_vehicle_attitude_sub.unregisterCallback();
-		exit_and_cleanup();
+		exit_and_cleanup(desc);
 		return;
 	}
 
@@ -262,7 +273,14 @@ MulticopterAttitudeControl::Run()
 				_vtol_tailsitter = vehicle_status.is_vtol_tailsitter;
 
 				const bool armed = (vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED);
-				_spooled_up = armed && hrt_elapsed_time(&vehicle_status.armed_time) > _param_com_spoolup_time.get() * 1_s;
+
+				if (!armed) {
+					_spooled_up = false;
+
+				} else if (!_spooled_up) {
+					// Keep the spool-up state latched until disarm.
+					_spooled_up = hrt_elapsed_time(&vehicle_status.armed_time) > _param_com_spoolup_time.get() * 1_s;
+				}
 			}
 		}
 
@@ -278,7 +296,6 @@ MulticopterAttitudeControl::Run()
 			vehicle_local_position_s vehicle_local_position;
 
 			if (_vehicle_local_position_sub.copy(&vehicle_local_position)) {
-				_heading_good_for_control = vehicle_local_position.heading_good_for_control;
 				_unaided_heading = vehicle_local_position.unaided_heading;
 			}
 		}
@@ -313,7 +330,11 @@ MulticopterAttitudeControl::Run()
 				if (_vehicle_attitude_setpoint_sub.copy(&vehicle_attitude_setpoint)
 				    && (vehicle_attitude_setpoint.timestamp > _last_attitude_setpoint)) {
 
-					_attitude_control.setAttitudeSetpoint(Quatf(vehicle_attitude_setpoint.q_d), vehicle_attitude_setpoint.yaw_sp_move_rate);
+					const float setpoint_dt = (_last_attitude_setpoint > 0)
+								  ? (vehicle_attitude_setpoint.timestamp - _last_attitude_setpoint) * 1e-6f
+								  : -1.f;
+					_attitude_control.setAttitudeSetpoint(Quatf(vehicle_attitude_setpoint.q_d),
+									      vehicle_attitude_setpoint.yaw_sp_move_rate, setpoint_dt);
 					_thrust_setpoint_body = Vector3f(vehicle_attitude_setpoint.thrust_body);
 					_last_attitude_setpoint = vehicle_attitude_setpoint.timestamp;
 				}
@@ -406,8 +427,8 @@ int MulticopterAttitudeControl::task_spawn(int argc, char *argv[])
 	MulticopterAttitudeControl *instance = new MulticopterAttitudeControl(vtol);
 
 	if (instance) {
-		_object.store(instance);
-		_task_id = task_id_is_work_queue;
+		desc.object.store(instance);
+		desc.task_id = task_id_is_work_queue;
 
 		if (instance->init()) {
 			return PX4_OK;
@@ -418,8 +439,8 @@ int MulticopterAttitudeControl::task_spawn(int argc, char *argv[])
 	}
 
 	delete instance;
-	_object.store(nullptr);
-	_task_id = -1;
+	desc.object.store(nullptr);
+	desc.task_id = -1;
 
 	return PX4_ERROR;
 }
@@ -466,5 +487,5 @@ https://www.research-collection.ethz.ch/bitstream/handle/20.500.11850/154099/eth
  */
 extern "C" __EXPORT int mc_att_control_main(int argc, char *argv[])
 {
-	return MulticopterAttitudeControl::main(argc, argv);
+	return ModuleBase::main(MulticopterAttitudeControl::desc, argc, argv);
 }

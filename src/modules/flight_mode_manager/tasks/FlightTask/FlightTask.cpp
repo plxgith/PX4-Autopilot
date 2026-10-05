@@ -22,6 +22,8 @@ void FlightTask::reActivate()
 	// Preserve vertical velocity while on the ground to allow descending by stick for reliable land detection
 	trajectory_setpoint_s setpoint_preserve_vertical{empty_trajectory_setpoint};
 	setpoint_preserve_vertical.velocity[2] = _velocity_setpoint(2);
+	// Start from zero acceleration to make sure no accelration measurement driven by vibration gets used on the ground
+	matrix::Vector3f(0.f, 0.f, 0.f).copyTo(setpoint_preserve_vertical.acceleration);
 	activate(setpoint_preserve_vertical);
 }
 
@@ -151,6 +153,17 @@ void FlightTask::_evaluateVehicleLocalPosition()
 
 		if (_sub_vehicle_local_position.get().v_z_valid) {
 			_velocity(2) = _sub_vehicle_local_position.get().vz;
+		}
+
+		// acceleration is calculated as the velocity derivative in EKF2,
+		// if velocity is available acceleration values are available
+		if (_sub_vehicle_local_position.get().v_xy_valid) {
+			_acceleration(0) = _sub_vehicle_local_position.get().ax;
+			_acceleration(1) = _sub_vehicle_local_position.get().ay;
+		}
+
+		if (_sub_vehicle_local_position.get().v_z_valid) {
+			_acceleration(2) = _sub_vehicle_local_position.get().az;
 		}
 
 		// distance to bottom

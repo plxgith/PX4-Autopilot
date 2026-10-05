@@ -1,44 +1,158 @@
-# Contributing to PX4 Firmware
+# Contributing to PX4-Autopilot
 
-We follow the [Github flow](https://guides.github.com/introduction/flow/) development model.
+We follow the [GitHub flow](https://guides.github.com/introduction/flow/) development model.
 
-### Fork the project, then clone your repo
+## Fork the project, then clone your repo
 
-First [fork and clone](https://help.github.com/articles/fork-a-repo) the project project.
+First [fork and clone](https://help.github.com/articles/fork-a-repo) the project.
 
-### Create a feature branch
+## Create a feature branch
 
-*Always* branch off main for new features.
+Always branch off `main` for new features.
 
 ```
 git checkout -b mydescriptivebranchname
 ```
 
-### Edit and build the code
+## Edit and build the code
 
-The [developer guide](https://docs.px4.io/main/en/development/development.html) explains how to set up the development environment on Mac OS, Linux or Windows. Please take note of our [coding style](https://docs.px4.io/main/en/contribute/code.html) when editing files.
+The [developer guide](https://docs.px4.io/main/en/development/development.html) explains how to set up the development environment on Mac OS, Linux or Windows.
 
-### Commit your changes
+### Coding standards
 
-Always write descriptive commit messages and add a fixes or relates note to them with an [issue number](https://github.com/px4/Firmware/issues) (Github will link these then conveniently)
+All C/C++ code must follow the [PX4 coding style](https://docs.px4.io/main/en/contribute/code.html). Formatting is enforced by [astyle](http://astyle.sourceforge.net/) in CI (`make check_format`, ``make format`, `make format_changed`). Code quality checks run via [clang-tidy](https://clang.llvm.org/extra/clang-tidy/). Pull requests that fail either check will not be merged.
 
-**Example:**
+Python code is checked with [mypy](https://mypy-lang.org/) and [flake8](https://flake8.pycqa.org/).
+
+## Commit message convention
+
+PX4 uses [conventional commits](https://www.conventionalcommits.org/) for all commit messages and PR titles.
+
+### Format
 
 ```
-Change how the attitude controller works
-
-- Fixes rate feed forward
-- Allows a local body rate override
-
-Fixes issue #123
+type(scope): short description of the change
 ```
 
-### Test your changes
+| Part | Rule |
+|------|------|
+| **type** | Category of change (see types table below) |
+| **scope** | The module, driver, board, or area of PX4 affected |
+| **`!`** (optional) | Append before `:` to mark a breaking change |
+| **description** | What the change does, at least 5 characters, written in imperative form |
 
-Since we care about safety, we will regularly ask you for test results. Best is to do a test flight (or bench test where it applies) and upload the logfile from it (on the microSD card in the logs directory) to Google Drive or Dropbox and share the link.
+### Types
 
-### Push your changes
+| Type | Description |
+|------|-------------|
+| `feat` | A new feature |
+| `fix` | A bug fix |
+| `docs` | Documentation only changes |
+| `style` | Formatting, whitespace, no code change |
+| `refactor` | Code change that neither fixes a bug nor adds a feature |
+| `perf` | Performance improvement |
+| `test` | Adding or correcting tests |
+| `build` | Build system or external dependencies |
+| `ci` | CI configuration files and scripts |
+| `chore` | Other changes that don't modify src or test files |
+| `revert` | Reverts a previous commit |
 
-Push changes to your repo and send a [pull request](https://github.com/PX4/Firmware/compare/).
+### Scopes
+
+The scope identifies which part of PX4 is affected. Common scopes:
+
+| Scope | Area |
+|-------|------|
+| `ekf2` | Extended Kalman Filter (state estimation) |
+| `mavlink` | MAVLink messaging protocol |
+| `commander` | Commander and mode management |
+| `navigator` | Mission, Return, Land, and other navigation modes |
+| `sensors` | Sensor drivers and processing |
+| `drivers` | Hardware drivers |
+| `boards/px4_fmu-v6x` | Board-specific changes (use the board name) |
+| `mc_att_control` | Multicopter attitude control |
+| `mc_pos_control` | Multicopter position control |
+| `fw_att_control` | Fixed-wing attitude control |
+| `vtol` | VTOL-specific logic |
+| `actuators` | Mixer and actuator output |
+| `battery` | Battery monitoring and estimation |
+| `logger` | On-board logging |
+| `param` | Parameter system |
+| `simulation` | SITL, Gazebo, SIH |
+| `ci` | Continuous integration and workflows |
+| `docs` | Documentation |
+| `build` | CMake, toolchain, build system |
+| `uorb` | Inter-module messaging |
+
+For changes spanning multiple subsystems, use the primary one affected. Look at the directory path of the files you changed to find the right scope: `src/modules/ekf2/` uses `ekf2`, `src/drivers/imu/` uses `drivers/imu`, `.github/workflows/` uses `ci`.
+
+### Breaking changes
+
+Append `!` before the colon to indicate a breaking change:
+
+```
+feat(ekf2)!: remove deprecated height fusion API
+```
+
+### Good commit messages
+
+```
+feat(ekf2): add height fusion timeout
+fix(mavlink): correct BATTERY_STATUS_V2 parsing
+refactor(navigator): simplify return altitude logic
+ci(workflows): migrate to reusable workflows
+docs(ekf2): update tuning guide
+feat(boards/px4_fmu-v6x)!: remove deprecated driver API
+perf(mc_rate_control): reduce loop latency
+```
+
+### PR titles
+
+The PR title follows the same `type(scope): description` format. This is enforced by CI.
+
+### Merge policy
+
+PRs are typically squash-merged, so the PR title becomes the commit message on `main` and the individual commits on the branch are discarded. Write them well anyway: reviewers read them to follow how the PR evolved.
+
+### Updating a PR under review
+
+Once review has begun, address feedback by adding new commits. Do not amend, squash or otherwise rewrite commits that are already pushed: a force-push erases the history a reviewer has read, and they can no longer see what changed since their last review.
+
+Rebasing onto `main` is the exception, because it cannot be pushed without force. Rebase only when the PR needs it (merge conflicts, or a change on `main` it depends on), and keep the existing commits where possible rather than squashing them:
+
+```bash
+git rebase main
+git push --force-with-lease
+```
+
+## AI-assisted contributions
+
+AI coding assistants are welcome, under the [AI coding assistants policy](docs/en/contribute/ai_assistants.md):
+
+- You are the author. You must understand, and be able to defend, every line you submit. An AI tool is never an author or co-author, and never appears in a `Signed-off-by` tag.
+- Disclosure is required. Every commit with AI-generated or AI-assisted content must carry an `Assisted-by: NAME:MODEL` trailer in the commit body (for example `Assisted-by: Claude:claude-fable-5`).
+- All licensing, testing, and review requirements apply unchanged. Never claim testing that did not happen.
+
+## Test your changes
+
+PX4 is safety-critical software. All contributions must include adequate testing where practical:
+
+- **New features** must include unit tests and/or integration tests that exercise the new functionality, where practical. Hardware-dependent changes that cannot be tested in SITL should include bench test or flight test evidence.
+- **Bug fixes** must include a regression test where practical. When automated testing is not feasible (hardware-specific issues, race conditions, etc.), provide a link to a flight log demonstrating the fix and the reproduction steps for the original bug.
+- **Reviewers** will verify that tests or test evidence exist before approving a pull request.
+
+### Types of tests
+
+| Test type | When to use | How to run |
+|-----------|-------------|------------|
+| **Unit tests** (gtest) | Module-level logic, math, parsing | `make tests` |
+| **SITL integration tests** (MAVSDK) | Flight behavior, failsafes, missions | `test/mavsdk_tests/` |
+| **Bench tests / flight logs** | Hardware-dependent changes | Upload logs to [Flight Review](https://logs.px4.io) |
+
+Since we care about safety, we will regularly ask you for test results. Best is to do a test flight (or bench test where it applies) and upload the log file from it (on the microSD card in the logs directory) to Google Drive or Dropbox and share the link.
+
+## Push your changes
+
+Push changes to your repo and send a [pull request](https://github.com/PX4/PX4-Autopilot/compare/).
 
 Make sure to provide some testing feedback and if possible the link to a flight log file. Upload flight log files to [Flight Review](http://logs.px4.io) and link the resulting report.

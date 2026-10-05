@@ -73,7 +73,23 @@
                         },
                         "32": {
                             "name": "rtl",
-                            "description": "RTL"
+                            "description": "Return"
+                        },
+                        "64": {
+                            "name": "position_slow",
+                            "description": "Position Slow"
+                        },
+                        "128": {
+                            "name": "course",
+                            "description": "Course"
+                        },
+                        "256": {
+                            "name": "altitude_cruise",
+                            "description": "Altitude Cruise"
+                        },
+                        "512": {
+                            "name": "manual_parking",
+                            "description": "Manual Parking"
                         },
                         "1024": {
                             "name": "acro",
@@ -276,6 +292,10 @@
                         "1073741824": {
                             "name": "open_drone_id",
                             "description": "Open Drone ID system"
+                        },
+                        "2147483648": {
+                            "name": "traffic_avoidance",
+                            "description": "Traffic Avoidance (ADSB/FLARM)"
                         }
                     }
                 },
@@ -321,6 +341,61 @@
                         "16": {
                             "name": "high_error_density",
                             "description": "High Error Density"
+                        }
+                    }
+                },
+                "gnss_check_fail_t": {
+                    "type": "uint16_t",
+                    "description": "Bitfield of failing GNSS quality checks, the bit numbers of estimator_status.gps_check_fail_flags",
+                    "is_bitfield": true,
+                    "entries": {
+                        "1": {
+                            "name": "fix",
+                            "description": "Fix too low"
+                        },
+                        "2": {
+                            "name": "nsats",
+                            "description": "Not enough satellites"
+                        },
+                        "4": {
+                            "name": "pdop",
+                            "description": "PDOP too high"
+                        },
+                        "8": {
+                            "name": "hacc",
+                            "description": "Horizontal position error too high"
+                        },
+                        "16": {
+                            "name": "vacc",
+                            "description": "Vertical position error too high"
+                        },
+                        "32": {
+                            "name": "sacc",
+                            "description": "Speed accuracy too low"
+                        },
+                        "64": {
+                            "name": "hdrift",
+                            "description": "Horizontal position drift too high"
+                        },
+                        "128": {
+                            "name": "vdrift",
+                            "description": "Vertical position drift too high"
+                        },
+                        "256": {
+                            "name": "hspeed",
+                            "description": "Horizontal speed drift too high"
+                        },
+                        "512": {
+                            "name": "vspeed",
+                            "description": "Vertical speed drift too high"
+                        },
+                        "1024": {
+                            "name": "spoofed",
+                            "description": "Signal spoofed"
+                        },
+                        "2048": {
+                            "name": "jammed",
+                            "description": "Signal jammed"
                         }
                     }
                 },
@@ -418,7 +493,7 @@
                         },
                         "6": {
                             "name": "rtl",
-                            "description": "RTL"
+                            "description": "Return"
                         },
                         "7": {
                             "name": "land",
@@ -442,13 +517,9 @@
                     "type": "uint8_t",
                     "description": "Reason for arming/disarming",
                     "entries": {
-                        "0": {
-                            "name": "transition_to_standby",
-                            "description": "Transition to standby"
-                        },
                         "1": {
                             "name": "stick_gesture",
-                            "description": "Stick gesture"
+                            "description": "stick gesture"
                         },
                         "2": {
                             "name": "rc_switch",
@@ -467,36 +538,20 @@
                             "description": "mission start"
                         },
                         "6": {
-                            "name": "auto_disarm_land",
+                            "name": "landing",
                             "description": "landing"
                         },
                         "7": {
-                            "name": "auto_disarm_preflight",
-                            "description": "auto preflight disarming"
+                            "name": "preflight_inaction",
+                            "description": "preflight inaction"
                         },
                         "8": {
                             "name": "kill_switch",
                             "description": "kill switch"
                         },
-                        "9": {
-                            "name": "lockdown",
-                            "description": "lockdown"
-                        },
-                        "10": {
-                            "name": "failure_detector",
-                            "description": "failure detector"
-                        },
-                        "11": {
-                            "name": "shutdown",
-                            "description": "shutdown request"
-                        },
-                        "12": {
-                            "name": "unit_test",
-                            "description": "unit tests"
-                        },
                         "13": {
                             "name": "rc_button",
-                            "description": "RC (button)"
+                            "description": "RC button"
                         },
                         "14": {
                             "name": "failsafe",
@@ -530,7 +585,7 @@
                         },
                         "5": {
                             "name": "auto_rtl",
-                            "description": "RTL"
+                            "description": "Return"
                         },
                         "6": {
                             "name": "acro",
@@ -607,6 +662,18 @@
                         "24": {
                             "name": "altitude_cruise",
                             "description": "Altitude Cruise"
+                        },
+                        "25": {
+                            "name": "auto_course",
+                            "description": "Course"
+                        },
+                        "26": {
+                            "name": "descend",
+                            "description": "Descend"
+                        },
+                        "27": {
+                            "name": "manual_parking",
+                            "description": "Manual Parking"
                         },
                         "255": {
                             "name": "unknown",
@@ -737,7 +804,12 @@
                     "3": [67371008],
                     "4": [50593792],
                     "5": [84148224],
+                    "6": [33751040],
+                    "7": [319029248],
+                    "8": [720896],
+                    "9": [786432],
                     "10": [327680],
+                    "12": [335806464],
                     "14": [393216],
                     "15": [458752],
                     "17": [33816576],

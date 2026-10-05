@@ -35,6 +35,7 @@ px4_add_library(vehicle_air_data
 	VehicleAirData.cpp
 	VehicleAirData.hpp
 )
+set_property(GLOBAL APPEND PROPERTY PX4_MODULE_CONFIG_FILES ${CMAKE_CURRENT_SOURCE_DIR}/params.yaml)
 target_link_libraries(vehicle_air_data
 	PRIVATE
 		data_validator
@@ -43,3 +44,7 @@ target_link_libraries(vehicle_air_data
 	PUBLIC
 		atmosphere
 )
+
+if(BUILD_TESTING)
+	add_subdirectory(test)
+endif()

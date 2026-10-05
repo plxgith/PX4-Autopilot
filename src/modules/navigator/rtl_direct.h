@@ -33,7 +33,7 @@
 /**
  * @file rtl_direct.h
  *
- * Helper class for RTL
+ * Helper class for Return
  *
  * @author Julian Oes <julian@oes.ch>
  * @author Anton Babushkin <anton.babushkin@me.com>
@@ -46,7 +46,6 @@
 #include <px4_platform_common/module_params.h>
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionInterval.hpp>
-#include <uORB/topics/home_position.h>
 #include <uORB/topics/navigator_mission_item.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/rtl_time_estimate.h>
@@ -56,6 +55,9 @@
 #include <uORB/topics/wind.h>
 
 #include <lib/rtl/rtl_time_estimator.h>
+#if CONFIG_NAVIGATOR_GEOFENCE_AVOIDANCE
+#include "RTLPlanner/geofence_avoidance_planner.h"
+#endif // CONFIG_NAVIGATOR_GEOFENCE_AVOIDANCE
 #include "mission_block.h"
 #include "navigation.h"
 #include "safe_point_land.hpp"
@@ -79,14 +81,14 @@ public:
 
 	/**
 	 * @brief on activation.
-	 * Initialize the return to launch calculations.
+	 * Initialize the return calculations.
 	 *
 	 */
 	void on_activation() override;
 
 	/**
 	 * @brief on active
-	 * Update the return to launch calculation and set new setpoints for controller if necessary.
+	 * Update the return calculation and set new setpoints for controller if necessary.
 	 *
 	 */
 	void on_active() override;
@@ -99,26 +101,27 @@ public:
 	void on_inactive() override;
 
 	/**
-	 * @brief Calculate the estimated time needed to return to launch.
+	 * @brief Calculate the estimated time needed to return.
 	 *
-	 * @return estimated time to return to launch.
+	 * @return estimated return time.
 	 */
 	rtl_time_estimate_s calc_rtl_time_estimate();
 
 	void setReturnAltMin(bool min) { _enforce_rtl_alt = min; }
 	void setRtlAlt(float alt) {_rtl_alt = alt;};
 
-	void setRtlPosition(PositionYawSetpoint position, loiter_point_s loiter_pos);
+	void setRtlPosition(const PositionYawSetpoint &position, const loiter_point_s &loiter_pos);
 
 	bool isLanding() { return (_rtl_state != RTLState::IDLE) && (_rtl_state >= RTLState::LOITER_DOWN);};
 
 private:
 	/**
-	 * @brief Return to launch state machine.
+	 * @brief Return state machine.
 	 *
 	 */
 	enum class RTLState {
 		CLIMBING,
+		AVOID_GEOFENCE,
 		MOVE_TO_LOITER,
 		LOITER_DOWN,
 		LOITER_HOLD,
@@ -131,13 +134,13 @@ private:
 
 private:
 	/**
-	 * @brief Update the RTL state machine.
+	 * @brief Update the Return state machine.
 	 *
 	 */
 	void _updateRtlState();
 
 	/**
-	 * @brief Set the return to launch control setpoint.
+	 * @brief Set the return control setpoint.
 	 *
 	 */
 	void set_rtl_item();
@@ -146,7 +149,7 @@ private:
 	 * @brief sanitize land_approach
 	 *
 	 */
-	loiter_point_s sanitizeLandApproach(loiter_point_s land_approach) const;
+	loiter_point_s sanitizeLandApproach(const loiter_point_s &land_approach) const;
 
 	/**
 	 * Check for parameter changes and update them if needed.
@@ -161,16 +164,22 @@ private:
 
 	RTLState getActivationState();
 
+	/**
+	 * @brief Whether the geofence-avoidance planner currently has a path to fly.
+	 * Always false for build without geofence avoidance (CONFIG_NAVIGATOR_GEOFENCE_AVOIDANCE).
+	 */
+	bool geofenceAvoidanceActive() const;
+
 	void setLoiterPosition();
 
 	bool _enforce_rtl_alt{false};
 	bool _force_heading{false};
+	position_setpoint_s _setpoint_on_activation{}; ///< snapshot of the current setpoint taken before reset on activation, used to continue an established loiter through the climb
 	RtlTimeEstimator _rtl_time_estimator;
 
-	PositionYawSetpoint _destination; ///< the RTL position to fly to
+	PositionYawSetpoint _destination{(double)NAN, (double)NAN, NAN, NAN}; ///< the return position to fly to
 	loiter_point_s _land_approach;
-
-	float _rtl_alt{0.0f};	///< AMSL altitude at which the vehicle should return to the home position
+	float _rtl_alt{0.0f}; ///< AMSL altitude at which the vehicle should transit to the destination
 
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::RTL_DESCEND_ALT>) _param_rtl_descend_alt,
@@ -185,7 +194,6 @@ private:
 
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 	uORB::SubscriptionData<vehicle_global_position_s> _global_pos_sub{ORB_ID(vehicle_global_position)};	/**< global position subscription */
-	uORB::SubscriptionData<home_position_s> _home_pos_sub{ORB_ID(home_position)};		/**< home position subscription */
 	uORB::SubscriptionData<vehicle_land_detected_s> _land_detected_sub{ORB_ID(vehicle_land_detected)};	/**< vehicle land detected subscription */
 	uORB::SubscriptionData<vehicle_status_s> _vehicle_status_sub{ORB_ID(vehicle_status)};	/**< vehicle status subscription */
 	uORB::SubscriptionData<wind_s>		_wind_sub{ORB_ID(wind)};

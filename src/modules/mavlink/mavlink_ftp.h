@@ -37,15 +37,15 @@
 ///     @author px4dev, Don Gagne <don@thegagnes.com>
 
 #include <dirent.h>
-#include <queue.h>
+#include <sys/queue.h>
 
 #include <px4_platform_common/defines.h>
 #include <systemlib/err.h>
 #include <drivers/drv_hrt.h>
 
 #include "mavlink_bridge_header.h"
+#include "mavlink_ftp_param.h"
 
-class MavlinkFtpTest;
 class Mavlink;
 
 /// MAVLink remote file server. Support FTP like commands using MAVLINK_MSG_ID_FILE_TRANSFER_PROTOCOL message.
@@ -63,13 +63,6 @@ public:
 
 	/// Handle possible FTP message
 	void handle_message(const mavlink_message_t *msg);
-
-	typedef void (*ReceiveMessageFunc_t)(const mavlink_file_transfer_protocol_t *ftp_req, void *worker_data);
-
-	/// @brief Sets up the server to run in unit test mode.
-	///	@param rcvmsgFunc Function which will be called to handle outgoing mavlink messages.
-	///	@param worker_data Data to pass to worker
-	void set_unittest_worker(ReceiveMessageFunc_t rcvMsgFunc, void *worker_data);
 
 	/// @brief This is the payload which is in mavlink_file_transfer_protocol_t.payload.
 	/// This needs to be packed, because it's typecasted from mavlink_file_transfer_protocol_t.payload, which starts
@@ -104,6 +97,7 @@ public:
 		kCmdRename,		///< Rename <path1> to <path2>
 		kCmdCalcFileCRC32,	///< Calculate CRC32 for file at <path>
 		kCmdBurstReadFile,	///< Burst download session file
+		kCmdListDirectoryWithTime,	///< List files in <path> from <offset>, including last-modification time
 
 		kRspAck = 128,		///< Ack response
 		kRspNak			///< Nak response
@@ -133,7 +127,8 @@ private:
 	void		_reply(mavlink_file_transfer_protocol_t *ftp_req);
 	int		_copy_file(const char *src_path, const char *dst_path, size_t length);
 
-	ErrorCode	_workList(PayloadHeader *payload);
+	ErrorCode	_workList(PayloadHeader *payload, bool include_time = false);
+	void		_statDirent(const char *name, uint32_t &size, uint32_t &mtime);
 	ErrorCode	_workOpen(PayloadHeader *payload, int oflag);
 	ErrorCode	_workRead(PayloadHeader *payload);
 	ErrorCode	_workBurst(PayloadHeader *payload, uint8_t target_system_id, uint8_t target_component_id);
@@ -151,18 +146,22 @@ private:
 	uint8_t _getServerComponentId(void);
 	uint8_t _getServerChannel(void);
 
+	bool _session_open() const;
+	void _close_session();
+
+	/// Read from the open session. Returns bytes read, 0 at EOF, -1 on error with _our_errno set.
+	int _read_session(uint32_t offset, uint8_t *buf, uint16_t count);
+
 	/**
 	 * Construct local path by appending `path` to `_root_dir` and storing the result in `dst`.
 	 */
 	void _constructPath(char *dst, int dst_len, const char *path) const;
 
+	bool _validatePath(const char *path);
 	bool _validatePathIsWritable(const char *path);
 
-	/**
-	 * make sure that the working buffers _work_buffer* are allocated
-	 * @return true if buffers exist, false if allocation failed
-	 */
-	bool _ensure_buffers_exist();
+	/// Stamp last request time; drives the 30 s idle session close.
+	void _ensure_buffers_exist();
 
 	static const char	kDirentFile = 'F';	///< Identifies File returned from List command
 	static const char	kDirentDir = 'D';	///< Identifies Directory returned from List command
@@ -180,11 +179,9 @@ private:
 		uint8_t		stream_target_system_id;
 		uint8_t         stream_target_component_id;
 		unsigned	stream_chunk_transmitted;
+		ParamPckFile	param;			///< virtual parameter file, open instead of fd
 	};
 	struct SessionInfo _session_info {};	///< Session info, fd=-1 for no active session
-
-	ReceiveMessageFunc_t	_utRcvMsgFunc{};	///< Unit test override for mavlink message sending
-	void			*_worker_data{nullptr};	///< Additional parameter to _utRcvMsgFunc;
 
 	Mavlink &_mavlink;
 
@@ -192,28 +189,27 @@ private:
 	MavlinkFTP(const MavlinkFTP &);
 	MavlinkFTP operator=(const MavlinkFTP &);
 
-	/* work buffers: they're allocated as soon as we get the first request (lazy, since FTP is rarely used) */
-	char *_work_buffer1{nullptr};
 	static constexpr int _work_buffer1_len = kMaxDataLength;
-	char *_work_buffer2{nullptr};
 	static constexpr int _work_buffer2_len = 256;
-	hrt_abstime _last_work_buffer_access{0}; ///< timestamp when the buffers were last accessed
+	char _work_buffer1[_work_buffer1_len];
+	char _work_buffer2[_work_buffer2_len];
+	hrt_abstime _last_work_buffer_access{0};
 
 	// prepend a root directory to each file/dir access to avoid enumerating the full FS tree (e.g. on Linux).
-	// Note that requests can still fall outside of the root dir by using ../..
-#ifdef MAVLINK_FTP_UNIT_TEST
-	static constexpr const char _root_dir[] = "";
-#else
+	// Path traversal via ".." is rejected by _validatePath().
 	static constexpr const char _root_dir[] = PX4_ROOTFSDIR;
-#endif
 	static constexpr const int _root_dir_len = sizeof(_root_dir) - 1;
+
+	// Virtual directory prefix for log files as defined by the MAVLink FTP spec.
+	// Paths that start with this prefix are mapped to the flight-stack log root.
+	static constexpr const char _mav_log_prefix[] = "@MAV_LOG";
+	static constexpr const int _mav_log_prefix_len = sizeof(_mav_log_prefix) - 1;
+	static constexpr const char _mav_log_dir[] = PX4_STORAGEDIR "/log";
+	static constexpr const int _mav_log_dir_len = sizeof(_mav_log_dir) - 1;
 
 	bool _last_reply_valid = false;
 	uint8_t _last_reply[MAVLINK_MSG_ID_FILE_TRANSFER_PROTOCOL_LEN - MAVLINK_MSG_FILE_TRANSFER_PROTOCOL_FIELD_PAYLOAD_LEN
 								      + sizeof(PayloadHeader) + sizeof(uint32_t)];
-
-	// Mavlink test needs to be able to call send
-	friend class MavlinkFtpTest;
 
 	int _our_errno {0};
 };

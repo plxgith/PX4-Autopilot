@@ -46,7 +46,7 @@
 #include <px4_platform_common/init.h>
 #include <px4_platform/board_determine_hw_info.h>
 
-#if defined(CONFIG_S32K3XX_LPSPI1) && defined(CONFIG_MMCSD)
+#if defined(CONFIG_S32K3XX_LPSPI2) && defined(CONFIG_MMCSD)
 #include <nuttx/mmcsd.h>
 #endif
 
@@ -100,14 +100,14 @@ __EXPORT int board_app_initialize(uintptr_t arg)
 	board_determine_hw_info();
 
 
-#if defined(CONFIG_S32K3XX_LPSPI1) && defined(CONFIG_MMCSD)
-	/* LPSPI1 *****************************************************************/
+#if defined(CONFIG_S32K3XX_LPSPI2) && defined(CONFIG_MMCSD)
+	/* LPSPI2 *****************************************************************/
 
-	/* Configure LPSPI1 peripheral chip select */
+	/* Configure LPSPI2 peripheral chip select */
 
 	s32k3xx_pinconfig(PIN_LPSPI2_PCS);
 
-	/* Initialize the SPI driver for LPSPI1 */
+	/* Initialize the SPI driver for LPSPI2 */
 
 	struct spi_dev_s *g_lpspi2 = s32k3xx_lpspibus_initialize(2);
 

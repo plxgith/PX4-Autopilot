@@ -79,7 +79,7 @@ PX4 підтримує наступні команди MAVLink для камер
 
 ## Налаштування спрацьовування
 
-Камери можна підключати до FC для виклику за допомогою різних інтерфейсів, таких як PWM та GPIO, вказавши відповідний [задній інтерфейс тригера](#trigger-interface-backends).
+Cameras can be connected to the FC for triggering using different interfaces, such as PWM, and GPIO, by specifying the appropriate [trigger interface backend](#trigger-interface-backends).
 Ви також можете вказати камеру [режим тригера](#trigger-mode).
 
 Цю конфігурацію найлегше виконати з розділу _QGroundControl_ [Налаштування рухомого засобу > Камера](https://docs.qgroundcontrol.com/master/en/qgc-user-guide/setup_view/camera.html#px4-camera-setup).
@@ -139,7 +139,7 @@ At time of writing triggering only works on FMU pins:
 
 ### Інші параметри
 
-| Параметр                                                                                                           | Опис                                                                                                                                                                                                                                                                                                                                          |
+| Parameter                                                                                                          | Опис                                                                                                                                                                                                                                                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [TRIG_POLARITY](../advanced_config/parameter_reference.md#TRIG_POLARITY)                      | Доречний лише при використанні інтерфейсу GPIO. Встановлює полярність контакту спрацювання. Високий сигнал в активному стані означає що сигнал на контакті зазвичай низький і підіймається на високий рівень під час спрацювання. Низький сигнал в активному стані - навпаки. |
 | [TRIG_INTERVAL](../advanced_config/parameter_reference.md#TRIG_INTERVAL)                      | Визначає час між двома послідовними подіями спрацьовування в мілісекундах.                                                                                                                                                                                                                                                    |
@@ -179,6 +179,10 @@ PX4 виявляє висхідний фронт сигналу з відпов�
 PX4 видає повідомлення MAVLink [CAMERA_TRIGGER](https://mavlink.io/en/messages/common.html#CAMERA_TRIGGER) як на спрацювання камери, так і на захоплення камерою.
 Якщо налаштовано захоплення камерою, використовується відмітка часу від драйвера захоплення камери, в іншому випадку використовується відмітка часу спрацювання.
 :::
+
+PX4 also reports each capture to the ground station as a [CAMERA_IMAGE_CAPTURED](https://mavlink.io/en/messages/common.html#CAMERA_IMAGE_CAPTURED) message.
+This is controlled by [CAM_CAP_REPORT](../advanced_config/parameter_reference.md#CAM_CAP_REPORT), which is enabled by default and only needs to be disabled for cameras that report captures themselves (see [Capture Reporting](../camera/mavlink_v1_camera.md#capture-reporting)).
+Captures are logged for geotagging either way.
 
 ## Тестування функціональності тригера
 
@@ -308,7 +312,7 @@ end
 ### Крок 4
 
 Вам доведеться змінити свій драйвер, щоб дотримуватися схеми послідовності вище.
-Для камер [IDS Imaging UEye](https://github.com/ProjectArtemis/ueye_cam) та для камер, що відповідають стандарту [IEEE1394 compliant](https://github.com/andre-nguyen/camera1394), доступні публічні посилання на референтні реалізації.
+Public reference implementations for [IDS Imaging UEye](https://github.com/anqixu/ueye_cam) cameras and for [IEEE1394 compliant](https://github.com/andre-nguyen/camera1394) cameras are available.
 
 ## Дивіться також
 

@@ -55,22 +55,13 @@ then
 	set INA_CONFIGURED yes
 fi
 
-#Start Auterion Power Module selector for Skynode boards
-if ver hwbasecmp 009 010 011
+if [ $INA_CONFIGURED = no ]
 then
-	pm_selector_auterion start
-
-	# Auterion's INA238 uses a shunt value of 0.0003 instead of 0.0005.
-	param set-default INA238_SHUNT 0.0003
-else
-	if [ $INA_CONFIGURED = no ]
+	# INA226, INA228, INA238 auto-start
+	i2c_launcher start -b 1
+	if [ $HAVE_PM2 = yes ]
 	then
-		# INA226, INA228, INA238 auto-start
-		i2c_launcher start -b 1
-		if [ $HAVE_PM2 = yes ]
-		then
-			i2c_launcher start -b 2
-		fi
+		i2c_launcher start -b 2
 	fi
 fi
 
@@ -84,10 +75,19 @@ then
 		iim42652 -s -R 6 start
 		icm45686 -s -R 10 start
 	else
-		# Internal SPI bus 3x ICM45686
-		icm45686 -b 3 -s -R 0 start
-		icm45686 -b 2 -s -R 0 start
-		icm45686 -b 1 -s -R 10 start
+		# Internal SPI bus 3x ICM45686 or 3x IIM42653
+		if ! icm45686 -b 3 -s -R 0 start
+		then
+			iim42653 -b 3 -s -R 0 start
+		fi
+		if ! icm45686 -b 2 -s -R 0 start
+		then
+			iim42653 -b 2 -s -R 0 start
+		fi
+		if ! icm45686 -b 1 -s -R 10 start
+		then
+			iim42653 -b 1 -s -R 10 start
+		fi
 	fi
 else
 	if ver hwtypecmp V6X004
@@ -96,33 +96,22 @@ else
 		icm20649 -s -R 6 start
 	else
 		# Internal SPI BMI088
-		if ver hwbasecmp 009 010 011
+		if ver hwtypecmp V6X010
 		then
-			bmi088 -A -R 6 -s start
-			bmi088 -G -R 6 -s start
+			bmi088 -A -R 0 -s start
+			bmi088 -G -R 0 -s start
 		else
-			if ver hwtypecmp V6X010
-			then
-				bmi088 -A -R 0 -s start
-				bmi088 -G -R 0 -s start
-			else
-				bmi088 -A -R 4 -s start
-				bmi088 -G -R 4 -s start
-			fi
+			bmi088 -A -R 4 -s start
+			bmi088 -G -R 4 -s start
 		fi
 	fi
 
 	# Internal SPI bus ICM42688p
-	if ver hwbasecmp 009 010 011
+	if ver hwtypecmp V6X010
 	then
-		icm42688p -R 12 -s start
+		icm42688p -R 14 -s start
 	else
-		if ver hwtypecmp V6X010
-		then
-			icm42688p -R 14 -s start
-		else
-			icm42688p -R 6 -s start
-		fi
+		icm42688p -R 6 -s start
 	fi
 
 	if ver hwtypecmp V6X003 V6X004
@@ -130,13 +119,8 @@ else
 		# Internal SPI bus ICM-42670-P (hard-mounted)
 		icm42670p -R 10 -s start
 	else
-		if ver hwbasecmp 009 010 011
-		then
-			icm20602 -R 6 -s start
-		else
-			# Internal SPI bus ICM-20649 (hard-mounted)
-			icm20649 -R 14 -s start
-		fi
+		# Internal SPI bus ICM-20649 (hard-mounted)
+		icm20649 -R 14 -s start
 	fi
 fi
 
@@ -152,27 +136,27 @@ fi
 # External compass on GPS1/I2C1 (the 3rd external bus): standard Holybro Pixhawk 4 or CUAV V5 GPS/compass puck (with lights, safety button, and buzzer)
 ist8310 -X -b 1 -R 10 start
 
-# Possible internal Baro
-if param compare SENS_INT_BARO_EN 1
+# Internal baro
+if ver hwtypecmp V6X001 V6X006 V6X008
 then
-	if ver hwtypecmp V6X001 V6X006 V6X008
+	if ! icp201xx -I -a 0x64 -q start
 	then
-		icp201xx -I -a 0x64 start
-	else
-		bmp388 -I -a 0x77 start
+		bmp581 -I -a 0x46 start
 	fi
+else
+	bmp388 -I -a 0x77 start
 fi
 
-#external baro
+# Onboard baro on I2C2 (shared with the PM2 connector)
 if ver hwtypecmp V6X001
 then
-	icp201xx -X start
+	icp201xx -I -b 2 start
 else
-	bmp388 -X start
+	if ! bmp388 -I -b 2 -q start
+	then
+		bmp581 -I -b 2 -a 0x46 start
+	fi
 fi
-
-# Don't try to start external baro on I2C3 as it can conflict with the MS5525DSO airspeed sensor.
-#ms5611 -X start
 
 unset INA_CONFIGURED
 unset HAVE_PM2

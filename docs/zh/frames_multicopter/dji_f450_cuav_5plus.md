@@ -5,7 +5,7 @@ This topic provides full instructions for building the kit and configuring PX4 u
 Key information
 
 - **Frame:** DJI F450
-- **Flight controller:** [CUAV V5+](../flight_controller/cuav_v5_plus.md)
+- **Flight controller:** [CUAV V5+](../flight_controller/cuav_v5_plus.md) (Discontinued)
 - **Assembly time (approx.):** 90 minutes (45 minutes for frame, 45 minutes autopilot installation/configuration)
 
 ![Finished setup 1](../../assets/airframes/multicopter/dji_f450_cuav_5plus/f450_cuav5_plus_complete.png)
@@ -14,7 +14,7 @@ Key information
 
 The components needed for this build are:
 
-- Flight controller: [CUAV V5+](https://store.cuav.net/uav-flight-controller/):
+- Flight controller: _CUAV V5+_ (Discontinued):
   - GPS: CUAV NEO V2 GPS (Discontined)
   - Power Module
 - Frame: [DJI F450](https://www.amazon.com/Flame-Wheel-Basic-Quadcopter-Drone/dp/B00HNMVQHY)
@@ -43,8 +43,8 @@ This section lists all hardware for the frame.
 | DJI F450 Bottom plate                                             | 1        |
 | DJI F450 Top plate                                                | 1        |
 | DJI F450 legs with landing gear                                   | 4        |
-| M3\*8 screws                                                      | 18       |
-| M2 5\*6 screws                                                    | 24       |
+| M3\*8螺丝                                                           | 18       |
+| M2.5\*6 螺丝                                        | 24       |
 | Velcro Battery Strap                                              | 1        |
 | DJI Phantom Built-in Nut Upgrade Propellers 9.4x5 | 1        |
 

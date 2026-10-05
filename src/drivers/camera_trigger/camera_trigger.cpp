@@ -88,9 +88,9 @@ typedef enum : int32_t {
 	TRIGGER_MODE_DISTANCE_ON_CMD
 } trigger_mode_t;
 
-#define commandParamToInt(n) static_cast<int>(n >= 0 ? n + 0.5f : n - 0.5f)
+#define commandParamToInt(n) static_cast<int>((n) >= 0 ? (n) + 0.5f : (n) - 0.5f)
 
-class CameraTrigger : public px4::ScheduledWorkItem
+class CameraTrigger final : public px4::ScheduledWorkItem
 {
 public:
 	/**
@@ -934,7 +934,7 @@ Camera trigger driver.
 This module triggers cameras that are connected to the flight-controller outputs,
 or simple MAVLink cameras that implement the MAVLink trigger protocol.
 
-The driver responds to the following MAVLink trigger commands being found in missions or recieved over MAVLink:
+The driver responds to the following MAVLink trigger commands being found in missions or received over MAVLink:
 
 - `MAV_CMD_DO_TRIGGER_CONTROL`
 - `MAV_CMD_DO_DIGICAM_CONTROL`

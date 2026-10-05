@@ -45,8 +45,10 @@
 
 // uORB includes
 #include <uORB/Subscription.hpp>
+#include <uORB/SubscriptionCallback.hpp>
 #include <uORB/Publication.hpp>
 #include <uORB/topics/parameter_update.h>
+#include <uORB/topics/vehicle_angular_velocity.h>
 #include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_status.h>
 
@@ -60,10 +62,12 @@
 #include "AckermannDriveModes/AckermannManualMode/AckermannManualMode.hpp"
 #include "AckermannDriveModes/AckermannOffboardMode/AckermannOffboardMode.hpp"
 
-class RoverAckermann : public ModuleBase<RoverAckermann>, public ModuleParams,
+class RoverAckermann : public ModuleBase, public ModuleParams,
 	public px4::ScheduledWorkItem
 {
 public:
+	static Descriptor desc;
+
 	/**
 	 * @brief Constructor for RoverAckermann
 	 */
@@ -115,6 +119,7 @@ private:
 	void reset();
 
 	// uORB subscriptions
+	uORB::SubscriptionCallbackWorkItem _vehicle_angular_velocity_sub{this, ORB_ID(vehicle_angular_velocity)};
 	uORB::Subscription _parameter_update_sub{ORB_ID(parameter_update)};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
 	uORB::Subscription _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};

@@ -38,6 +38,7 @@
 #include <px4_platform_common/px4_config.h>
 #include <px4_arch/micro_hal.h>
 #include <systemlib/px4_macros.h>
+#include <nuttx/irq.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -258,7 +259,7 @@ typedef struct {
 	_stack_s interrupt;
 #endif
 
-} stack_t;
+} px4_stack_t;
 
 /* Not Used for reference only */
 
@@ -371,7 +372,7 @@ typedef struct {
 	int                   pid;                    /* Process ID */
 	uint32_t              regs[XCPTCONTEXT_REGS]; /* Interrupt register save area */
 	fault_regs_s          fault_regs;             /* NVIC status */
-	stack_t               stacks;                 /* Stack info */
+	px4_stack_t           stacks;                 /* Stack info */
 #if CONFIG_TASK_NAME_SIZE > 0
 	char                  name[CONFIG_TASK_NAME_SIZE + 1]; /* Task name (with NULL
 													* terminator) */

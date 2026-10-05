@@ -7,24 +7,21 @@ The [ARK Jetson Pixhawk Autopilot Bus (PAB) Carrier](https://arkelectron.gitbook
 ## 购买渠道
 
 - [ARK Jetson PAB Carrier](https://arkelectron.com/product/ark-jetson-pab-carrier/)
-- [ARK Jetson Orin NX NDAA Bundle](https://arkelectron.com/product/ark-jetson-orin-nx-ndaa-bundle/)
+- [ARK Jetson Orin NX NDAA Bundle](https://arkelectron.com/product/ark-jetson-pab-ndaa-bundle/?attribute_pa_orin-module=orin-nx-16gb)
 
 ## 产品规格
 
 - **Power Requirements**
-
   - 5V
   - 4A minimum (dependent on usage and peripherals)
 
 - **Additional Features**
-
   - Pixhawk Autopilot Bus (PAB) Form Factor ([PAB Standard](https://github.com/pixhawk/Pixhawk-Standards/blob/master/DS-010%20Pixhawk%20Autopilot%20Bus%20Standard.pdf))
   - MicroSD Slot
   - USA-built, NDAA compliant
   - Integrated 1W heater for sensor stability in extreme conditions
 
 - **Physical Details**
-
   - Weight:
     - Without Jetson and Flight Controller – 80g
     - With Jetson, no heatsink or Flight Controller – 108g
@@ -78,7 +75,7 @@ Two helper scripts are available for resetting the flight controller:
 
 ## Flashing Guide
 
-If you've purchased the [ARK Jetson Orin NX NDAA Bundle](https://arkelectron.com/product/ark-jetson-orin-nx-ndaa-bundle/), Jetpack 6 (Ubuntu 22.04) and [ARK-OS](https://github.com/ARK-Electronics/ARK-OS) are pre-installed.
+If you've purchased the [ARK Jetson Orin NX NDAA Bundle](https://arkelectron.com/product/ark-jetson-pab-ndaa-bundle/?attribute_pa_orin-module=orin-nx-16gb), Jetpack 6 (Ubuntu 22.04) and [ARK-OS](https://github.com/ARK-Electronics/ARK-OS) are pre-installed.
 
 ### ARK Jetson Kernel GitHub Repository
 
@@ -89,6 +86,6 @@ To flash the kernel, connect the Jetson to your Host PC via Micro USB, and boot 
 
 ![Jetson Carrier Flashing Guide](../../assets/companion_computer/ark_jetson_pab_carrier/ark_jetson_flashing_guide.png)
 
-## See Also
+## 另见
 
 - [ARK Jetson PAB Documentation](https://arkelectron.gitbook.io/ark-documentation/flight-controllers/ark-jetson-pab-carrier) (ARK Docs)

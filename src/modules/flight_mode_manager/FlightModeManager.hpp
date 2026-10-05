@@ -65,9 +65,11 @@ enum class FlightTaskError : int {
 	ActivationFailed = -2
 };
 
-class FlightModeManager : public ModuleBase<FlightModeManager>, public ModuleParams, public px4::WorkItem
+class FlightModeManager : public ModuleBase, public ModuleParams, public px4::WorkItem
 {
 public:
+	static Descriptor desc;
+
 	FlightModeManager();
 	~FlightModeManager() override;
 
@@ -94,7 +96,7 @@ private:
 
 	/**
 	 * Switch to a specific task (for normal usage)
-	 * @param task index to switch to
+	 * @param new_task_index index to switch to
 	 * @return 0 on success, <0 on error
 	 */
 	FlightTaskError switchTask(FlightTaskIndex new_task_index);

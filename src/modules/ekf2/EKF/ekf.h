@@ -46,7 +46,6 @@
 #include "estimator_interface.h"
 
 #if defined(CONFIG_EKF2_GNSS)
-# include "aid_sources/gnss/gnss_checks.hpp"
 # include "yaw_estimator/EKFGSF_yaw.h"
 #endif // CONFIG_EKF2_GNSS
 
@@ -55,6 +54,10 @@
 #include "bias_estimator/position_bias_estimator.hpp"
 
 #include <ekf_derivation/generated/state.h>
+
+#if defined(CONFIG_EKF2_TERRAIN)
+# include <ekf_derivation/generated/compute_hagl_innov_var.h>
+#endif // CONFIG_EKF2_TERRAIN
 
 #include <uORB/topics/estimator_aid_source1d.h>
 #include <uORB/topics/estimator_aid_source2d.h>
@@ -101,6 +104,10 @@ public:
 #if defined(CONFIG_EKF2_TERRAIN)
 	// terrain estimate
 	bool isTerrainEstimateValid() const { return _terrain_valid; }
+	bool isHeightAboveGroundEstimateValid() const
+	{
+		return isTerrainEstimateValid() || (_height_sensor_ref == HeightSensor::RANGE);
+	}
 
 	// get the estimated terrain vertical position relative to the NED origin
 	float getTerrainVertPos() const { return _state.terrain + getEkfGlobalOriginAltitude(); };
@@ -108,6 +115,15 @@ public:
 
 	// get the terrain variance
 	float getTerrainVariance() const { return P(State::terrain.idx, State::terrain.idx); }
+
+	// get the variance of the height above ground (HAGL) estimate; accounts for terrain and
+	// vertical position uncertainty as well as their covariance
+	float getHaglVariance() const
+	{
+		float hagl_var = 0.f;
+		sym::ComputeHaglInnovVar(P, 0.f, &hagl_var);
+		return fmaxf(hagl_var, 0.f);
+	}
 
 #endif // CONFIG_EKF2_TERRAIN
 
@@ -136,6 +152,10 @@ public:
 	const Vector3f &getFlowGyroBias() const { return _flow_gyro_bias; }
 	const Vector3f &getFlowRefBodyRate() const { return _ref_body_rate; }
 #endif // CONFIG_EKF2_OPTICAL_FLOW
+
+#if defined(CONFIG_EKF2_AUX_GLOBAL_POSITION) && defined(MODULE_NAME)
+	uint8_t getAgpFusingBitmask() const { return _aux_global_position.sourceFusingBitmask(); }
+#endif // CONFIG_EKF2_AUX_GLOBAL_POSITION
 
 	float getHeadingInnov() const;
 	float getHeadingInnovVar() const;
@@ -259,7 +279,10 @@ public:
 	}
 
 	// fuse single direct state measurement (eg NED velocity, NED position, mag earth field, etc)
-	void fuseDirectStateMeasurement(const float innov, const float innov_var, const float R, const int state_index);
+	// constrain_variances must be false when called from inside constrainStateVar to prevent
+	// unbounded recursion (constrainStateVariances can call back into this function).
+	void fuseDirectStateMeasurement(const float innov, const float innov_var, const float R, const int state_index,
+					bool constrain_variances = true);
 
 	bool measurementUpdate(VectorState &K, const VectorState &H, const float R, const float innovation);
 
@@ -273,6 +296,9 @@ public:
 	const Vector3f &getAccelBias() const { return _state.accel_bias; } // get the accelerometer bias in m/s**2
 	Vector3f getAccelBiasVariance() const { return getStateVariance<State::accel_bias>(); } // get the accelerometer bias variance in m/s**2
 	float getAccelBiasLimit() const { return _params.ekf2_abl_lim; }
+
+	// latitude-dependent gravity magnitude
+	float getGravityMss() const { return _gravity; }
 
 #if defined(CONFIG_EKF2_MAGNETOMETER)
 	const Vector3f &getMagEarthField() const { return _state.mag_I; }
@@ -377,10 +403,7 @@ public:
 	// set minimum continuous period without GPS fail required to mark a healthy GPS status
 	void set_min_required_gps_health_time(uint32_t time_us) { _min_gps_health_time_us = time_us; }
 
-	const GnssChecks::gps_check_fail_status_u &gps_check_fail_status() const { return _gnss_checks.getFailStatus(); }
-	const decltype(GnssChecks::gps_check_fail_status_u::flags) &gps_check_fail_status_flags() const { return _gnss_checks.getFailStatus().flags; }
-
-	bool gps_checks_passed() const { return _gnss_checks.passed(); };
+	bool gps_checks_passed() const { return _gnss_usable; };
 
 	const BiasEstimator::status &getGpsHgtBiasEstimatorStatus() const { return _gps_hgt_b_est.getStatus(); }
 
@@ -413,16 +436,25 @@ public:
 	const auto &aid_src_aux_vel() const { return _aid_src_aux_vel; }
 #endif // CONFIG_EKF2_AUXVEL
 
+#if defined(CONFIG_EKF2_RANGING_BEACON)
+	const auto &aid_src_ranging_beacon() const { return _aid_src_ranging_beacon; }
+#endif // CONFIG_EKF2_RANGING_BEACON
+
 	bool resetGlobalPosToExternalObservation(double latitude, double longitude, float altitude, float eph, float epv,
 			uint64_t timestamp_observation);
 
 	void resetHeadingToExternalObservation(float heading, float heading_accuracy)
 	{
+		// External heading is an observation of yaw. Setting heading_observable = true
+		// prevents clearInhibitedStateKalmanGains() from inhibiting the update
+		_control_status.flags.heading_observable = true;
+		const float heading_variance = sq(heading_accuracy);
+
 		if (_control_status.flags.yaw_align) {
-			resetYawByFusion(heading, heading_accuracy);
+			resetYawByFusion(heading, heading_variance);
 
 		} else {
-			resetQuatStateYaw(heading, heading_accuracy);
+			resetQuatStateYaw(heading, heading_variance);
 			_control_status.flags.yaw_align = true;
 		}
 
@@ -435,6 +467,7 @@ public:
 	void updateParameters();
 
 	friend class AuxGlobalPosition;
+	friend class AgpSource;
 
 private:
 
@@ -499,12 +532,15 @@ private:
 	uint64_t _time_last_hor_vel_fuse{0};	///< time the last fusion of horizontal velocity measurements was performed (uSec)
 	uint64_t _time_last_ver_vel_fuse{0};	///< time the last fusion of verticalvelocity measurements was performed (uSec)
 	uint64_t _time_last_heading_fuse{0};
+	uint64_t _time_heading_fusion_start{0};	///< start of the current uninterrupted period of heading observation fusion, while yaw was set manually (uSec)
 	uint64_t _time_last_terrain_fuse{0};
 
 	LatLonAlt _last_known_gpos{};
 
 	Vector3f _earth_rate_NED{}; ///< earth rotation vector (NED) in rad/s
 	double _earth_rate_lat_ref_rad{0.0}; ///< latitude at which the earth rate was evaluated (radians)
+
+	float _gravity{CONSTANTS_ONE_G}; ///< latitude-dependent gravity magnitude (m/s^2)
 
 	Dcmf _R_to_earth{};	///< transformation matrix from body frame to earth frame from last EKF prediction
 
@@ -541,11 +577,12 @@ private:
 	Vector3f _ref_body_rate{};
 
 	Vector2f _flow_vel_body{};                      ///< velocity from corrected flow measurement (body frame)(m/s)
-	AlphaFilter<Vector2f> _flow_vel_body_lpf{_dt_ekf_avg, _kSensorLpfTimeConstant}; ///< filtered velocity from corrected flow measurement (body frame)(m/s)
+	AlphaFilter<Vector2f> _flow_vel_body_lpf{_kSensorLpfTimeConstant}; ///< filtered velocity from corrected flow measurement (body frame)(m/s)
 	uint32_t _flow_counter{0};                      ///< number of flow samples read for initialization
 
 	Vector2f _flow_rate_compensated{}; ///< measured angular rate of the image about the X and Y body axes after removal of body rotation (rad/s), RH rotation is positive
-	AlphaFilter<Vector2f> _flow_rate_compensated_lpf{_dt_ekf_avg, _kSensorLpfTimeConstant};
+	AlphaFilter<Vector2f> _flow_rate_compensated_lpf{_kSensorLpfTimeConstant};
+	uint64_t _flow_lpf_time_last_us{0};
 #endif // CONFIG_EKF2_OPTICAL_FLOW
 
 #if defined(CONFIG_EKF2_AIRSPEED)
@@ -575,6 +612,11 @@ private:
 	// height sensor status
 	bool _gps_intermittent{true};           ///< true if data into the buffer is intermittent
 
+	uint64_t _time_last_gnss_sample_accepted_us{0}; ///< last delayed-horizon time a GNSS sample was usable and within the velocity limit (us)
+	bool _gnss_usable{false};                   ///< the latest GNSS sample at the fusion time horizon was usable
+	bool _gnss_checks_passed_reported{false};   ///< gps_checks_passed was reported since the last reset
+	uint64_t _time_last_gnss_fusion_stop_us{0}; ///< when GNSS velocity and position fusion were last both stopped
+
 	HeightBiasEstimator _gps_hgt_b_est{HeightSensor::GNSS, _height_sensor_ref};
 
 	estimator_aid_source1d_s _aid_src_gnss_hgt{};
@@ -583,10 +625,19 @@ private:
 
 	uint64_t _time_last_gnss_hgt_rejected{0};
 
+	// selection_count of the last GNSS sample used by the position and height control, to detect a receiver change
+	uint8_t _gnss_pos_selection_count{0};
+	uint8_t _gnss_hgt_selection_count{0};
+
 # if defined(CONFIG_EKF2_GNSS_YAW)
 	estimator_aid_source1d_s _aid_src_gnss_yaw {};
+	uint64_t _time_last_gnss_yaw_fail_us{0}; ///< last fusion failure or spoofing/jamming report of the heading receiver
 # endif // CONFIG_EKF2_GNSS_YAW
 #endif // CONFIG_EKF2_GNSS
+
+#if defined(CONFIG_EKF2_RANGING_BEACON)
+	estimator_aid_source1d_s _aid_src_ranging_beacon {};
+#endif // CONFIG_EKF2_RANGING_BEACON
 
 #if defined(CONFIG_EKF2_GRAVITY_FUSION)
 	estimator_aid_source3d_s _aid_src_gravity {};
@@ -620,7 +671,8 @@ private:
 
 	estimator_aid_source3d_s _aid_src_mag{};
 
-	AlphaFilter<Vector3f> _mag_lpf{_dt_ekf_avg, _kSensorLpfTimeConstant};	///< filtered magnetometer measurement for instant reset (Gauss)
+	AlphaFilter<Vector3f> _mag_lpf{_kSensorLpfTimeConstant};	///< filtered magnetometer measurement for instant reset (Gauss)
+	uint64_t _mag_lpf_time_last_us{0};
 	uint32_t _mag_counter{0};		///< number of magnetometer samples read during initialisation
 
 	// Variables used to control activation of post takeoff functionality
@@ -711,6 +763,8 @@ private:
 
 	// fuse body frame drag specific forces for multi-rotor wind estimation
 	void fuseDrag(const dragSample &drag_sample);
+
+	Vector3f getRelativeWindBody() const;
 #endif // CONFIG_EKF2_DRAG_FUSION
 
 	void resetVelocityTo(const Vector3f &vel, const Vector3f &new_vel_var);
@@ -731,6 +785,7 @@ private:
 	void resetHorizontalPositionTo(const Vector2f &new_pos, const Vector2f &new_horz_pos_var);
 
 	Vector2f getLocalHorizontalPosition() const;
+	LatLonAlt localToGlobalPosition(const Vector2f &pos_ne) const;
 
 	Vector2f computeDeltaHorizontalPosition(const double &new_latitude, const double &new_longitude) const;
 	void updateHorizontalPositionResetStatus(const Vector2f &delta);
@@ -749,7 +804,9 @@ private:
 					     const float observation, const float observation_variance, const float innovation_gate = 1.f) const;
 
 	// horizontal and vertical position fusion
+	bool fuseHorizontalPositionCore(estimator_aid_source2d_s &pos_aid_src);
 	bool fuseHorizontalPosition(estimator_aid_source2d_s &pos_aid_src);
+	bool fuseFakeHorizontalPosition(estimator_aid_source2d_s &pos_aid_src);
 	bool fuseVerticalPosition(estimator_aid_source1d_s &hgt_aid_src);
 
 	// 2d & 3d velocity fusion
@@ -822,6 +879,8 @@ private:
 	void constrainStateVar(const IdxDof &state, float min, float max);
 	void constrainStateVarLimitRatio(const IdxDof &state, float min, float max, float max_ratio = 1.e6f);
 
+	void uncorrelateAndLimitHeadingCovariance();
+
 	// generic function which will perform a fusion step given a kalman gain K
 	// and a scalar innovation value
 	void fuse(const VectorState &K, float innovation);
@@ -831,6 +890,8 @@ private:
 
 	// Control the filter fusion modes
 	void controlFusionModes(const imuSample &imu_delayed);
+
+	void updateYawManualValidity();
 
 #if defined(CONFIG_EKF2_EXTERNAL_VISION)
 	// control fusion of external vision observations
@@ -881,6 +942,22 @@ private:
 	void updateGnssPos(const gnssSample &gnss_sample, estimator_aid_source2d_s &aid_src);
 	bool isGnssVelResetAllowed() const;
 	bool isGnssPosResetAllowed() const;
+
+	// After velocity and position fusion both stop, a restart waits for the GNSS health time while disarmed on the
+	// ground, where the checks are strict, otherwise for a tenth of it and at least a second. The duration follows the
+	// current armed/in-air state, so arming during a ground hold-off shortens the remainder to the in-flight value.
+	// Computed here so the EKF does not depend on the checker's state.
+	uint64_t gnssRestartHoldOffUs() const
+	{
+		const bool disarmed_on_ground = !_control_status.flags.armed && !_control_status.flags.in_air;
+		return disarmed_on_ground ? (uint64_t)_min_gps_health_time_us
+		       : math::max((uint64_t)1e6, (uint64_t)(_min_gps_health_time_us / 10));
+	}
+
+	bool isGnssRestartHoldOffElapsed() const
+	{
+		return isTimedOut(_time_last_gnss_fusion_stop_us, gnssRestartHoldOffUs());
+	}
 	void controlGnssYawEstimator(estimator_aid_source3d_s &aid_src_vel);
 	bool tryYawEmergencyReset();
 	void resetVelocityToGnss(estimator_aid_source3d_s &aid_src);
@@ -891,7 +968,7 @@ private:
 	bool isGnssHgtResetAllowed();
 
 # if defined(CONFIG_EKF2_GNSS_YAW)
-	void controlGnssYawFusion(const gnssSample &gps_sample);
+	void controlGnssYawFusion(const imuSample &imu_delayed);
 	void stopGnssYawFusion();
 
 	// fuse the yaw angle obtained from a dual antenna GPS unit
@@ -901,7 +978,7 @@ private:
 	// return true if the reset was successful
 	bool resetYawToGnss(float gnss_yaw, float gnss_yaw_offset);
 
-	void updateGnssYaw(const gnssSample &gps_sample);
+	void updateGnssYaw(const gnssYawSample &gnss_yaw_sample);
 
 # endif // CONFIG_EKF2_GNSS_YAW
 
@@ -915,13 +992,24 @@ private:
 	// yaw estimator instance
 	EKFGSF_yaw _yawEstimator{};
 
+	uint64_t _time_yaw_estimator_activated_us{0};
+	bool _yaw_estimator_was_active_in_air{false};
+	bool _yaw_estimator_restarted_in_air{false};
+
 #endif // CONFIG_EKF2_GNSS
+
+#if defined(CONFIG_EKF2_RANGING_BEACON)
+	void controlRangingBeaconFusion(const imuSample &imu_delayed);
+	void fuseRangingBeacon(const rangingBeaconSample &sample);
+	void stopRangingBeaconFusion();
+#endif // CONFIG_EKF2_RANGING_BEACON
 
 #if defined(CONFIG_EKF2_MAGNETOMETER)
 	// control fusion of magnetometer observations
 	void controlMagFusion(const imuSample &imu_sample);
 
 	bool checkHaglYawResetReq() const;
+	bool isHeadingResetToMagAllowed() const;
 
 	void resetMagHeading(const Vector3f &mag);
 	void resetMagStates(const Vector3f &mag, bool reset_heading = true);
@@ -947,8 +1035,6 @@ private:
 	void resetFakeHgtFusion();
 	void resetHeightToLastKnown();
 	void stopFakeHgtFusion();
-
-	void controlZeroInnovationHeadingUpdate();
 
 #if defined(CONFIG_EKF2_AUXVEL)
 	// control fusion of auxiliary velocity observations
@@ -1019,6 +1105,7 @@ private:
 	void resetQuatStateYaw(float yaw, float yaw_variance);
 	void propagateQuatReset(const Quatf &quat_before_reset);
 	void resetYawByFusion(float yaw, float yaw_variance);
+	void resetHorizontalVelocityToMatchYaw(float delta_yaw);
 
 	HeightSensor _height_sensor_ref{HeightSensor::UNKNOWN};
 	PositionSensor _position_sensor_ref{PositionSensor::GNSS};

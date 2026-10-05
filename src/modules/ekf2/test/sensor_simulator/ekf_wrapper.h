@@ -61,6 +61,7 @@ public:
 
 	void setRangeHeightRef();
 	void enableRangeHeightFusion();
+	void enableConditionalRangeHeightFusion();
 	void disableRangeHeightFusion();
 	bool isIntendingRangeHeightFusion() const;
 
@@ -77,6 +78,7 @@ public:
 
 	void enableGpsFusion();
 	void disableGpsFusion();
+	void setGpsEnabled(bool enabled);
 	bool isIntendingGpsFusion() const;
 	bool isGnssFaultDetected() const;
 	void setGnssDeadReckonMode();
@@ -102,9 +104,11 @@ public:
 	void disableExternalVisionHeadingFusion();
 	bool isIntendingExternalVisionHeadingFusion() const;
 
+	bool isIntendingMagFusion() const;
 	bool isIntendingMagHeadingFusion() const;
 	bool isIntendingMag3DFusion() const;
 	bool isMagHeadingConsistent() const;
+	bool isMagFaultDetected() const;
 	void setMagFuseTypeNone();
 	void enableMagStrengthCheck();
 	void enableMagInclinationCheck();
@@ -132,8 +136,9 @@ public:
 private:
 	std::shared_ptr<Ekf> _ekf;
 
-	// Pointer to Ekf internal param struct
+	// Pointers to Ekf internal structs
 	parameters *_ekf_params;
+	FusionControl *_fc;
 
 };
 #endif // !EKF_EKF_WRAPPER_H

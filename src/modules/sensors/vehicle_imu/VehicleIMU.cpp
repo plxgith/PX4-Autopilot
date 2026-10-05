@@ -327,7 +327,7 @@ bool VehicleIMU::UpdateAccel()
 
 		_accel_last_generation = _sensor_accel_sub.get_last_generation();
 
-		_accel_calibration.set_device_id(accel.device_id);
+		_accel_calibration.set_device_id(accel.device_id, accel.is_external);
 
 		if (accel.error_count != _status.accel_error_count) {
 			_publish_status = true;
@@ -461,7 +461,7 @@ bool VehicleIMU::UpdateGyro()
 		_gyro_timestamp_sample_last = gyro.timestamp_sample;
 		_gyro_timestamp_last = gyro.timestamp;
 
-		_gyro_calibration.set_device_id(gyro.device_id);
+		_gyro_calibration.set_device_id(gyro.device_id, gyro.is_external);
 
 		if (gyro.error_count != _status.gyro_error_count) {
 			_publish_status = true;
@@ -706,8 +706,8 @@ void VehicleIMU::UpdateIntegratorConfiguration()
 		_gyro_integrator.set_reset_interval(roundf((gyro_integral_samples - 0.5f) * gyro_interval_us));
 		_gyro_integrator.set_reset_samples(gyro_integral_samples);
 
-		_backup_schedule_timeout_us = math::constrain((int)math::min(sensor_accel_s::ORB_QUEUE_LENGTH * accel_interval_us,
-					      sensor_gyro_s::ORB_QUEUE_LENGTH * gyro_interval_us) / 2, 1000, 20000);
+		_backup_schedule_timeout_us = math::constrain((int)math::min((sensor_accel_s::ORB_QUEUE_LENGTH - 1) * accel_interval_us,
+					      (sensor_gyro_s::ORB_QUEUE_LENGTH - 1) * gyro_interval_us), 1000, 20000);
 
 		// gyro: find largest integer multiple of gyro_integral_samples
 		for (int n = sensor_gyro_s::ORB_QUEUE_LENGTH; n > 0; n--) {
@@ -716,6 +716,12 @@ void VehicleIMU::UpdateIntegratorConfiguration()
 			}
 
 			if (gyro_integral_samples % n == 0) {
+				// Make sure _backup_schedule_timeout_us is not smaller than normal scheduling interval
+
+				if (_backup_schedule_timeout_us < n * gyro_interval_us) {
+					_backup_schedule_timeout_us = (n + 1) * gyro_interval_us;
+				}
+
 				_sensor_gyro_sub.set_required_updates(n);
 				_sensor_gyro_sub.registerCallback();
 

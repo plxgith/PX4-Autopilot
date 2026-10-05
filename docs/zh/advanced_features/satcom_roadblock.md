@@ -2,14 +2,13 @@
 
 卫星通信系统可在地面站和车辆之间提供远距离、高延迟的连接。
 
-本专题介绍如何建立一个使用RockBlock作为运营商的铱星短报文（Short Burst Data，SBD）卫星通信系统。
-在信号质量良好的情况下，用户端延迟在10至15秒左右。
+本专题介绍如何建立一个使用RockBlock作为运营商的铱星短报文（Short Burst Data，SBD）卫星通信系统。在信号质量良好的情况下，用户端延迟在10至15秒左右。
 
 ## 综述
 
 卫星通信链接需要以下组成部件：
 
-- A [RockBlock 9603 Iridium Satellite Modem](https://www.iridium.com/products/ground-control-rockblock-9603/) module connected to a Pixhawk flashed with the PX4 Autopilot.
+- A [RockBlock 9603 Iridium Satellite Modem](https://www.iridium.com/products/rockblock-9603) module connected to a Pixhawk flashed with the PX4 Autopilot.
 - 运行 Ubuntu 系统的消息中继服务器。
 - A ground station computer running _QGroundControl_ on Ubuntu Linux
 
@@ -51,20 +50,20 @@ The module can either use the internal antenna or an external one connected to t
 To [switch between the two antennas modes](https://docs.groundcontrol.com/iot/rockblock/user-manual/9603-atenna-mode) the position of a small RF link cable needs to changed.
 If an external antenna is used always make sure that the antenna is connected to the module before powering it up to avoid damage to the module.
 
-The default baud rate of the module is 19200. However, the PX4 _iridiumsbd_ driver requires a baud rate of 115200 so it needs to be changed using the [AT commands](https://www.groundcontrol.com/wp-content/uploads/2022/02/IRDM_ISU_ATCommandReferenceMAN0009_Rev2.0_ATCOMM_Oct2012.pdf).
+The default baud rate of the module is 19200. However, the PX4 _iridiumsbd_ driver requires a baud rate of 115200 so it needs to be changed using the [AT commands](https://docs.groundcontrol.com/iot/rockblock/user-manual/at-commands).
 
 1. Connect to the module with using a 19200/8-N-1 setting and check if the communication is working using the command: `AT`.
    The response should be: `OK`.
 
 2. Change the baud rate:
 
-   ```
+   ```sh
    AT+IPR=9
    ```
 
 3. Reconnect to the model now with a 115200/8-N-1 setting and save the configuration using:
 
-   ```
+   ```sh
    AT&W0
    ```
 
@@ -78,7 +77,7 @@ There is no need to set the baud rate for the port, as this is configured by the
 :::info
 If the configuration parameter is not available in _QGroundControl_ then you may need to [add the driver to the firmware](../peripherals/serial_configuration.md#parameter_not_in_firmware):
 
-```
+```txt
 drivers/telemetry/iridiumsbd
 ```
 

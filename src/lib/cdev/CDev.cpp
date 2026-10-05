@@ -89,7 +89,7 @@ CDev::register_class_devname(const char *class_devname)
 	while (class_instance < 4) {
 		char name[32];
 		snprintf(name, sizeof(name), "%s%d", class_devname, class_instance);
-		ret = register_driver(name, &fops, 0666, (void *)this);
+		ret = register_driver(name, &fops_ref(), 0666, (void *)this);
 
 		if (ret == OK) {
 			break;
@@ -124,7 +124,7 @@ CDev::init()
 
 	// now register the driver
 	if (_devname != nullptr) {
-		ret = register_driver(_devname, &fops, 0666, (void *)this);
+		ret = register_driver(_devname, &fops_ref(), 0666, (void *)this);
 
 		if (ret == PX4_OK) {
 			_registered = true;
@@ -287,10 +287,20 @@ CDev::poll(file_t *filep, px4_pollfd_struct_t *fds, bool setup)
 			 */
 			fds->revents |= fds->events & poll_state(filep);
 
-			/* yes? post the notification */
+			/* yes? invoke the callback */
+#ifdef __PX4_NUTTX
+
+			if (fds->revents != 0 && fds->cb != nullptr) {
+				fds->cb(fds);
+			}
+
+#else
+
 			if (fds->revents != 0) {
 				px4_sem_post(fds->sem);
 			}
+
+#endif
 
 		}
 
@@ -335,9 +345,19 @@ CDev::poll_notify_one(px4_pollfd_struct_t *fds, px4_pollevent_t events)
 
 	PX4_DEBUG(" Events fds=%p %0x %0x %0x", fds, fds->revents, fds->events, events);
 
+#ifdef __PX4_NUTTX
+
+	if (fds->revents != 0 && fds->cb != nullptr) {
+		fds->cb(fds);
+	}
+
+#else
+
 	if (fds->revents != 0) {
 		px4_sem_post(fds->sem);
 	}
+
+#endif
 }
 
 int

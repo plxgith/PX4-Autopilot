@@ -20,11 +20,29 @@ If a listed parameter is missing from the Firmware see: [Finding/Updating Parame
 """
                   )
 
+        # Define the groups and parameters that are specific to certain boards, to allow for a note to be added to the documentation.
+        BOARD_SPECIFIC_GROUPS = ['Actuator Outputs']
+        PARAM_IS_OUTPUT_TIMER = ['PWM_MAIN_TIM0', 'PWM_MAIN_TIM1', 'PWM_MAIN_TIM2', 'PWM_AUX_TIM0', 'PWM_AUX_TIM1', 'PWM_AUX_TIM2', 'PWM_AUX_TIM3']
+
         for group in groups:
             result += f'## {group.GetName()}\n\n'
 
+            # Wrap each group, and each parameter within it, so the docs theme can skip rendering
+            # off-screen content (see .param-group in docs/.vitepress/theme/style.css).
+            # The group heading stays outside the wrapper so the page outline can track it.
+            result += f'<div class="param-group" style="--param-count: {len(group.GetParams())}">\n\n'
+
+            group_is_board_specific = (group.GetName() in BOARD_SPECIFIC_GROUPS)
+
             for param in group.GetParams():
                 name = param.GetName()
+
+                # Apply note if either the group is board specific
+                apply_note_board_specific_group = group_is_board_specific
+
+                # Apply note if name is in list of timer group parameters
+                apply_timer_param_note = (name in PARAM_IS_OUTPUT_TIMER)
+
                 short_desc = param.GetFieldValue("short_desc") or ''
 
                 # Add fullstop to short_desc if not present
@@ -72,22 +90,42 @@ If a listed parameter is missing from the Firmware see: [Finding/Updating Parame
                         bitmask_output+=f"- `{bit}`: {bit_text}\n"
                     bitmask_output+='\n\n'
 
-                if is_boolean and def_val=='1':
-                    def_val='Enabled (1)'
-                if is_boolean and def_val=='0':
-                    def_val='Disabled (0)'
+                if is_boolean:
+                    BOOLEAN_LABELS = {
+                        '0': 'Disabled',
+                        '1': 'Enabled'
+                    }
+                    # Give def_value an explanatory string (is def_value if no match)
+                    def_val = f"{BOOLEAN_LABELS[def_val]} ({def_val})" if def_val in BOOLEAN_LABELS else def_val
 
+                    # Format values and their descriptions for display.
+                    boolean_values = '**Values:**\n\n'
+                    for key, label in BOOLEAN_LABELS.items():
+                        boolean_values += f"- `{key}`: {label}\n"
+                    boolean_values += '\n'
+
+                result += '<div class="param">\n\n'
                 result += f'### {name} (`{type}`)' + ' {#' + name + '}\n\n'
+                if apply_note_board_specific_group:
+                    result += f'<Badge type="warning" text="This parameter is only present on some boards." />\n\n'
+                if apply_timer_param_note:
+                    result += f'<Badge type="info" text="The exact output numbers where this timer applies are board-specific." />\n\n'
                 if short_desc:
                     result += f'{short_desc}\n\n'
                 if long_desc:
                     result += f'{long_desc}\n\n'
+                if is_boolean:
+                    result += boolean_values
                 if enum_codes:
                     result += enum_output
                 if bitmask_list:
                     result += bitmask_output
                 # Format the ranges as a table.
-                result += f"Reboot | minValue | maxValue | increment | default | unit\n--- | --- | --- | --- | --- | ---\n{'&check;' if reboot_required else '&nbsp;' } | {min_val} | {max_val} | {increment} | {def_val} | {unit} \n\n"
+                is_readonly = param.GetReadonly()
+                result += f"Reboot | minValue | maxValue | increment | default | unit | Read-Only\n--- | --- | --- | --- | --- | --- | ---\n{'&check;' if reboot_required else '&nbsp;' } | {min_val} | {max_val} | {increment} | {def_val} | {unit} | {'&check;' if is_readonly else '&nbsp;'}\n\n"
+                result += '</div>\n\n'
+
+            result += '</div>\n\n'
 
         self.output = result
 

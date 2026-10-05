@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2021 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2021-2026 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,6 +38,8 @@
 #include <lib/geo/geo.h>
 
 using namespace matrix;
+
+ModuleBase::Descriptor SensorGpsSim::desc{task_spawn, custom_command, print_usage};
 
 SensorGpsSim::SensorGpsSim() :
 	ModuleParams(nullptr),
@@ -91,7 +93,7 @@ void SensorGpsSim::Run()
 {
 	if (should_exit()) {
 		ScheduleClear();
-		exit_and_cleanup();
+		exit_and_cleanup(desc);
 		return;
 	}
 
@@ -106,6 +108,9 @@ void SensorGpsSim::Run()
 		updateParams();
 	}
 
+	updateFailureConfig();
+	const bool rtk = updateRtcmCorrections();
+
 	if (_vehicle_local_position_sub.updated() && _vehicle_global_position_sub.updated()) {
 
 		vehicle_local_position_s lpos{};
@@ -114,11 +119,30 @@ void SensorGpsSim::Run()
 		vehicle_global_position_s gpos{};
 		_vehicle_global_position_sub.copy(&gpos);
 
-		double latitude = gpos.lat + math::degrees((double)generate_wgn() * 0.2 / CONSTANTS_RADIUS_OF_EARTH);
-		double longitude = gpos.lon + math::degrees((double)generate_wgn() * 0.2 / CONSTANTS_RADIUS_OF_EARTH);
-		double altitude = (double)(gpos.alt + (generate_wgn() * 0.5f));
+		// Correlated Markov process position noise (matching GZBridge model)
+		_gps_pos_noise_n = _pos_markov_time * _gps_pos_noise_n +
+				   _pos_random_walk * generate_wgn() * _pos_noise_amplitude;
 
-		Vector3f gps_vel = Vector3f{lpos.vx, lpos.vy, lpos.vz} + noiseGauss3f(0.06f, 0.077f, 0.158f);
+		_gps_pos_noise_e = _pos_markov_time * _gps_pos_noise_e +
+				   _pos_random_walk * generate_wgn() * _pos_noise_amplitude;
+
+		_gps_pos_noise_d = _pos_markov_time * _gps_pos_noise_d +
+				   _pos_random_walk * generate_wgn() * _pos_noise_amplitude * 1.5f;
+
+		const double latitude = gpos.lat + math::degrees((double)_gps_pos_noise_n / CONSTANTS_RADIUS_OF_EARTH);
+		const double longitude = gpos.lon + math::degrees((double)_gps_pos_noise_e / CONSTANTS_RADIUS_OF_EARTH);
+		const double altitude = (double)(gpos.alt + _gps_pos_noise_d);
+
+		_gps_vel_noise_n = _vel_markov_time * _gps_vel_noise_n +
+				   _vel_noise_density * generate_wgn() * _vel_noise_amplitude;
+
+		_gps_vel_noise_e = _vel_markov_time * _gps_vel_noise_e +
+				   _vel_noise_density * generate_wgn() * _vel_noise_amplitude;
+
+		_gps_vel_noise_d = _vel_markov_time * _gps_vel_noise_d +
+				   _vel_noise_density * generate_wgn() * _vel_noise_amplitude * 1.2f;
+
+		const Vector3f gps_vel = Vector3f{lpos.vx + _gps_vel_noise_n, lpos.vy + _gps_vel_noise_e, lpos.vz + _gps_vel_noise_d};
 
 		// device id
 		device::Device::DeviceId device_id;
@@ -127,59 +151,99 @@ void SensorGpsSim::Run()
 		device_id.devid_s.address = 0;
 		device_id.devid_s.devtype = DRV_GPS_DEVTYPE_SIM;
 
-		sensor_gps_s sensor_gps{};
+		sensor_gnss_s sensor_gnss{};
 
 		if (_sim_gps_used.get() >= 4) {
-			// fix
-			sensor_gps.fix_type = 3; // 3D fix
-			sensor_gps.s_variance_m_s = 0.4f;
-			sensor_gps.c_variance_rad = 0.1f;
-			sensor_gps.eph = 0.9f;
-			sensor_gps.epv = 1.78f;
-			sensor_gps.hdop = 0.7f;
-			sensor_gps.vdop = 1.1f;
+			// fix: RTK fixed while corrections are flowing, 3D otherwise
+			sensor_gnss.fix_type = rtk ? sensor_gnss_s::FIX_TYPE_RTK_FIXED : sensor_gnss_s::FIX_TYPE_3D;
+			sensor_gnss.speed_accuracy = 0.4f;
+			sensor_gnss.course_accuracy = 0.1f;
+			sensor_gnss.eph = rtk ? 0.02f : 0.9f;
+			sensor_gnss.epv = rtk ? 0.04f : 1.78f;
+			sensor_gnss.hdop = 0.7f;
+			sensor_gnss.vdop = 1.1f;
 
 		} else {
 			// no fix
-			sensor_gps.fix_type = 0; // No fix
-			sensor_gps.s_variance_m_s = 100.f;
-			sensor_gps.c_variance_rad = 100.f;
-			sensor_gps.eph = 100.f;
-			sensor_gps.epv = 100.f;
-			sensor_gps.hdop = 100.f;
-			sensor_gps.vdop = 100.f;
+			sensor_gnss.fix_type = 0; // No fix
+			sensor_gnss.speed_accuracy = 100.f;
+			sensor_gnss.course_accuracy = 100.f;
+			sensor_gnss.eph = 100.f;
+			sensor_gnss.epv = 100.f;
+			sensor_gnss.hdop = 100.f;
+			sensor_gnss.vdop = 100.f;
 		}
 
-		sensor_gps.timestamp_sample = gpos.timestamp_sample;
-		sensor_gps.time_utc_usec = 0;
-		sensor_gps.device_id = device_id.devid;
-		sensor_gps.latitude_deg = latitude; // Latitude in degrees
-		sensor_gps.longitude_deg = longitude; // Longitude in degrees
-		sensor_gps.altitude_msl_m = altitude; // Altitude in meters above MSL
-		sensor_gps.altitude_ellipsoid_m = altitude;
-		sensor_gps.noise_per_ms = 0;
-		sensor_gps.jamming_indicator = 0;
-		sensor_gps.vel_m_s = sqrtf(gps_vel(0) * gps_vel(0) + gps_vel(1) * gps_vel(1)); // GPS ground speed, (metres/sec)
-		sensor_gps.vel_n_m_s = gps_vel(0);
-		sensor_gps.vel_e_m_s = gps_vel(1);
-		sensor_gps.vel_d_m_s = gps_vel(2);
-		sensor_gps.cog_rad = atan2(gps_vel(1),
+		sensor_gnss.timestamp_sample = gpos.timestamp_sample;
+		sensor_gnss.time_utc_usec = 0;
+		sensor_gnss.device_id = device_id.devid;
+		sensor_gnss.latitude = latitude; // Latitude in degrees
+		sensor_gnss.longitude = longitude; // Longitude in degrees
+		sensor_gnss.altitude_msl = altitude; // Altitude in meters above MSL
+		sensor_gnss.altitude_ellipsoid = altitude;
+		sensor_gnss.noise = 0;
+		sensor_gnss.jamming_indicator = 0;
+		sensor_gnss.ground_speed = sqrtf(gps_vel(0) * gps_vel(0) + gps_vel(1) * gps_vel(1)); // GPS ground speed, (metres/sec)
+		sensor_gnss.vel_north = gps_vel(0);
+		sensor_gnss.vel_east = gps_vel(1);
+		sensor_gnss.vel_down = gps_vel(2);
+		sensor_gnss.course = atan2(gps_vel(1),
 					   gps_vel(0)); // Course over ground (NOT heading, but direction of movement), -PI..PI, (radians)
-		sensor_gps.timestamp_time_relative = 0;
-		sensor_gps.heading = NAN;
-		sensor_gps.heading_offset = NAN;
-		sensor_gps.heading_accuracy = 0;
-		sensor_gps.automatic_gain_control = 0;
-		sensor_gps.jamming_state = 0;
-		sensor_gps.spoofing_state = 0;
-		sensor_gps.vel_ned_valid = true;
-		sensor_gps.satellites_used = _sim_gps_used.get();
+		sensor_gnss.timestamp_time_relative = 0;
+		sensor_gnss.automatic_gain_control = 0;
+		sensor_gnss.jamming_state = 0;
+		sensor_gnss.spoofing_state = 0;
+		sensor_gnss.vel_ned_valid = true;
+		sensor_gnss.satellites_used = _sim_gps_used.get();
 
-		sensor_gps.timestamp = hrt_absolute_time();
-		_sensor_gps_pub.publish(sensor_gps);
+		publishWithFailures(0, sensor_gnss, _sensor_gnss_pub);
+
+		const float gnss1_offx = _param_gnss1_offx.get();
+		const float gnss1_offy = _param_gnss1_offy.get();
+
+		if (fabsf(gnss1_offx) > 0.f || fabsf(gnss1_offy) > 0.f) {
+			sensor_gnss_s gnss1 = sensor_gnss;
+
+			device_id.devid_s.address = 1;
+			gnss1.device_id = device_id.devid;
+
+			gnss1.latitude  = latitude  + (double)gnss1_offx / CONSTANTS_RADIUS_OF_EARTH * (180.0 / M_PI);
+			gnss1.longitude = longitude + (double)gnss1_offy / CONSTANTS_RADIUS_OF_EARTH * (180.0 / M_PI) / cos(latitude * M_PI / 180.0);
+
+			publishWithFailures(1, gnss1, _sensor_gnss_pub2);
+		}
 	}
 
 	perf_end(_loop_perf);
+}
+
+void SensorGpsSim::publishWithFailures(int instance, sensor_gnss_s gnss, uORB::PublicationMulti<sensor_gnss_s> &pub)
+{
+	gnss.timestamp = hrt_absolute_time();
+
+	if (!failure_injection::process_gnss(_failure_config, instance, gnss, _stuck[instance])) {
+		return;
+	}
+
+	pub.publish(gnss);
+}
+
+void SensorGpsSim::updateFailureConfig()
+{
+	_failure_config.update();
+}
+
+bool SensorGpsSim::updateRtcmCorrections()
+{
+	rtcm_data_s msg;
+
+	for (int instance = 0; instance < _rtcm_corrections_sub.size(); instance++) {
+		while (_rtcm_corrections_sub[instance].update(&msg)) {
+			_last_rtcm_time = math::max(_last_rtcm_time, msg.timestamp);
+		}
+	}
+
+	return (_last_rtcm_time != 0) && (hrt_elapsed_time(&_last_rtcm_time) < RTCM_TIMEOUT);
 }
 
 int SensorGpsSim::task_spawn(int argc, char *argv[])
@@ -187,8 +251,8 @@ int SensorGpsSim::task_spawn(int argc, char *argv[])
 	SensorGpsSim *instance = new SensorGpsSim();
 
 	if (instance) {
-		_object.store(instance);
-		_task_id = task_id_is_work_queue;
+		desc.object.store(instance);
+		desc.task_id = task_id_is_work_queue;
 
 		if (instance->init()) {
 			return PX4_OK;
@@ -199,8 +263,8 @@ int SensorGpsSim::task_spawn(int argc, char *argv[])
 	}
 
 	delete instance;
-	_object.store(nullptr);
-	_task_id = -1;
+	desc.object.store(nullptr);
+	desc.task_id = -1;
 
 	return PX4_ERROR;
 }
@@ -232,5 +296,5 @@ int SensorGpsSim::print_usage(const char *reason)
 
 extern "C" __EXPORT int sensor_gps_sim_main(int argc, char *argv[])
 {
-	return SensorGpsSim::main(argc, argv);
+	return ModuleBase::main(SensorGpsSim::desc, argc, argv);
 }

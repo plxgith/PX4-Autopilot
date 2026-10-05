@@ -48,9 +48,11 @@
 
 using namespace time_literals;
 
-class I2CLauncher : public ModuleBase<I2CLauncher>, public ModuleParams, public px4::ScheduledWorkItem
+class I2CLauncher : public ModuleBase, public ModuleParams, public px4::ScheduledWorkItem
 {
 public:
+	static Descriptor desc;
+
 	I2CLauncher(int bus, int batt_index);
 
 	~I2CLauncher() override;
@@ -83,7 +85,7 @@ private:
 	uORB::Subscription _parameter_update_sub{ORB_ID(parameter_update)};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};          // regular subscription for additional data
 
-	int _bus;
-	int _batt_index;
+	int _bus {-1};
+	int _batt_index {-1};
 	bool _armed {false};
 };

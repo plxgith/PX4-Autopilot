@@ -90,7 +90,7 @@ bool FlightTaskOrbit::applyCommandParameters(const vehicle_command_s &command, b
 
 	// commanded heading behaviour
 	if (PX4_ISFINITE(command.param3)) {
-		if (static_cast<uint8_t>(command.param3 + .5f) == vehicle_command_s::ORBIT_YAW_BEHAVIOUR_UNCHANGED) {
+		if (static_cast<uint8_t>(lround(command.param3)) == vehicle_command_s::ORBIT_YAW_BEHAVIOUR_UNCHANGED) {
 			if (!_currently_orbiting) {	// only change the yaw behaviour if we are not actively orbiting
 				_yaw_behaviour = _param_mc_orbit_yaw_mod.get();
 			}
@@ -173,7 +173,7 @@ void FlightTaskOrbit::_sanitizeParams(float &radius, float &velocity) const
 
 bool FlightTaskOrbit::activate(const trajectory_setpoint_s &last_setpoint)
 {
-	bool ret = FlightTaskManualAltitude::activate(last_setpoint);
+	bool ret = FlightTaskManualAltitudeSmoothVel::activate(last_setpoint);
 	_currently_orbiting = false;
 	_orbit_radius = _radius_min;
 	_orbit_velocity = 1.f;
@@ -197,8 +197,8 @@ bool FlightTaskOrbit::activate(const trajectory_setpoint_s &last_setpoint)
 		// If the velocity setpoint is unknown, set to the current velocity
 		if (!PX4_ISFINITE(vel_prev(i))) { vel_prev(i) = _velocity(i); }
 
-		// No acceleration estimate available, set to zero if the setpoint is NAN
-		if (!PX4_ISFINITE(accel_prev(i))) { accel_prev(i) = 0.f; }
+		// If accel setpoint unknown, set to the current accel
+		if (!PX4_ISFINITE(accel_prev(i))) { accel_prev(i) = _acceleration(i); }
 	}
 
 	_position_smoothing.reset(accel_prev, vel_prev, pos_prev);
@@ -219,7 +219,7 @@ bool FlightTaskOrbit::update()
 			_in_circle_approach = false;
 			_slew_rate_velocity.setForcedValue(0.f); // reset the slew rate when moving between orbits.
 			FlightTaskManualAltitudeSmoothVel::_smoothing.reset(
-				PX4_ISFINITE(_acceleration_setpoint(2)) ? _acceleration_setpoint(2) : 0.f,
+				PX4_ISFINITE(_acceleration_setpoint(2)) ? _acceleration_setpoint(2) : _acceleration(2),
 				PX4_ISFINITE(_velocity_setpoint(2)) ? _velocity_setpoint(2) : _velocity(2),
 				PX4_ISFINITE(_position_setpoint(2)) ? _position_setpoint(2) : _position(2));
 		}
@@ -303,7 +303,7 @@ void FlightTaskOrbit::_adjustParametersByStick()
 	default:
 		// stick input adjusts parameters within a fixed time frame
 		radius -= _sticks.getPitchExpo() * _deltatime * _param_mpc_xy_cruise.get();
-		velocity -= _sticks.getRollExpo() * _deltatime * _param_mpc_acc_hor.get();
+		velocity += _sticks.getRollExpo() * _deltatime * _param_mpc_acc_hor.get();
 		break;
 	}
 

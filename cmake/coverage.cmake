@@ -37,10 +37,10 @@ find_program(GENHTML_PATH genhtml)
 message(STATUS "Building for code coverage")
 
 if (CMAKE_BUILD_TYPE STREQUAL Coverage)
-	# Coverage instrumentation plus atomic updates
+	# No -fprofile-update=atomic: ccache 4.9.1 (Ubuntu 24.04) refuses to cache it,
+	# and racy counters only undercount hits, never drop a covered line.
 	set(COVERAGE_FLAGS
 		--coverage
-		-fprofile-update=atomic
 	)
 
 	# Apply to every compile and link invocation
@@ -52,10 +52,10 @@ endif()
 
 # add code coverage build type
 if (("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang") OR ("${CMAKE_CXX_COMPILER_ID}" MATCHES "AppleClang"))
-	set(CMAKE_C_FLAGS_COVERAGE "--coverage -ftest-coverage -fdiagnostics-absolute-paths -O0 -fprofile-arcs -fno-inline-functions"
+	set(CMAKE_C_FLAGS_COVERAGE "--coverage -ftest-coverage -fdiagnostics-absolute-paths ${PX4_DEBUG_OPT_LEVEL} -fprofile-arcs -fno-inline-functions"
 		CACHE STRING "Flags used by the C compiler during coverage builds" FORCE)
 
-	set(CMAKE_CXX_FLAGS_COVERAGE "--coverage -ftest-coverage -fdiagnostics-absolute-paths -O0-fprofile-arcs -fno-inline-functions -fno-elide-constructors"
+	set(CMAKE_CXX_FLAGS_COVERAGE "--coverage -ftest-coverage -fdiagnostics-absolute-paths ${PX4_DEBUG_OPT_LEVEL} -fprofile-arcs -fno-inline-functions -fno-elide-constructors"
 		CACHE STRING "Flags used by the C++ compiler during coverage builds" FORCE)
 
 	set(CMAKE_EXE_LINKER_FLAGS_COVERAGE "-ftest-coverage -fdiagnostics-absolute-paths"
@@ -63,11 +63,11 @@ if (("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang") OR ("${CMAKE_CXX_COMPILER_ID}" 
 
 else()
 	# Add  -fprofile-abs-path for GCC v8/9 later on
-	set(CMAKE_C_FLAGS_COVERAGE "--coverage -ftest-coverage -fprofile-arcs -O0 -fno-default-inline -fno-inline"
+	set(CMAKE_C_FLAGS_COVERAGE "--coverage -ftest-coverage -fprofile-arcs ${PX4_DEBUG_OPT_LEVEL} -fno-default-inline -fno-inline"
 		CACHE STRING "Flags used by the C compiler during coverage builds" FORCE)
 
 	# Add  -fprofile-abs-path for GCC v8/9 later on
-	set(CMAKE_CXX_FLAGS_COVERAGE "--coverage -ftest-coverage -fprofile-arcs -O0 -fno-default-inline -fno-inline -fno-elide-constructors"
+	set(CMAKE_CXX_FLAGS_COVERAGE "--coverage -ftest-coverage -fprofile-arcs ${PX4_DEBUG_OPT_LEVEL} -fno-default-inline -fno-inline -fno-elide-constructors"
 		CACHE STRING "Flags used by the C++ compiler during coverage builds" FORCE)
 
 	set(CMAKE_EXE_LINKER_FLAGS_COVERAGE "--coverage -ftest-coverage -lgcov"

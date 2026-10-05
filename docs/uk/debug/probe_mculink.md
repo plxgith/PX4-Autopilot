@@ -1,6 +1,6 @@
 # MCU-Link адаптер для налагодження
 
-[MCU-Link Debug Probe](https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/mcu-link-debug-probe:MCU-LINK) - це дешевий, швидкий і дуже потужний засіб відлагодження, який може використовуватися як самостійний засіб відлагодження та комунікатор консолі під час роботи з платами Pixhawk.
+The [MCU-Link Debug Probe](https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/mcu-link-debug-probe:MCU-LINK) is a cheap, fast and highly capable debug probe that can serve as a stand-alone debug and console communicator when working with Pixhawk boards.
 
 Основні функції:
 
@@ -19,9 +19,9 @@
 
 ## Налагодження конфігурації за допомогою NXP LinkServer
 
-MCU-Link забезпечує для чіпів NXP (FMUv6X-RT) сервер GDB [LinkServer](https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/linkserver-for-microcontrollers:LINKERSERVER):
+The MCU-Link provides for NXP (FMUv6X-RT) chips the [LinkServer](https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/linkserver-for-microcontrollers:LINKSERVER) GDB server:
 
-[Завантажте](https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/linkserver-for-microcontrollers:LINKERSERVER#downloads) Linkserver для вашої операційної системи та дотримуйтесь інструкцій з установки.
+[Download](https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/linkserver-for-microcontrollers:LINKSERVER#downloads) the Linkserver for your operating system and follow the installation instructions.
 
 На Windows LinkServer встановлюється в `C:\NXP\LinkServer_x.x.x`
 На Linux LinkServer встановлюється `/usr/local/LinkServer/LinkServer`

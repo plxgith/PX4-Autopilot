@@ -4,10 +4,10 @@
 
 :::warning
 PX4 не розробляє цей (або будь-який інший) автопілот.
-Contact the [manufacturer](https://beagleboard.org/blue) for hardware support or compliance issues.
+Contact the [manufacturer](https://www.beagleboard.org/boards/beaglebone-blue) for hardware support or compliance issues.
 :::
 
-[BeagleBone Blue](https://beagleboard.org/blue) is an all-in-one Linux-based computer.
+[BeagleBone Blue](https://www.beagleboard.org/boards/beaglebone-blue) is an all-in-one Linux-based computer.
 Хоча ця компактна і недорога плата оптимізована для робототехніки, вона має всі необхідні датчики і периферійні пристрої, необхідні для керування польотом.
 This topic shows how to set up the board to run PX4 with [librobotcontrol](https://github.com/beagleboard/librobotcontrol) robotics package.
 
@@ -17,11 +17,11 @@ This topic shows how to set up the board to run PX4 with [librobotcontrol](https
 
 _BeagleBone Blue_ images can be found here:
 
-- [Latest stable OS image](https://beagleboard.org/latest-images).
+- [Latest stable OS image](https://www.beagleboard.org/distros).
 - [Test OS images](https://rcn-ee.net/rootfs/bb.org/testing/) (updated frequently).
 
 Information about flashing OS images can be found on [this page](https://github.com/beagleboard/beaglebone-blue/wiki/Flashing-firmware).
-Other useful information can be found in the [FAQ](https://github.com/beagleboard/beaglebone-blue/wiki/Frequently-Asked-Questions-\(FAQ\)).
+Other useful information can be found in the [FAQ](https://github.com/beagleboard/beaglebone-blue/wiki/Frequently-Asked-Questions-(FAQ)).
 
 :::tip
 Optionally you can update to a realtime kernel, and if you do, re-check if _librobotcontrol_ works properly with the realtime kernel.
@@ -30,6 +30,12 @@ Optionally you can update to a realtime kernel, and if you do, re-check if _libr
 The latest OS images at time of updating this document is [AM3358 Debian 10.3 2020-04-06 4GB SD IoT](https://www.beagleboard.org/distros/am3358-debian-10-3-2020-04-06-4gb-sd-iot).
 
 ## Збірка для крос-компіляторів (рекомендується)
+
+:::warning
+The Linaro toolchain previously recommended has been discontinued.
+The instructions below have been updated to use its replacement (the Arm GNU Toolchain) but the changes **have not been tested**.
+Please add a PR to either remove this comment or fix the instructions if you try them!
+:::
 
 The recommended way to build PX4 for _BeagleBone Blue_ is to compile on a development computer and upload the PX4 executable binary directly to the BeagleBone Blue.
 
@@ -79,7 +85,7 @@ echo "PermitRootLogin yes" >>  /etc/ssh/sshd_config && systemctl restart sshd
    For _rsync_ over SSH with key authentication, follow the steps here (on the development machine):
    1. Створіть ключ SSH, якщо ви раніше цього не робили:
 
-      ```
+      ```sh
       ssh-keygen -t rsa
       ```
 
@@ -89,13 +95,13 @@ echo "PermitRootLogin yes" >>  /etc/ssh/sshd_config && systemctl restart sshd
 
    2. Define the BeagleBone Blue board as `beaglebone` in **/etc/hosts** and copy the public SSH key to the board for password-less SSH access:
 
-      ```
+      ```sh
       ssh-copy-id debian@beaglebone
       ```
 
    3. Крім того, ви можете використовувати IP-адресу beaglebone безпосередньо:
 
-      ```
+      ```sh
       ssh-copy-id debian@<IP>
       ```
 
@@ -114,34 +120,48 @@ echo "PermitRootLogin yes" >>  /etc/ssh/sshd_config && systemctl restart sshd
          cd /opt/bbblue_toolchain/gcc-arm-linux-gnueabihf
          ```
 
-         The ARM Cross Compiler for _BeagleBone Blue_ can be found at [Linaro Toolchain Binaries site](https://www.linaro.org/downloads/#gnu_and_llvm).
+         The ARM Cross Compiler for _BeagleBone Blue_ can be found at the [Arm GNU Toolchain Downloads](https://gitlab.arm.com/tooling/gnu-toolchains-for-arm) site (the official successor to the Linaro toolchain releases previously used here).
 
-         :::tip
+         ::: tip
          GCC in the toolchain should be compatible with kernel in _BeagleBone Blue_.
          General rule of thumb is to choose a toolchain where version of GCC is not higher than version of GCC which comes with the OS image on _BeagleBone Blue_.
 
 :::
 
-         Download and unpack [gcc-linaro-13.0.0-2022.06-x86_64_arm-linux-gnueabihf.tar.xz](https://snapshots.linaro.org/gnu-toolchain/13.0-2022.06-1/arm-linux-gnueabihf/gcc-linaro-13.0.0-2022.06-x86_64_arm-linux-gnueabihf.tar.xz) to the bbblue_toolchain folder.
+         Download and unpack [arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-linux-gnueabihf.tar.xz](https://developer.arm.com/-/media/Files/downloads/gnu/15.2.rel1/binrel/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-linux-gnueabihf.tar.xz) to the bbblue_toolchain folder.
 
-         Different ARM Cross Compiler versions for _BeagleBone Blue_ can be found at [Linaro Toolchain Binaries site](https://www.linaro.org/downloads/).
+         Different ARM Cross Compiler versions for _BeagleBone Blue_ can be found at the [Arm GNU Toolchain Downloads](https://gitlab.arm.com/tooling/gnu-toolchains-for-arm) site.
 
          ```sh
-         wget https://snapshots.linaro.org/gnu-toolchain/13.0-2022.06-1/arm-linux-gnueabihf/gcc-linaro-13.0.0-2022.06-x86_64_arm-linux-gnueabihf.tar.xz
-         tar -xf gcc-linaro-13.0.0-2022.06-x86_64_arm-linux-gnueabihf.tar.xz
+         wget https://developer.arm.com/-/media/Files/downloads/gnu/15.2.rel1/binrel/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-linux-gnueabihf.tar.xz
+         tar -xf arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-linux-gnueabihf.tar.xz
          ```
 
-         :::tip
+         ::: tip
          The GCC version of the toolchain should be compatible with kernel in _BeagleBone Blue_.
 
 :::
 
          As a general rule of thumb is to choose a toolchain where the version of GCC is not higher than the version of GCC which comes with the OS image on _BeagleBone Blue_.
 
+         ::: warning
+         PX4's build for this board looks specifically for compiler binaries named `arm-linux-gnueabihf-*` (the naming used by the old Linaro toolchain), but the Arm GNU Toolchain ships them as `arm-none-linux-gnueabihf-*`.
+         Create matching symlinks so the build can find them:
+
+         ```sh
+         cd /opt/bbblue_toolchain/gcc-arm-linux-gnueabihf/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-linux-gnueabihf/bin
+         for f in arm-none-linux-gnueabihf-*; do
+           ln -s "$f" "${f/arm-none-linux-gnueabihf/arm-linux-gnueabihf}"
+         done
+         ```
+
+
+:::
+
       2. Додайте його до PATH в ~/.profile, як показано нижче
 
          ```sh
-         export PATH=$PATH:/opt/bbblue_toolchain/gcc-arm-linux-gnueabihf/gcc-linaro-13.0.0-2022.06-x86_64_arm-linux-gnueabihf/bin
+         export PATH=$PATH:/opt/bbblue_toolchain/gcc-arm-linux-gnueabihf/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-linux-gnueabihf/bin
          ```
 
          ::: info
@@ -151,7 +171,7 @@ echo "PermitRootLogin yes" >>  /etc/ssh/sshd_config && systemctl restart sshd
 
       3. Налаштуйте інші залежності, завантаживши вихідний код PX4, а потім виконайте сценарії налаштування:
 
-         ````
+         ````sh
          git clone https://github.com/PX4/PX4-Autopilot.git --recursive
          ols
          ```
@@ -170,7 +190,7 @@ echo "PermitRootLogin yes" >>  /etc/ssh/sshd_config && systemctl restart sshd
 
 Компіляція та завантаження
 
-```
+```sh
 make beaglebone_blue_default upload
 ```
 
@@ -189,9 +209,7 @@ sudo ./bin/px4 -s px4.config
 Currently _librobotcontrol_ requires root access.
 :::
 
-<a id="native_builds"></a>
-
-## Нативні збірки (необов'язково)
+## Native Builds (optional) {#native_builds}
 
 Ви також можете нативно створювати збірки PX4 безпосередньо на BeagleBone Blue.
 
@@ -216,7 +234,7 @@ Currently _librobotcontrol_ requires root access.
 
 ## Зміни в конфігурації
 
-Усі зміни можна вносити безпосередньо в файл налаштувань px4.config на beaglebone.
+All changes can be made in the px4.config file directly on beaglebone.
 Наприклад, ви можете змінити WIFI на wlan.
 
 :::info
@@ -295,8 +313,6 @@ UARTs на BeagleBone Blue можуть працювати лише з неін�
 
 1. Підключіть ESC двигуна 1, 2, 3 та 4 до каналу 1, 2, 3 та 4 вихідних сигналів сервоприводів на BeagleBone Blue відповідно.
    Якщо ваш роз'єм ESC містить вихідний контакт живлення, вийміть його і не підключайте його до вихідного контакту живлення каналу сервоприводу на BeagleBone Blue.
-
 2. Connect the above mentioned converted SBUS signal to the dsm2 port if you have the matching connector for dsm2, otherwise connect it to any other available UART port and change the corresponding port in **/home/debian/px4/px4.config** accordingly.
-
 3. Підключіть сигнали модуля GPS до порту GPS на платі BeagleBone Blue.
    Зверніть увагу, що сигнальні контакти порту GPS на BeagleBone Blue підтримують лише 3,3 В, тому обирайте свій GPS-модуль відповідно.

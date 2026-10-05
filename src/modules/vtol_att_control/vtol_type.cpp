@@ -515,12 +515,8 @@ float VtolType::pusher_assist()
 		// limit forward actuation to [0, 0.9]
 		forward_thrust = math::constrain(forward_thrust, 0.0f, 0.9f);
 
-		// Set the pitch to 0 if the pitch limit is negative (pitch down), but allow a positive (pitch up) pitch.
-		// This can be used for tiltrotor to make them hover with a positive angle of attack
-		const float pitch_new = pitch_setpoint_min > 0.f ? pitch_setpoint_min : 0.f;
-
 		// create corrected desired body z axis in heading frame
-		const Dcmf R_tmp = Eulerf(roll_new, pitch_new, 0.0f);
+		const Dcmf R_tmp = Eulerf(roll_new, pitch_setpoint_min, 0.0f);
 		Vector3f tilt_new(R_tmp(0, 2), R_tmp(1, 2), R_tmp(2, 2));
 
 		// rotate the vector into a new frame which is rotated in z by the desired heading
@@ -543,21 +539,26 @@ float VtolType::pusher_assist()
 
 float VtolType::getFrontTransitionTimeFactor() const
 {
-	// assumptions: transition_time = transition_true_airspeed / average_acceleration (thrust)
-	// transition_true_airspeed ~ sqrt(rho0 / rh0)
+	// assumptions:
+	// transition_time = transition_true_airspeed / average_acceleration (thrust)
+	// transition_true_airspeed ~ sqrt(rho0 / rh0) * sqrt(weight_ratio)
 	// average_acceleration ~ rho / rho0
-	// transition_time ~ sqrt(rho0/rh0) * rho0 / rho
+	//   independent of weight: standard VTOL throttle is weight scaled,
+	//   tiltrotor and tailsitter weight scale via hover thrust
+	// transition_time ~ sqrt(rho0/rh0) * rho0 / rho * sqrt(weight_ratio)
 
 	// low value: hot day at 4000m AMSL with some margin
 	// high value: cold day at 0m AMSL with some margin
 	const float rho = math::constrain(_attc->getAirDensity(), 0.7f, 1.5f);
 
+	float density_factor = 1.0f;
+
 	if (PX4_ISFINITE(rho)) {
 		float rho0_over_rho = atmosphere::kAirDensitySeaLevelStandardAtmos / rho;
-		return sqrtf(rho0_over_rho) * rho0_over_rho;
+		density_factor = sqrtf(rho0_over_rho) * rho0_over_rho;
 	}
 
-	return 1.0f;
+	return density_factor * sqrtf(getWeightRatio());
 }
 
 float VtolType::getMinimumFrontTransitionTime() const
@@ -578,7 +579,18 @@ float VtolType::getTransitionAirspeed() const
 {
 	// Since the stall airspeed increases with vehicle weight, we increase the transition airspeed
 	// by the same factor.
+	return sqrtf(getWeightRatio()) * _param_vt_arsp_trans.get();
+}
 
+float VtolType::getFrontTransitionThrottle() const
+{
+	// Thrust needs to scale with weight_ratio to keep the acceleration weight-independent. Assuming
+	// a quadratic throttle -> thrust map, this requires scaling the throttle by sqrt(weight_ratio).
+	return math::min(sqrtf(getWeightRatio()) * _param_vt_f_trans_thr.get(), 1.0f);
+}
+
+float VtolType::getWeightRatio() const
+{
 	float weight_ratio = 1.0f;
 
 	if (_param_weight_base.get() > FLT_EPSILON && _param_weight_gross.get() > FLT_EPSILON) {
@@ -586,7 +598,7 @@ float VtolType::getTransitionAirspeed() const
 					       _param_weight_base.get(), kMinWeightRatio, kMaxWeightRatio);
 	}
 
-	return sqrtf(weight_ratio) * _param_vt_arsp_trans.get();
+	return weight_ratio;
 }
 
 float VtolType::getBlendAirspeed() const

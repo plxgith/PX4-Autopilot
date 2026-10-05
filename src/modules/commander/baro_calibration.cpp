@@ -56,7 +56,7 @@
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionMultiArray.hpp>
 #include <uORB/topics/sensor_baro.h>
-#include <uORB/topics/sensor_gps.h>
+#include <uORB/topics/sensor_gnss.h>
 
 using namespace matrix;
 using namespace time_literals;
@@ -71,7 +71,7 @@ int do_baro_calibration(orb_advert_t *mavlink_log_pub)
 	calibration_log_info(mavlink_log_pub, CAL_QGC_STARTED_MSG, sensor_name);
 
 	// GPS (used for reference)
-	uORB::SubscriptionMultiArray<sensor_gps_s, 3> sensor_gps_subs{ORB_ID::sensor_gps};
+	uORB::SubscriptionMultiArray<sensor_gnss_s, 3> sensor_gnss_subs{ORB_ID::sensor_gnss};
 	float gps_altitude_sum = NAN;
 	int gps_altitude_sum_count = 0;
 
@@ -81,7 +81,6 @@ int do_baro_calibration(orb_advert_t *mavlink_log_pub)
 
 	uint64_t timestamp_sample_sum[MAX_SENSOR_COUNT] {0};
 	float data_sum[MAX_SENSOR_COUNT] {};
-	float temperature_sum[MAX_SENSOR_COUNT] {};
 	int data_sum_count[MAX_SENSOR_COUNT] {};
 
 	const hrt_abstime time_start_us = hrt_absolute_time();
@@ -92,26 +91,25 @@ int do_baro_calibration(orb_advert_t *mavlink_log_pub)
 			sensor_baro_s sensor_baro;
 
 			while (sensor_baro_subs[instance].update(&sensor_baro)) {
-				calibration[instance].set_device_id(sensor_baro.device_id);
+				calibration[instance].set_device_id(sensor_baro.device_id, sensor_baro.is_external);
 
 				// pressure corrected with offset (if available)
 				const float pressure_corrected = calibration[instance].Correct(sensor_baro.pressure);
 
 				timestamp_sample_sum[instance] += sensor_baro.timestamp_sample;
 				data_sum[instance] += pressure_corrected;
-				temperature_sum[instance] += sensor_baro.temperature;
 				data_sum_count[instance]++;
 			}
 		}
 
-		for (auto &gps_sub : sensor_gps_subs) {
-			sensor_gps_s sensor_gps;
+		for (auto &gnss_sub : sensor_gnss_subs) {
+			sensor_gnss_s sensor_gnss;
 
-			if (gps_sub.update(&sensor_gps)) {
-				if ((hrt_elapsed_time(&sensor_gps.timestamp) < 1_s)
-				    && (sensor_gps.fix_type >= 2) && (sensor_gps.epv < 100)) {
+			if (gnss_sub.update(&sensor_gnss)) {
+				if ((hrt_elapsed_time(&sensor_gnss.timestamp) < 1_s)
+				    && (sensor_gnss.fix_type >= 2) && (sensor_gnss.epv < 100)) {
 
-					float alt = (float)sensor_gps.altitude_msl_m;
+					float alt = (float)sensor_gnss.altitude_msl;
 
 					if (PX4_ISFINITE(gps_altitude_sum)) {
 						gps_altitude_sum += alt;
@@ -145,9 +143,8 @@ int do_baro_calibration(orb_advert_t *mavlink_log_pub)
 		if ((calibration[instance].device_id() != 0) && (data_sum_count[instance] > 0)) {
 
 			const float pressure_pa = data_sum[instance] / data_sum_count[instance];
-			const float temperature = temperature_sum[instance] / data_sum_count[instance];
 
-			float pressure_altitude = getAltitudeFromPressure(pressure_pa, temperature);
+			float pressure_altitude = getAltitudeFromPressure(pressure_pa, kPressRefSeaLevelPa);
 
 			// Use GPS altitude as a reference to compute the baro bias measurement
 			const float baro_bias = pressure_altitude - gps_altitude;
@@ -155,25 +152,25 @@ int do_baro_calibration(orb_advert_t *mavlink_log_pub)
 			float altitude = pressure_altitude - baro_bias;
 
 			// find pressure offset that aligns baro altitude with GPS via binary search
-			float front = -10000.f;
-			float middle = NAN;
-			float last = 10000.f;
+			float low = -10000.f;
+			float high = 10000.f;
+			static constexpr float kTolerance = 0.1f;
+			static constexpr int kMaxIterations = 100;
 
 			float bias = NAN;
 
-			// perform a binary search
-			while (front <= last) {
-				middle = front + (last - front) / 2;
-				float altitude_calibrated = getAltitudeFromPressure(pressure_pa - middle, temperature);
+			for (int i = 0; i < kMaxIterations; ++i) {
+				float mid = low + (high - low) / 2.f;
+				float altitude_calibrated = getAltitudeFromPressure(pressure_pa - mid, kPressRefSeaLevelPa);
 
-				if (altitude_calibrated > altitude + 0.1f) {
-					last = middle;
+				if (altitude_calibrated > altitude + kTolerance) {
+					high = mid;
 
-				} else if (altitude_calibrated < altitude - 0.1f) {
-					front = middle;
+				} else if (altitude_calibrated < altitude - kTolerance) {
+					low = mid;
 
 				} else {
-					bias = middle;
+					bias = mid;
 					break;
 				}
 			}

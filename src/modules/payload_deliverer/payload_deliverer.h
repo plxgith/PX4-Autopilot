@@ -69,9 +69,11 @@ static constexpr int8_t GRIPPER_ACTION_NONE = -1;
  *
  * This module communicates with the Navigator which handles publishing such vehicle commands.
  */
-class PayloadDeliverer : public ModuleBase<PayloadDeliverer>, public ModuleParams, public px4::ScheduledWorkItem
+class PayloadDeliverer : public ModuleBase, public ModuleParams, public px4::ScheduledWorkItem
 {
 public:
+	static Descriptor desc;
+
 	PayloadDeliverer();
 
 	/** @see ModuleBase **/
@@ -129,7 +131,7 @@ private:
 	/**
 	 * @brief Send DO_GRIPPER vehicle command with specified gripper action
 	 *
-	 * @param gripper_command GRIPPER_ACTION_GRAB or GRIPPER_ACTION_RELEASE
+	 * @param gripper_action GRIPPER_ACTION_GRAB or GRIPPER_ACTION_RELEASE
 	 */
 	bool send_gripper_vehicle_command(const int32_t gripper_action);
 

@@ -37,7 +37,6 @@
 bool Ekf::fuseHaglRng(estimator_aid_source1d_s &aid_src, bool update_height, bool update_terrain)
 {
 	if (aid_src.innovation_rejected) {
-		_innov_check_fail_status.flags.reject_hagl = true;
 		return false;
 	}
 
@@ -60,11 +59,12 @@ bool Ekf::fuseHaglRng(estimator_aid_source1d_s &aid_src, bool update_height, boo
 
 	measurementUpdate(K, H, aid_src.observation_variance, aid_src.innovation);
 
-	// record last successful fusion event
-	_innov_check_fail_status.flags.reject_hagl = false;
-
 	aid_src.time_last_fuse = _time_delayed_us;
 	aid_src.fused = true;
+
+	if (update_height) {
+		_time_last_hgt_fuse = _time_delayed_us;
+	}
 
 	if (update_terrain) {
 		_time_last_terrain_fuse = _time_delayed_us;

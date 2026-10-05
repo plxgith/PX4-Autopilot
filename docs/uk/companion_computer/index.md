@@ -4,7 +4,7 @@ Companion computers ("mission computers"), are separate on-vehicle computers tha
 
 На схемі нижче показана можлива архітектура безпілотного транспортного засобу, яка включає в себе контролер польоту і супутній комп'ютер.
 
-![Архітектура PX4 - система з політним контролером і супутнім комп'ютером](../../assets/diagrams/px4_companion_computer_simple.svg)
+<img src="../../assets/diagrams/px4_companion_computer_simple.svg" alt="PX4 architecture - FC + Companion Computer" class="diagram-invert">
 
 <!-- source for drawing: https://docs.google.com/drawings/d/1ZDSyj5djKCEbabgx8K4ESdTeEUizgEt8spUWrMGbHUE/edit?usp=sharing -->
 
@@ -33,7 +33,7 @@ The boards support the [Pixhawk Autopilot Bus (PAB)](../flight_controller/pixhaw
 
 ## Параметри супутнього комп'ютера
 
-PX4 можна використовувати з комп'ютерами, які можна налаштувати для зв’язку через MAVLink або microROS/uXRCE-DDS через послідовний порт (або порт Ethernet, якщо є).
+PX4 can be used with computers that can be configured to communicate via MAVLink or microROS/uXRCE-DDS over a serial port (or Ethernet port, if present).
 Невеликий набір можливих альтернатив наведено нижче.
 
 Більші приклади високої потужності:

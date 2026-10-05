@@ -51,6 +51,9 @@ VtolTakeoff::VtolTakeoff(Navigator *navigator) :
 void
 VtolTakeoff::on_activation()
 {
+	// reset triplets, modes should be explicit about which fields they want to set
+	_navigator->reset_triplets();
+
 	if (hrt_elapsed_time(&_navigator->get_global_position()->timestamp) < 1_s) {
 		set_takeoff_position();
 		_takeoff_state = vtol_takeoff_state::TAKEOFF_HOVER;
@@ -71,8 +74,15 @@ VtolTakeoff::on_active()
 				position_setpoint_triplet_s *pos_sp_triplet = _navigator->get_position_setpoint_triplet();
 
 				_mission_item.nav_cmd = NAV_CMD_WAYPOINT;
-				_mission_item.yaw = wrap_pi(get_bearing_to_next_waypoint(_mission_item.lat,
-							    _mission_item.lon, _loiter_location(0), _loiter_location(1)));
+
+				if (!PX4_ISFINITE(_transition_direction_deg)) {
+					_mission_item.yaw = wrap_pi(get_bearing_to_next_waypoint(_mission_item.lat,
+								    _mission_item.lon, _loiter_location(0), _loiter_location(1)));
+
+				} else {
+					_mission_item.yaw = wrap_pi(math::radians(_transition_direction_deg));
+				}
+
 				_mission_item.force_heading = true;
 				mission_item_to_position_setpoint(_mission_item, &pos_sp_triplet->current);
 				pos_sp_triplet->current.cruising_speed = -1.f;
@@ -104,10 +114,10 @@ VtolTakeoff::on_active()
 				position_setpoint_triplet_s *pos_sp_triplet = _navigator->get_position_setpoint_triplet();
 
 				if (pos_sp_triplet->current.valid && pos_sp_triplet->current.type == position_setpoint_s::SETPOINT_TYPE_LOITER) {
-					setLoiterItemFromCurrentPositionSetpoint(&_mission_item);
+					setLoiterItemFromCurrentPositionSetpoint(_mission_item, pos_sp_triplet->current);
 
 				} else {
-					setLoiterItemFromCurrentPosition(&_mission_item);
+					setLoiterItemFromCurrentPosition(_mission_item);
 				}
 
 				_mission_item.nav_cmd = NAV_CMD_LOITER_TIME_LIMIT;
@@ -151,7 +161,6 @@ VtolTakeoff::on_active()
 				// the VTOL takeoff is done
 				_navigator->get_mission_result()->finished = true;
 				_navigator->set_mission_result_updated();
-				_navigator->mode_completed(getNavigatorStateId());
 
 				break;
 			}
@@ -161,6 +170,10 @@ VtolTakeoff::on_active()
 				break;
 			}
 		}
+	}
+
+	if (_navigator->get_mission_result()->finished) {
+		_navigator->mode_completed(getNavigatorStateId());
 	}
 }
 

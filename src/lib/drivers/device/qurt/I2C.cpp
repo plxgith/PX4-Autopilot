@@ -48,6 +48,10 @@
 #include <px4_platform_common/px4_config.h>
 #include <px4_platform_common/i2c_spi_buses.h>
 
+extern "C" {
+	__EXPORT void fc_uninitialize_i2c_bus(int fd);
+}
+
 namespace device
 {
 
@@ -84,6 +88,7 @@ I2C::I2C(uint8_t device_type, const char *name, const int bus, const uint16_t ad
 I2C::I2C(const I2CSPIDriverConfig &config)
 	: I2C(config.devid_driver_index, config.module_name, config.bus, config.i2c_address, config.bus_frequency)
 {
+	set_external(config.external);
 }
 
 I2C::~I2C()
@@ -94,6 +99,10 @@ int
 I2C::init()
 {
 	int ret = PX4_ERROR;
+
+	if (_i2c_fd != -1) {
+		return PX4_OK;
+	}
 
 	if (_config_i2c_bus == NULL) {
 		PX4_ERR("NULL i2c init function");
@@ -122,7 +131,7 @@ I2C::init()
 	_i2c_fd = _config_i2c_bus(get_device_bus(), get_device_address(), _frequency);
 	pthread_mutex_unlock(_mutex);
 
-	if (_i2c_fd == PX4_ERROR) {
+	if (_i2c_fd == -1) {
 		PX4_ERR("i2c init failed");
 		goto out;
 	}
@@ -132,6 +141,8 @@ I2C::init()
 
 	if (ret != OK) {
 		PX4_ERR("i2c probe failed");
+		fc_uninitialize_i2c_bus(_i2c_fd);
+		_i2c_fd = -1;
 		goto out;
 	}
 
@@ -152,10 +163,12 @@ out:
 }
 
 void
-I2C::set_device_address(int address)
+I2C::set_device_address(int address, bool log)
 {
 	if ((_i2c_fd != PX4_ERROR) && (_set_i2c_address != NULL)) {
-		PX4_INFO("Set i2c address 0x%x, fd %d", address, _i2c_fd);
+		if (log) {
+			PX4_INFO("Set i2c address 0x%x, fd %d", address, _i2c_fd);
+		}
 
 		pthread_mutex_lock(_mutex);
 		_set_i2c_address(_i2c_fd, address);

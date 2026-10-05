@@ -33,7 +33,7 @@
 /**
  * @file rtl_mission_fast.h
  *
- * Helper class for RTL
+ * Helper class for Return
  *
  * @author Julian Oes <julian@oes.ch>
  * @author Anton Babushkin <anton.babushkin@me.com>
@@ -63,8 +63,11 @@ public:
 private:
 	bool setNextMissionItem() override;
 	void setActiveMissionItems() override;
+	MissionTraversalType traversalType() const override { return MissionTraversalType::IgnoreDoJump; }
 
-	int _mission_index_prior_rtl{-1};
+	// Mission target recorded before RTL and the mission it belongs to.
+	int32_t _mission_index_prior_rtl{INT32_C(-1)};
+	uint32_t _mission_id_prior_rtl{0};
 
 	uORB::SubscriptionData<home_position_s> _home_pos_sub{ORB_ID(home_position)};		/**< home position subscription */
 };

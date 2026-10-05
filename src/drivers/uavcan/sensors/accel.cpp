@@ -40,10 +40,12 @@
 
 const char *const UavcanAccelBridge::NAME = "accel";
 
-UavcanAccelBridge::UavcanAccelBridge(uavcan::INode &node) :
-	UavcanSensorBridgeBase("uavcan_accel", ORB_ID(sensor_accel)),
+UavcanAccelBridge::UavcanAccelBridge(uavcan::INode &node, NodeInfoPublisher *node_info_publisher) :
+	UavcanSensorBridgeBase("uavcan_accel", ORB_ID(sensor_accel), node_info_publisher),
 	_sub_imu_data(node)
-{ }
+{
+	set_device_type(DRV_ACC_DEVTYPE_UAVCAN);
+}
 
 int UavcanAccelBridge::init()
 {
@@ -59,9 +61,10 @@ int UavcanAccelBridge::init()
 
 void UavcanAccelBridge::imu_sub_cb(const uavcan::ReceivedDataStructure<uavcan::equipment::ahrs::RawIMU> &msg)
 {
-	uavcan_bridge::Channel *channel = get_channel_for_node(msg.getSrcNodeID().get());
+	uavcan_bridge::Channel *channel = get_channel_for_node(msg.getSrcNodeID().get(), msg.getIfaceIndex());
 
-	const hrt_abstime timestamp_sample = hrt_absolute_time();
+	const hrt_abstime timestamp_sample = uavcan_bridge::sample_timestamp(msg.timestamp.usec,
+					     _sub_imu_data.getNode().getUtcTime().toUSec(), hrt_absolute_time());
 
 	if (channel == nullptr) {
 		// Something went wrong - no channel to publish on; return
@@ -75,19 +78,24 @@ void UavcanAccelBridge::imu_sub_cb(const uavcan::ReceivedDataStructure<uavcan::e
 		return;
 	}
 
+	const uavcan_bridge::ImuRateSample sample = uavcan_bridge::imu_rate_sample(timestamp_sample,
+			msg.integration_interval, msg.accelerometer_latest, msg.accelerometer_integral);
 	accel->set_error_count(0);
-	accel->update(timestamp_sample, msg.accelerometer_latest[0], msg.accelerometer_latest[1], msg.accelerometer_latest[2]);
+	accel->update(sample.timestamp_sample, sample.x, sample.y, sample.z);
+
+	// Register device capability if not already done
+	if (_node_info_publisher != nullptr) {
+		_node_info_publisher->registerDeviceCapability(msg.getSrcNodeID().get(), accel->get_device_id(),
+				NodeInfoPublisher::DeviceCapability::ACCELEROMETER);
+	}
 }
 
 int UavcanAccelBridge::init_driver(uavcan_bridge::Channel *channel)
 {
-	// update device id as we now know our device node_id
-	DeviceId device_id{_device_id};
+	// Build device ID using node_id and interface index
+	uint32_t device_id = make_uavcan_device_id(static_cast<uint8_t>(channel->node_id), channel->iface_index);
 
-	device_id.devid_s.devtype = DRV_ACC_DEVTYPE_UAVCAN;
-	device_id.devid_s.address = static_cast<uint8_t>(channel->node_id);
-
-	channel->h_driver = new PX4Accelerometer(device_id.devid);
+	channel->h_driver = new PX4Accelerometer(device_id);
 
 	if (channel->h_driver == nullptr) {
 		return PX4_ERROR;

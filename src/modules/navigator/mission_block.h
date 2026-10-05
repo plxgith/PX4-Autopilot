@@ -34,7 +34,7 @@
  * @file mission_block.h
  *
  * Base class for Mission class and special flight modes like
- * RTL, Land, Loiter, Takeoff, Geofence, etc.
+ * Return, Land, Loiter, Takeoff, Geofence, etc.
  *
  * @author Julian Oes <julian@oes.ch>
  */
@@ -71,13 +71,6 @@ public:
 	MissionBlock &operator=(const MissionBlock &) = delete;
 
 	void initialize() override;
-
-	/**
-	 * Check if the mission item contains a navigation position
-	 *
-	 * @return false if the mission item does not contain a valid position
-	 */
-	static bool item_contains_position(const mission_item_s &item);
 
 	/**
 	 * Returns true if the mission item is not an instant action, but has a delay / timeout
@@ -129,6 +122,11 @@ public:
 	void updateFailsafeChecks() override;
 
 protected:
+#if defined(CONFIG_MODULES_VISION_TARGET_ESTIMATOR) && CONFIG_MODULES_VISION_TARGET_ESTIMATOR
+	/** Steer the current takeoff setpoint onto the landing target when precision takeoff is enabled */
+	void update_precision_takeoff(const hrt_abstime now);
+#endif // CONFIG_MODULES_VISION_TARGET_ESTIMATOR
+
 	/**
 	 * @brief heading mode for setting navigation items
 	 *
@@ -161,10 +159,11 @@ protected:
 	 */
 	bool mission_item_to_position_setpoint(const mission_item_s &item, position_setpoint_s *sp);
 
-	void setLoiterItemFromCurrentPositionSetpoint(struct mission_item_s *item);
+	void setLoiterItemFromCurrentPositionSetpoint(struct mission_item_s &item, const position_setpoint_s &reference_setpoint);
 
-	void setLoiterItemFromCurrentPosition(struct mission_item_s *item);
+	void setLoiterItemFromCurrentPosition(struct mission_item_s &item);
 	void setLoiterItemFromCurrentPositionWithBraking(struct mission_item_s *item);
+	void setLoiterFromLastLink(struct mission_item_s *item);
 
 	void setLoiterItemCommonFields(struct mission_item_s *item);
 
@@ -198,7 +197,7 @@ protected:
 	void setLandMissionItem(mission_item_s &item, const PositionYawSetpoint &pos_yaw_sp) const;
 
 	void startPrecLand(uint16_t land_precision);
-	void updateAltToAvoidTerrainCollisionAndRepublishTriplet(mission_item_s mission_item);
+	void updateAltToAvoidTerrainCollisionAndRepublishTriplet(const mission_item_s &mission_item);
 
 	/**
 	 * @brief Issue a command for mission items with a nav_cmd that specifies an action

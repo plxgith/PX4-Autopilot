@@ -5,13 +5,13 @@ PX4 does not manufacture this (or any) autopilot.
 Contact the [manufacturer](https://cubepilot.org/#/home) for hardware support or compliance issues.
 :::
 
-The [Cube Orange+](https://www.cubepilot.com/#/cube/features) flight controller is a flexible autopilot intended primarily for manufacturers of commercial systems.
-Cube Orange+ is similar to Cube Orange, but has a more powerful dual-core processor (STM32H757, and some different sensors parts.
+The [Cube Orange+](https://cubepilot.org/#/cube/features) flight controller is a flexible autopilot intended primarily for manufacturers of commercial systems.
+Cube Orange+ is similar to Cube Orange, but has a more powerful dual-core processor (STM32H757), and some different sensor parts.
 
 ![Cube Orange](../../assets/flight_controller/cube/orangeplus/cubepilot_cube_orangeplus_standard_set.jpg)
 
 The controller is designed to be used with a domain-specific carrier board in order to reduce the wiring, improve reliability, and ease of assembly.
-For example, a carrier board for a commercial inspection vehicle might include connections for a companion computer, while a carrier board for a racer could includes ESCs for the frame of the vehicle.
+For example, a carrier board for a commercial inspection vehicle might include connections for a companion computer, while a carrier board for a racer could include ESCs for the frame of the vehicle.
 
 The ADS-B carrier board includes a customized 1090MHz ADSB-In receiver from uAvionix.
 This provides attitude and location of commercial manned aircraft within the range of Cube.
@@ -20,7 +20,11 @@ This is automatically configured and enabled in the default PX4 firmware.
 Cube includes vibration isolation on two of the IMU's, with a third fixed IMU as a reference / backup.
 
 :::tip
-The manufacturer [Cube User Guide](https://docs.cubepilot.org/user-guides/autopilot/the-cube) contains detailed information, including an overview of the [Differences between Cube Colours](https://docs.cubepilot.org/user-guides/autopilot/the-cube/introduction/specifications).
+The manufacturer [Cube User Guide](https://docs.cubepilot.org/autopilot/the-cube) contains detailed information, including an overview of the [Differences between Cube Colours](https://docs.cubepilot.org/autopilot/the-cube/introduction/specifications).
+:::
+
+:::info
+This flight controller is [manufacturer supported](../flight_controller/autopilot_manufacturer_supported.md).
 :::
 
 ## 主要特性
@@ -37,11 +41,9 @@ The manufacturer [Cube User Guide](https://docs.cubepilot.org/user-guides/autopi
 - High-power, multi-tone piezo audio indicator
 - microSD card for high-rate logging over extended periods of time
 
-<a id="stores"></a>
+## Where to Buy {#store}
 
-## 购买渠道
-
-- [Reseller list](https://www.cubepilot.com/#/reseller/list)
+- [Reseller list](https://cubepilot.org/#/reseller/list)
 
 ## 组装
 
@@ -205,14 +207,14 @@ The manufacturer [Cube User Guide](https://docs.cubepilot.org/user-guides/autopi
 
 ## 串口映射
 
-| UART   | 设备         | Port                                     |
-| ------ | ---------- | ---------------------------------------- |
-| USART2 | /dev/ttyS0 | TELEM1 (flow control) |
-| USART3 | /dev/ttyS1 | TELEM2 (flow control) |
-| UART4  | /dev/ttyS2 | GPS1                                     |
-| USART6 | /dev/ttyS3 | PX4IO                                    |
-| UART7  | /dev/ttyS4 | CONSOLE/ADSB-IN                          |
-| UART8  | /dev/ttyS5 | GPS2                                     |
+| UART   | 设备         | Port                           |
+| ------ | ---------- | ------------------------------ |
+| USART2 | /dev/ttyS0 | TELEM1 (流控) |
+| USART3 | /dev/ttyS1 | TELEM2 (流控) |
+| UART4  | /dev/ttyS2 | GPS1                           |
+| USART6 | /dev/ttyS3 | PX4IO                          |
+| UART7  | /dev/ttyS4 | CONSOLE/ADSB-IN                |
+| UART8  | /dev/ttyS5 | GPS2                           |
 
 <!-- Note: Got ports using https://github.com/PX4/PX4-user_guide/pull/672#issuecomment-598198434 -->
 
@@ -232,7 +234,7 @@ The firmware for Orange+ will be present in releases from PX4 v1.14.
 
 To [build PX4](../dev_setup/building_px4.md) for this target, open up the terminal and enter:
 
-```
+```sh
 make cubepilot_cubeorangeplus
 ```
 
@@ -249,5 +251,5 @@ Board schematics and other documentation can be found here: [The Cube Project](h
 
 - [Cube Wiring Quickstart](../assembly/quick_start_cube.md)
 - Cube Docs (Manufacturer):
-  - [Cube User Guide](https://docs.cubepilot.org/user-guides/autopilot/the-cube)
-  - [Mini Carrier Board](https://docs.cubepilot.org/user-guides/carrier-boards/mini-carrier-board)
+  - [Cube User Guide](https://docs.cubepilot.org/autopilot/the-cube)
+  - [Mini Carrier Board](https://docs.cubepilot.org/carrier-boards/mini-carrier-board)

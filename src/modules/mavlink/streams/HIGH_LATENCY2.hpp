@@ -51,10 +51,11 @@
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_global_position.h>
 #include <uORB/topics/vehicle_thrust_setpoint.h>
-#include <uORB/topics/sensor_gps.h>
+#include <uORB/topics/vehicle_gnss.h>
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_status.h>
+#include <uORB/topics/failure_detector_status.h>
 #include <uORB/topics/failsafe_flags.h>
 #include <uORB/topics/health_report.h>
 #include <uORB/topics/vehicle_air_data.h>
@@ -135,6 +136,7 @@ private:
 			updated |= write_heading_if_updated(&msg);
 			updated |= write_mission_result_if_updated(&msg);
 			updated |= write_failsafe_flags(&msg);
+			updated |= write_failure_detector_status(&msg);
 
 			// these topics are already updated in update_data() and thus we just copy them here
 			write_airspeed(&msg);
@@ -454,10 +456,6 @@ private:
 				}
 			}
 
-			if (status.failure_detector_status & vehicle_status_s::FAILURE_MOTOR) {
-				msg->failure_flags |= HL_FAILURE_FLAG_ENGINE;
-			}
-
 			// flight mode
 			union px4_custom_mode custom_mode {get_px4_custom_mode(status.nav_state)};
 			msg->custom_mode = custom_mode.custom_mode_hl;
@@ -492,6 +490,21 @@ private:
 		return false;
 	}
 
+	bool write_failure_detector_status(mavlink_high_latency2_t *msg)
+	{
+		failure_detector_status_s fd_status;
+
+		if (_failure_detector_status_sub.update(&fd_status)) {
+			if (fd_status.fd_motor) {
+				msg->failure_flags |= HL_FAILURE_FLAG_ENGINE;
+			}
+
+			return true;
+		}
+
+		return false;
+	}
+
 	bool write_wind(mavlink_high_latency2_t *msg)
 	{
 		wind_s wind;
@@ -519,7 +532,7 @@ private:
 		update_tecs_status();
 		update_battery_status();
 		update_local_position();
-		update_gps();
+		update_gnss();
 		update_vehicle_status();
 		update_wind();
 		update_vehicle_air_data();
@@ -566,13 +579,13 @@ private:
 		}
 	}
 
-	void update_gps()
+	void update_gnss()
 	{
-		sensor_gps_s gps;
+		vehicle_gnss_s gnss;
 
-		if (_gps_sub.update(&gps)) {
-			_eph.add_value(gps.eph, _update_rate_filtered);
-			_epv.add_value(gps.epv, _update_rate_filtered);
+		if (_vehicle_gnss_sub.update(&gnss)) {
+			_eph.add_value(gnss.receiver.eph, _update_rate_filtered);
+			_epv.add_value(gnss.receiver.epv, _update_rate_filtered);
 		}
 	}
 
@@ -662,9 +675,10 @@ private:
 	uORB::Subscription _geofence_sub{ORB_ID(geofence_result)};
 	uORB::Subscription _global_pos_sub{ORB_ID(vehicle_global_position)};
 	uORB::Subscription _local_pos_sub{ORB_ID(vehicle_local_position)};
-	uORB::Subscription _gps_sub{ORB_ID(vehicle_gps_position)};
+	uORB::Subscription _vehicle_gnss_sub{ORB_ID(vehicle_gnss)};
 	uORB::Subscription _mission_result_sub{ORB_ID(mission_result)};
 	uORB::Subscription _status_sub{ORB_ID(vehicle_status)};
+	uORB::Subscription _failure_detector_status_sub{ORB_ID(failure_detector_status)};
 	uORB::Subscription _failsafe_flags_sub{ORB_ID(failsafe_flags)};
 	uORB::Subscription _tecs_status_sub{ORB_ID(tecs_status)};
 	uORB::Subscription _wind_sub{ORB_ID(wind)};

@@ -24,7 +24,7 @@ Whether or not you `Land` depends on whether the package can safely be deployed 
 Оскільки захват не може безпечно опускати посилки, мультикоптери та апарати VTOL часто приземляються, щоб розвантажити посилки, коли використовують захват.
 
 After the deployment device [indicates completion](#package-release-feedback), the vehicle will proceed to the next waypoint.
-Note that if landed, the next mission item after deployment should be another `Waypoint` or a `Takeoff` mission item ([it must not be a `RETURN`](#rtl-waypoint-for-package-delivery-with-landing).)
+Note that if landed, the next mission item after deployment should be another `Waypoint` or a `Takeoff` mission item ([it must not be a `RETURN`](#return-waypoint-for-package-delivery-with-landing).)
 
 ## Створення місії доставки посилок
 
@@ -33,7 +33,6 @@ Note that if landed, the next mission item after deployment should be another `W
 1. Create a normal mission with a `Takeoff` mission item, and additional waypoints for your required flight path.
 
 2. Додайте маршрутну точку на карті, де ви хочете випустити посилку.
-
    - Щоб скинути посилку під час польоту, установіть відповідну висоту для маршрутної точки (і переконайтеся, що маршрутна точка знаходиться в безпечному місці для скидання посилки).
 
    - If you'd like to land the vehicle to make the delivery you will need to change the `Waypoint` to a `Land` mission item.
@@ -77,12 +76,12 @@ Note how the altitude graph shows the `Land` item.
 
 ### Примітки
 
-#### Точка маршруту RTL для доставки посилок з посадкою
+#### Return Waypoint for Package Delivery with Landing
 
 Do not plan a mission with a delivery like this: `LAND` > `GRIPPER` > `RETURN TO LAUNCH`.
 
-For safety reasons "Return To Launch" is disabled when vehicle is landed ([related issue](https://github.com/PX4/PX4-Autopilot/pull/20044)).
-Отже, якщо ви приземлитесь, випустите вантаж, а потім встановите точку маршруту RTL, апарат буде простоювати на координатах посадки.
+For safety reasons Return mode is disabled when the vehicle is landed ([related issue](https://github.com/PX4/PX4-Autopilot/pull/20044)).
+So if you land, release the cargo, then have a `Return` (`MAV_CMD_NAV_RETURN_TO_LAUNCH`) mission item, the vehicle will idle at the landing coordinate.
 
 #### Ручне керування захватом в місіях
 

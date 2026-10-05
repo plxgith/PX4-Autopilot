@@ -6,6 +6,16 @@ CONFIG:
       buildType: RelWithDebInfo
       settings:
         CONFIG: px4_sitl_default
+    px4_sitl_raptor:
+      short: px4_sitl_raptor
+      buildType: RelWithDebInfo
+      settings:
+        CONFIG: px4_sitl_raptor
+    px4_sitl_raptor_debug:
+      short: px4_sitl_raptor_debug
+      buildType: Debug
+      settings:
+        CONFIG: px4_sitl_raptor
     px4_sitl_spacecraft:
       short: px4_sitl_spacecraft
       buildType: RelWithDebInfo
@@ -121,6 +131,11 @@ CONFIG:
       buildType: MinSizeRel
       settings:
         CONFIG: px4_fmu-v6xrt_bootloader
+    3dr_ctrl-n1_default:
+      short: 3dr_ctrl-n1
+      buildType: MinSizeRel
+      settings:
+        CONFIG: 3dr_ctrl-n1_default
     3dr_ctrl-zero-h7-oem-revg_default:
       short: 3dr_ctrl-zero-h7-oem-revg
       buildType: MinSizeRel
@@ -141,6 +156,11 @@ CONFIG:
       buildType: MinSizeRel
       settings:
         CONFIG: ark_can-flow_canbootloader
+    ark_can-flow-mr_default:
+      short: ark_can-flow-mr_default
+      buildType: MinSizeRel
+      settings:
+        CONFIG: ark_can-flow-mr_default
     ark_can-flow-mr_canbootloader:
       short: ark_can-flow-mr_canbootloader
       buildType: MinSizeRel
@@ -236,6 +256,16 @@ CONFIG:
       buildType: MinSizeRel
       settings:
         CONFIG: ark_fpv_default
+    ark_mag_canbootloader:
+      short: ark_mag_canbootloader
+      buildType: MiniSizeRel
+      settings:
+        CONFIG: ark_mag_canbootloader
+    ark_mag_default:
+      short: ark_mag_default
+      buildType: MiniSizeRel
+      settings:
+        CONFIG: ark_mag_default
     ark_pi6x_bootloader:
       short: ark_pi6x_bootloader
       buildType: MinSizeRel
@@ -311,6 +341,16 @@ CONFIG:
       buildType: MinSizeRel
       settings:
         CONFIG: cuav_x25-evo_default
+    cuav_x25-super_default:
+      short: cuav_x25-super
+      buildType: MinSizeRel
+      settings:
+        CONFIG: cuav_x25-super_default
+    cuav_x25-mega_default:
+      short: cuav_x25-mega
+      buildType: MinSizeRel
+      settings:
+        CONFIG: cuav_x25-mega_default
     cubepilot_cubeorange_test:
       short: cubepilot_cubeorange
       buildType: MinSizeRel
@@ -406,6 +446,16 @@ CONFIG:
       buildType: MinSizeRel
       settings:
         CONFIG: micoair_h743-v2_default
+    micoair_h743-lite_bootloader:
+      short: micoair_h743-lite_bootloader
+      buildType: MinSizeRel
+      settings:
+        CONFIG: micoair_h743-lite_bootloader
+    micoair_h743-lite_default:
+      short: micoair_h743-lite
+      buildType: MinSizeRel
+      settings:
+        CONFIG: micoair_h743-lite_default
     modalai_fc-v1_default:
       short: modalai_fc-v1
       buildType: MinSizeRel
@@ -456,6 +506,16 @@ CONFIG:
       buildType: MinSizeRel
       settings:
         CONFIG: nxp_mr-canhubk3_fmu
+    nxp_mr-tropic_default:
+      short: nxp_mr-tropic_default
+      buildType: MinSizeRel
+      settings:
+        CONFIG: nxp_mr-tropic_default
+    nxp_mr-tropic_bootloader:
+      short: nxp_mr-tropic_bootloader
+      buildType: MinSizeRel
+      settings:
+        CONFIG: nxp_mr-tropic_bootloader
     nxp_tropic-community_default:
       short: nxp_tropic-community_default
       buildType: MinSizeRel
@@ -486,3 +546,23 @@ CONFIG:
       buildType: MinSizeRel
       settings:
         CONFIG: x-mav_ap-h743v2_default
+    svehicle_e2_bootloader:
+      short: svehicle_e2_bootloader
+      buildType: MinSizeRel
+      settings:
+        CONFIG: svehicle_e2_bootloader
+    svehicle_e2_default:
+      short: svehicle_e2
+      buildType: MinSizeRel
+      settings:
+        CONFIG: svehicle_e2_default
+    x-mav_ap-h743r1_bootloader:
+      short: x-mav_ap-h743r1-boot
+      buildType: MinSizeRel
+      settings:
+        CONFIG: x-mav_ap-h743r1_bootloader
+    x-mav_ap-h743r1_default:
+      short: x-mav_ap-h743r1
+      buildType: MinSizeRel
+      settings:
+        CONFIG: x-mav_ap-h743r1_default

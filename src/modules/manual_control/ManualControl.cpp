@@ -34,8 +34,11 @@
 #include "ManualControl.hpp"
 
 #include <px4_platform_common/events.h>
+#include <lib/mathlib/mathlib.h>
 #include <lib/systemlib/mavlink_log.h>
 #include <uORB/topics/vehicle_command.h>
+
+ModuleBase::Descriptor ManualControl::desc{task_spawn, custom_command, print_usage};
 
 ManualControl::ManualControl() :
 	ModuleParams(nullptr),
@@ -52,6 +55,15 @@ ManualControl::~ManualControl()
 
 bool ManualControl::init()
 {
+#if defined(PAYLOAD_POWER_EN)
+
+	// If the payload power switch is mapped, default to power off until the RC switch explicitly commands it on.
+	if (_param_rc_map_pay_sw.get()) {
+		PAYLOAD_POWER_EN(false);
+	}
+
+#endif // PAYLOAD_POWER_EN
+
 	ScheduleNow();
 	return true;
 }
@@ -60,7 +72,7 @@ void ManualControl::Run()
 {
 	if (should_exit()) {
 		ScheduleClear();
-		exit_and_cleanup();
+		exit_and_cleanup(desc);
 		return;
 	}
 
@@ -111,15 +123,35 @@ void ManualControl::processInput(hrt_abstime now)
 		_published_invalid_once = false;
 
 		processStickArming(_selector.setpoint());
+		bool kill_gesture_active = processStickKillGesture(_selector.setpoint());
+
+		if (kill_gesture_active) {
+			// Zero sticks and set min throttle to prevent extreme setpoints
+			// while waiting for the kill hysteresis to trigger.
+
+			// Note: Arm/Disarm gestures dont require stick centering because
+			// they aren't active during flight
+
+			_selector.setpoint().roll = 0.f;
+			_selector.setpoint().pitch = 0.f;
+			_selector.setpoint().throttle = -1.0f;
+			_selector.setpoint().yaw = 0.f;
+		}
 
 		// User override by stick
 		const float dt_s = (now - _timestamp_last_loop) / 1e6f;
-		const float minimum_stick_change = 0.01f * _param_com_rc_stick_ov.get();
+		const float velocity_threshold = _param_man_override_spd.get();
 
-		_selector.setpoint().sticks_moving = (fabsf(_roll_diff.update(_selector.setpoint().roll, dt_s)) > minimum_stick_change)
-						     || (fabsf(_pitch_diff.update(_selector.setpoint().pitch, dt_s)) > minimum_stick_change)
-						     || (fabsf(_yaw_diff.update(_selector.setpoint().yaw, dt_s)) > minimum_stick_change)
-						     || (fabsf(_throttle_diff.update(_selector.setpoint().throttle, dt_s)) > minimum_stick_change);
+		_selector.setpoint().sticks_moving =
+			(velocity_threshold >= 0.f) &&
+			((fabsf(_roll_diff.update(_selector.setpoint().roll, dt_s)) > velocity_threshold
+			  && _roll_diff.consecutiveSameSign() >= MIN_SIGN_CONSECUTIVE)
+			 || (fabsf(_pitch_diff.update(_selector.setpoint().pitch, dt_s)) > velocity_threshold
+			     && _pitch_diff.consecutiveSameSign() >= MIN_SIGN_CONSECUTIVE)
+			 || (fabsf(_yaw_diff.update(_selector.setpoint().yaw, dt_s)) > velocity_threshold
+			     && _yaw_diff.consecutiveSameSign() >= MIN_SIGN_CONSECUTIVE)
+			 || (fabsf(_throttle_diff.update(_selector.setpoint().throttle, dt_s)) > velocity_threshold
+			     && _throttle_diff.consecutiveSameSign() >= MIN_SIGN_CONSECUTIVE));
 
 		_selector.setpoint().timestamp = now;
 		_manual_control_setpoint_pub.publish(_selector.setpoint());
@@ -293,6 +325,18 @@ void ManualControl::processSwitches(hrt_abstime &now)
 			} else if (!_armed) {
 				// Directly initialize mode using RC switch but only before arming
 				evaluateModeSlot(switches.mode_slot);
+#if defined(PAYLOAD_POWER_EN)
+
+				// Apply payload power state on first switch receipt if not armed
+				if (switches.payload_power_switch == manual_control_switches_s::SWITCH_POS_ON) {
+					PAYLOAD_POWER_EN(true);
+
+				} else if (switches.payload_power_switch == manual_control_switches_s::SWITCH_POS_OFF
+					   || switches.payload_power_switch == manual_control_switches_s::SWITCH_POS_MIDDLE) {
+					PAYLOAD_POWER_EN(false);
+				}
+
+#endif // PAYLOAD_POWER_EN
 			}
 
 			_previous_switches = switches;
@@ -309,10 +353,11 @@ void ManualControl::updateParams()
 {
 	ModuleParams::updateParams();
 
-	_stick_arm_hysteresis.set_hysteresis_time_from(false, _param_com_rc_arm_hyst.get() * 1_ms);
-	_stick_disarm_hysteresis.set_hysteresis_time_from(false, _param_com_rc_arm_hyst.get() * 1_ms);
-	_button_arm_hysteresis.set_hysteresis_time_from(false, _param_com_rc_arm_hyst.get() * 1_ms);
-	_stick_kill_hysteresis.set_hysteresis_time_from(false, _param_man_kill_gest_t.get() * 1_s);
+	_stick_arm_hysteresis.set_hysteresis_time_from(false, 1_s);
+	_stick_disarm_hysteresis.set_hysteresis_time_from(false, 1_s);
+	_button_arm_hysteresis.set_hysteresis_time_from(false, 1_s);
+	// A negative MAN_KILL_GEST_T disables the gesture, don't convert it to an unsigned time
+	_stick_kill_hysteresis.set_hysteresis_time_from(false, math::max(_param_man_kill_gest_t.get(), 0.f) * 1_s);
 
 	_selector.setRcInMode(_param_com_rc_in_mode.get());
 	_selector.setTimeout(_param_com_rc_loss_t.get() * 1_s);
@@ -387,18 +432,26 @@ void ManualControl::processStickArming(const manual_control_setpoint_s &input)
 	if (_param_man_arm_gesture.get() && !previous_stick_disarm_hysteresis && _stick_disarm_hysteresis.get_state()) {
 		sendActionRequest(action_request_s::ACTION_DISARM, action_request_s::SOURCE_STICK_GESTURE);
 	}
+}
 
-	// Kill gesture
+bool ManualControl::processStickKillGesture(const manual_control_setpoint_s &input)
+{
 	if (_param_man_kill_gest_t.get() > 0.f) {
 		const bool right_stick_lower_right = (input.pitch < -0.9f) && (input.roll > 0.9f);
+		const bool left_stick_lower_left = (input.throttle < -0.8f) && (input.yaw < -0.9f);
+		const bool kill_gesture = right_stick_lower_right && left_stick_lower_left;
 
 		const bool previous_stick_kill_hysteresis = _stick_kill_hysteresis.get_state();
-		_stick_kill_hysteresis.set_state_and_update(left_stick_lower_left && right_stick_lower_right, input.timestamp);
+		_stick_kill_hysteresis.set_state_and_update(kill_gesture, input.timestamp);
 
 		if (!previous_stick_kill_hysteresis && _stick_kill_hysteresis.get_state()) {
 			sendActionRequest(action_request_s::ACTION_KILL, action_request_s::SOURCE_STICK_GESTURE);
 		}
+
+		return kill_gesture;
 	}
+
+	return false;
 }
 
 void ManualControl::evaluateModeSlot(uint8_t mode_slot)
@@ -520,8 +573,8 @@ int ManualControl::task_spawn(int argc, char *argv[])
 	ManualControl *instance = new ManualControl();
 
 	if (instance) {
-		_object.store(instance);
-		_task_id = task_id_is_work_queue;
+		desc.object.store(instance);
+		desc.task_id = task_id_is_work_queue;
 
 		if (instance->init()) {
 			return PX4_OK;
@@ -532,8 +585,8 @@ int ManualControl::task_spawn(int argc, char *argv[])
 	}
 
 	delete instance;
-	_object.store(nullptr);
-	_task_id = -1;
+	desc.object.store(nullptr);
+	desc.task_id = -1;
 
 	return PX4_ERROR;
 }
@@ -591,6 +644,7 @@ int8_t ManualControl::navStateFromParam(int32_t param_value)
 		case 14: return vehicle_status_s::NAVIGATION_STATE_ORBIT;
 		case 15: return vehicle_status_s::NAVIGATION_STATE_AUTO_VTOL_TAKEOFF;
 		case 16: return vehicle_status_s::NAVIGATION_STATE_ALTITUDE_CRUISE;
+		case 17: return vehicle_status_s::NAVIGATION_STATE_MANUAL_PARKING;
 
 		case 100: return vehicle_status_s::NAVIGATION_STATE_EXTERNAL1;
 		case 101: return vehicle_status_s::NAVIGATION_STATE_EXTERNAL2;
@@ -606,5 +660,5 @@ int8_t ManualControl::navStateFromParam(int32_t param_value)
 
 extern "C" __EXPORT int manual_control_main(int argc, char *argv[])
 {
-	return ManualControl::main(argc, argv);
+	return ModuleBase::main(ManualControl::desc, argc, argv);
 }

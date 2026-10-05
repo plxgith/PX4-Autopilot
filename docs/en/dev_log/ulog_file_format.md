@@ -215,7 +215,7 @@ Predefined information messages are:
 | `char[value_len] ver_sw_branch`     | git branch                                  | "master"           |
 | `uint32_t ver_sw_release`           | Software version (see below)                | 0x010401ff         |
 | `char[value_len] sys_os_name`       | Operating System Name                       | "Linux"            |
-| `char[value_len] sys_os_ve`r        | OS version (git tag)                        | "9f82919"          |
+| `char[value_len] sys_os_ver`        | OS version (git tag)                        | "9f82919"          |
 | `uint32_t ver_os_release`           | OS version (see below)                      | 0x010401ff         |
 | `char[value_len] sys_toolchain`     | Toolchain Name                              | "GNU GCC"          |
 | `char[value_len] sys_toolchain_ver` | Toolchain Version                           | "6.2.1"            |
@@ -493,10 +493,11 @@ A valid ULog parser must fulfill the following requirements:
 - [QGroundControl](https://github.com/mavlink/qgroundcontrol): C++, ULog streaming via MAVLink and minimal parsing for GeoTagging.
 - [mavlink-router](https://github.com/mavlink-router/mavlink-router): C++, ULog streaming via MAVLink.
 - [MAVGAnalysis](https://github.com/ecmnet/MAVGCL): Java, ULog streaming via MAVLink and parser for plotting and analysis.
-- [PlotJuggler](https://github.com/facontidavide/PlotJuggler): C++/Qt application to plot logs and time series. Supports ULog since version 2.1.3.
+- [PlotJuggler](https://github.com/PlotJuggler/PlotJuggler): C++/Qt application to plot logs and time series. Supports ULog since version 2.1.3.
 - [ulogreader](https://github.com/maxsun/ulogreader): Javascript, ULog reader and parser outputs log in JSON object format.
 - [Foxglove](https://foxglove.dev): an integrated visualization and diagnosis tool for robotics data that supports ULog files.
 - [TypeScript ULog parser](https://github.com/foxglove/ulog): TypeScript, ULog reader that outputs JS objects.
+- [yule_log](https://crates.io/crates/yule_log): A streaming ULog parser written in Rust.
 
 ## File Format Version History
 

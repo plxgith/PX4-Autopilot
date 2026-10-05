@@ -13,7 +13,7 @@ This section discusses the _param_ subsystem in detail.
 
 The PX4 [system console](../debug/system_console.md) offers the [param](../modules/modules_command.md#param) tool, which can be used to set parameters, read their value, save them, and export and restore to/from files.
 
-### 매개변수 가져오기 및 설정
+### Getting Parameters
 
 The `param show` command lists all system parameters:
 
@@ -41,6 +41,22 @@ param show -c
 ```
 
 You can use `param show-for-airframe` to show all parameters that have changed from their defaults for just the current airframe's definition file (and defaults it imports).
+
+### Setting Parameters
+
+Use `param set` to change a specific parameter:
+
+```sh
+param set SYS_AUTOSTART 1103   # Load airframe 1103 on next boot if SYS_AUTOCONFIG==1
+param set FW_T_F_ALT_ERR 20    # Enable TECS fast descend if >20m above altitude setpoint
+```
+
+Use `param bitset` and `param bitclear` to modify individual bits of a parameter (only for `INT32`):
+
+```sh
+param bitclear EKF2_SENS_EN 3  # Disable GPS fusion (lowest 2 bits -> 0b11), leaving other settings intact
+param bitset PWM_MAIN_REV 24   # Set output range for main PWM 4 and 5 to reversed (0b11000), leaving others intact
+```
 
 ### 매개변수 내보내기 및 로드
 
@@ -357,6 +373,62 @@ This ensures that metadata is always up-to-date with the code running on the veh
 
 This process is the same as for [events metadata](../concept/events_interface.md#publishing-event-metadata-to-a-gcs).
 For more information see [PX4 Metadata (Translation & Publication)](../advanced/px4_metadata.md)
+
+## Read-Only Parameters
+
+Integrators who productize PX4 can lock down parameters so that end users cannot change safety-critical or product-defining settings.
+This works in two phases:
+
+1. **Build time** — a YAML file in the board directory declares _which_ parameters are read-only.
+2. **Run time** — `param lock` in the startup script activates enforcement.
+
+Before the lock, all parameters (including those on the read-only list) can be freely set by startup scripts (`rc.board_defaults`, airframe scripts, `config.txt`, etc.).
+After the lock, any attempt to modify a read-only parameter is rejected.
+
+### 설정
+
+Create `boards/<vendor>/<board>/readonly_params.yaml` with the following format:
+
+```yaml
+# mode: 'block' = listed params are read-only (all others writable)
+# mode: 'allow' = only listed params are writable (all others read-only)
+mode: block
+parameters:
+  - SYS_AUTOSTART
+  - SYS_AUTOCONFIG
+  - BAT1_N_CELLS
+```
+
+The two modes are:
+
+- **`block`**: The listed parameters are read-only; all other parameters remain writable.
+- **`allow`**: Only the listed parameters are writable; all others become read-only.
+
+All parameter names in the list are validated at build time — the build will fail if any listed parameter does not exist in the firmware.
+Boards without this file have no read-only enforcement (fully backward compatible).
+
+### Locking
+
+The `param lock` command is called in `rcS` after all startup scripts have finished setting parameters.
+Before this call, startup scripts can freely use `param set-default` and `param set` on any parameter, including those on the read-only list.
+After `param lock`, the read-only list is enforced.
+
+To set a specific locked value, use `param set-default` in a board startup script (e.g. `rc.board_defaults`) to set the desired default _before_ the lock activates.
+
+### Enforcement (after lock)
+
+Read-only parameters are enforced at all entry points:
+
+- **`param set`** and **`param set-default`** shell commands return an error.
+- **MAVLink PARAM_SET** returns a `MAV_PARAM_ERROR_READ_ONLY` error to the GCS.
+- **`param_set()`**, **`param_set_default_value()`** C API calls return `PX4_ERROR`.
+- **`param reset`** silently skips read-only parameters (since `param_reset_all` loops over all params).
+- **`param import`** / **`param load`** from file silently skips read-only parameters.
+
+### 참고
+
+- The read-only list is compiled into firmware as a `constexpr` array, so there is zero runtime overhead when the list is empty.
+- If no `readonly_params.yaml` file exists for a board, `param lock` is a no-op.
 
 ## 추가 정보
 

@@ -1,0 +1,147 @@
+module_name: navigator
+parameters:
+- group: Return Mode
+  definitions:
+    RTL_RETURN_ALT:
+      description:
+        short: Return mode return altitude
+        long: Minimum altitude above the destination (home, rally point or landing pattern)
+          during return. The vehicle climbs to it unless already higher. Adjusted by
+          RTL_MIN_DIST and RTL_CONE_ANG.
+      type: float
+      default: 60.0
+      unit: m
+      min: 0
+      decimal: 1
+      increment: 0.5
+    RTL_DESCEND_ALT:
+      description:
+        short: Return mode loiter altitude
+        long: After returning, the vehicle descends to this altitude above the destination
+          and waits RTL_LAND_DELAY, then lands if autolanding is allowed. VTOLs transition
+          to hover at this altitude.
+      type: float
+      default: 30.0
+      unit: m
+      min: 0
+      decimal: 1
+      increment: 0.5
+    RTL_LAND_DELAY:
+      description:
+        short: Return mode delay
+        long: Delay after the descent to RTL_DESCEND_ALT, before landing. Set to -1 to loiter
+          at RTL_DESCEND_ALT without landing.
+      type: float
+      default: 0.0
+      unit: s
+      min: -1
+      decimal: 1
+      increment: 0.5
+    RTL_MIN_DIST:
+      description:
+        short: Min distance for return cone altitude calculation
+        long: Within this horizontal distance of the destination, the return altitude comes
+          from RTL_CONE_ANG and the yaw setpoint switches to the destination's yaw.
+      type: float
+      default: 10.0
+      unit: m
+      min: 0.5
+      decimal: 1
+      increment: 0.5
+    RTL_TYPE:
+      description:
+        short: Return type
+        long: |-
+          Return mode destination and flight path (home location, rally point, mission landing pattern, reverse mission)
+
+          - 0 (Direct to home or rally point): Return to closest safe point (home or rally point) via direct path.
+
+          - 1 (Direct to mission landing or rally point): Return to closest safe point other than home (mission landing pattern or rally point), via direct path. If no mission landing or rally points are defined return home via direct path. Always choose closest safe landing point if vehicle is a VTOL in hover mode.
+
+          - 2 (Mission path to landing, else reverse home): Return to a planned mission landing, if available, using the mission path while skipping DO_JUMP and other non-position mission items, else return to home via the reverse mission path with the same traversal rules. Do not consider rally points.
+
+          - 3 (Direct to closest safe destination): Return via direct path to closest destination: home, start of mission landing pattern or safe point. If the destination is a mission landing pattern, follow the pattern to land.
+
+          - 4 (Mission path, closest of landing or home): Return to the planned mission landing, or to home via the reverse mission path, whichever is estimated to be closer using mission item indices. Skip DO_JUMP and other non-position mission items while following either mission path. Do not consider rally points.
+
+          - 5 (Direct to rally point only): Return directly to safe landing point (do not consider mission landing and Home).
+
+          - 6 (Home if battery allows, else rally point): Return to home if time estimate to home is less than battery remaining estimate, else return to the closest rally point. If battery remaining estimate is not available, return to the closest safe point (home or rally point).
+      type: enum
+      values:
+        0: Direct to home or rally point
+        1: Direct to mission landing or rally point
+        2: Mission path to landing, else reverse home
+        3: Direct to closest safe destination
+        4: Mission path, closest of landing or home
+        5: Direct to rally point only
+        6: Home if battery allows, else rally point
+      default: 0
+    RTL_CONE_ANG:
+      description:
+        short: Half-angle of the return mode altitude cone
+        long: Half-angle of a cone centered around the destination position.
+          Affects the altitude at which the vehicle returns.
+      type: enum
+      values:
+        0: No cone, always climb to RTL_RETURN_ALT above destination.
+        25: 25 degrees half cone angle.
+        45: 45 degrees half cone angle.
+        65: 65 degrees half cone angle.
+        80: 80 degrees half cone angle.
+        90: Only climb to at least RTL_DESCEND_ALT above destination.
+      default: 45
+      unit: deg
+      min: 0
+      max: 90
+    RTL_PLD_MD:
+      description:
+        short: Return precision land mode
+        long: Doesn't apply to return destinations planned in a mission.
+      type: enum
+      values:
+        0: No precision landing
+        1: Opportunistic precision landing
+        2: Required precision landing
+      default: 0
+    RTL_LOITER_RAD:
+      description:
+        short: Loiter radius for return descent
+        long: Default loiter radius for descent to RTL_DESCEND_ALT if not set in landing approach.
+          Set to safe altitude for VTOL transitions.
+      type: float
+      default: 80.0
+      unit: m
+      min: 25
+      decimal: 1
+      increment: 0.5
+- group: Return Mode
+  definitions:
+    RTL_TIME_FACTOR:
+      description:
+        short: Return time estimate safety margin factor
+        long: Time with margin = RTL_TIME_FACTOR * time + RTL_TIME_MARGIN.
+      type: float
+      default: 1.1
+      min: 1.0
+      max: 2.0
+      decimal: 1
+      increment: 0.1
+    RTL_TIME_MARGIN:
+      description:
+        short: Return time estimate safety margin offset
+        long: Time with margin = RTL_TIME_FACTOR * time + RTL_TIME_MARGIN.
+      type: int32
+      default: 100
+      unit: s
+      min: 0
+      max: 3600
+      decimal: 1
+      increment: 1
+    RTL_APPR_FORCE:
+      description:
+        short: Force VTOL approach landing on Return
+        long: Only home and rally points with a VTOL approach loiter (a MAV_CMD_NAV_LOITER_TO_ALT
+          item with finite position and altitude) are used as return destinations.
+      type: boolean
+      default: 0

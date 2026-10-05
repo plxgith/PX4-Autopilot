@@ -37,16 +37,19 @@
 #include <px4_platform_common/module_params.h>
 #include <px4_platform_common/px4_work_queue/ScheduledWorkItem.hpp>
 #include <px4_platform_common/time.h>
+#include <systemlib/system_time_source.h>
 
 static constexpr const auto TIME_FILE_PATH = PX4_STORAGEDIR "/time_save.bin";
 
 using namespace time_literals;
 
-class TimePersistor : public ModuleBase<TimePersistor>, public ModuleParams, public px4::ScheduledWorkItem
+class TimePersistor : public ModuleBase, public ModuleParams, public px4::ScheduledWorkItem
 {
 public:
 	TimePersistor();
 	~TimePersistor() override;
+
+	static Descriptor desc;
 
 	/** @see ModuleBase */
 	static int task_spawn(int argc, char *argv[]);
@@ -68,4 +71,8 @@ private:
 	int write_time(const time_t time);
 
 	FILE *_file = 0;
+
+	DEFINE_PARAMETERS(
+		(ParamInt<px4::params::SYS_TIME_SRC>) _param_sys_time_src
+	)
 };

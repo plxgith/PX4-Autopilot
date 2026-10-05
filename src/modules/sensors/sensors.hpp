@@ -91,9 +91,11 @@
 using namespace sensors;
 using namespace time_literals;
 
-class Sensors : public ModuleBase<Sensors>, public ModuleParams, public px4::ScheduledWorkItem
+class Sensors : public ModuleBase, public ModuleParams, public px4::ScheduledWorkItem
 {
 public:
+	static Descriptor desc;
+
 	explicit Sensors(bool hil_enabled);
 	~Sensors() override;
 
@@ -239,7 +241,7 @@ private:
 
 #if defined(CONFIG_SENSORS_VEHICLE_GPS_POSITION)
 	VehicleGPSPosition *_vehicle_gps_position {nullptr};
-	uint8_t _n_gps{0};
+	uint8_t _n_gnss{0};
 #endif // CONFIG_SENSORS_VEHICLE_GPS_POSITION
 
 #if defined(CONFIG_SENSORS_VEHICLE_OPTICAL_FLOW)

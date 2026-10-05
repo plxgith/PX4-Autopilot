@@ -33,7 +33,6 @@ _Польотні завдання_ використовуються у [Реж�
    - FlightTaskMyTask.cpp
 
 3. Оновіть **CMakeLists.txt** для нового завдання
-
    - Скопіюйте вміст **CMakeLists.txt** з іншого завдання, наприклад, [Orbit/CMakeLists.txt](https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/flight_mode_manager/tasks/Orbit/CMakeLists.txt)
 
    - Оновіть відмітку про авторське право до поточного року
@@ -116,7 +115,7 @@ _Польотні завдання_ використовуються у [Реж�
    ::: tip
 
    The task added above will be built on all boards, including those with constrained flash such as Pixhawk FMUv2.
-   If your task is not indended for use on boards with constrained flash it should instead be added to the conditional block shown below (as shown).
+   If your task is not intended for use on boards with constrained flash it should instead be added to the conditional block shown below (as shown).
 
    ```cmake
    ...
@@ -138,35 +137,38 @@ _Польотні завдання_ використовуються у [Реж�
 
    Наприклад, щоб активувати наше нове завдання `MyTask` в позиційному режимі мультикоптера:
 
-   - Оновіть `MPC_POS_MODE` ([multicopter_position_mode_params.](https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/mc_pos_control/multicopter_position_mode_params.c)), щоб додати варіант для вибору "MyTask", якщо параметр має раніше невикористане значення, наприклад 5:
+   - Update `MPC_POS_MODE` ([multicopter_position_mode_params.yaml](https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/mc_pos_control/multicopter_position_mode_params.yaml)) to add an option for selecting "MyTask" using a previously unused parameter value (in this case 5):
 
-     ```c
-     ...
-      * @value 0 Direct velocity
-      * @value 3 Smoothed velocity
-      * @value 4 Acceleration based
-      * @value 5 My task
-      * @group Multicopter Position Control
-      */
-     PARAM_DEFINE_INT32(MPC_POS_MODE, 5);
+     ```yaml
+     MPC_POS_MODE:
+       ...
+       type: enum
+       values:
+         0: Direct velocity
+         4: Acceleration based
+         5: My task
+       default: 4
      ```
 
-   - Додайте мітку case для нового варіанту в операторі switch для параметра в [FlightModeManager.cpp](https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/flight_mode_manager/FlightModeManager.cpp#L266-L285), щоб увімкнути завдання коли `_param_mpc_pos_mode` має відповідне значення.
+   - Add a case for your new option in the switch for the parameter [FlightModeManager.cpp](https://github.com/PX4/PX4-Autopilot/blob/main/src/modules/flight_mode_manager/FlightModeManager.cpp#L214-L229) to enable the task when `_param_mpc_pos_mode` has the right value.
 
      ```cpp
      ...
-     // manual position control
-     ...
      switch (_param_mpc_pos_mode.get()) {
-       ...
-       case 3:
-          error = switchTask(FlightTaskIndex::ManualPositionSmoothVel);
-          break;
-       case 5: // Add case for new task: MyTask
-          error = switchTask(FlightTaskIndex::MyTask);
-          break;
+     case 0:
+        error = switchTask(FlightTaskIndex::ManualPosition);
+        break;
+
+     case 5:
+        error = switchTask(FlightTaskIndex::MyTask);
+        break;
+
      case 4:
-     ....
+     default:
+        ...
+        error = switchTask(FlightTaskIndex::ManualAcceleration);
+        break;
+     }
      ...
      ```
 

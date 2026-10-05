@@ -53,6 +53,7 @@ public:
 
 	void on_activation() override;
 	void on_active() override;
+	void on_inactive() override;
 
 private:
 	/**
@@ -64,6 +65,11 @@ private:
 	/**
 	 * Set the position to hold based on the current local position
 	 */
-	void set_loiter_position();
+	void set_loiter_position(const position_setpoint_s &reference_setpoint);
 
+	bool _loiter_at_last_link_position_executed{false};
+
+	DEFINE_PARAMETERS(
+		(ParamInt<px4::params::NAV_LTR_LAST_DL>) _param_nav_ltr_last_dl
+	)
 };

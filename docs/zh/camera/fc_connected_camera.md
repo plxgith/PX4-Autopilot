@@ -1,4 +1,4 @@
-# Cameras Connected to Flight Controller Outputs
+# 连接飞控输出的相机
 
 This topic explains how to use PX4 with a [camera](../camera/index.md) that is attached to flight controller outputs.
 
@@ -79,7 +79,7 @@ The shutter integration setting (`param2`) is only obeyed with a GPIO backend.
 
 ## Trigger Configuration
 
-Cameras can be connected to the FC for triggering using different intefaces, such as PWM, and GPIO, by specifying the appropriate [trigger interface backend](#trigger-interface-backends).
+Cameras can be connected to the FC for triggering using different interfaces, such as PWM, and GPIO, by specifying the appropriate [trigger interface backend](#trigger-interface-backends).
 You can also indicate the camera [trigger mode](#trigger-modes).
 
 This configuration can most easily be done from the _QGroundControl_ [Vehicle Setup > Camera](https://docs.qgroundcontrol.com/master/en/qgc-user-guide/setup_view/camera.html#px4-camera-setup) section.
@@ -139,7 +139,7 @@ At time of writing triggering only works on FMU pins:
 
 ### 其他参数
 
-| 参数                                                                                                                 | 描述                                                                                                                                                                                                                                                                      |
+| Parameter                                                                                                          | 描述                                                                                                                                                                                                                                                                      |
 | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [TRIG_POLARITY](../advanced_config/parameter_reference.md#TRIG_POLARITY)                      | Relevant only while using the GPIO interface. Sets the polarity of the trigger pin. Active high means that the pin is pulled low normally and pulled high on a trigger event. Active low is vice-versa. |
 | [TRIG_INTERVAL](../advanced_config/parameter_reference.md#TRIG_INTERVAL)                      | Defines the time between two consecutive trigger events in milliseconds.                                                                                                                                                                                |
@@ -179,6 +179,10 @@ The red and black ouptputs are connected to the servo rail/ground and the white 
 PX4 emits the MAVLink [CAMERA_TRIGGER](https://mavlink.io/en/messages/common.html#CAMERA_TRIGGER) message on both camera trigger and camera capture.
 If camera capture is configured, the timestamp from the camera capture driver is used, otherwise the triggering timestamp.
 :::
+
+PX4 also reports each capture to the ground station as a [CAMERA_IMAGE_CAPTURED](https://mavlink.io/en/messages/common.html#CAMERA_IMAGE_CAPTURED) message.
+This is controlled by [CAM_CAP_REPORT](../advanced_config/parameter_reference.md#CAM_CAP_REPORT), which is enabled by default and only needs to be disabled for cameras that report captures themselves (see [Capture Reporting](../camera/mavlink_v1_camera.md#capture-reporting)).
+Captures are logged for geotagging either way.
 
 ## Testing Trigger Functionality
 
@@ -308,9 +312,9 @@ Wire up your cameras to your AUX port by connecting the ground and signal pins t
 ### Step 4
 
 You will have to modify your driver to follow the sequence diagram above.
-Public reference implementations for [IDS Imaging UEye](https://github.com/ProjectArtemis/ueye_cam) cameras and for [IEEE1394 compliant](https://github.com/andre-nguyen/camera1394) cameras are available.
+Public reference implementations for [IDS Imaging UEye](https://github.com/anqixu/ueye_cam) cameras and for [IEEE1394 compliant](https://github.com/andre-nguyen/camera1394) cameras are available.
 
-## See Also
+## 另见
 
 - Camera trigger driver: [source code](https://github.com/PX4/PX4-Autopilot/tree/main/src/drivers/camera_trigger) <!-- no module doc -->
 - Camera capture driver: [source code](https://github.com/PX4/PX4-Autopilot/tree/main/src/drivers/camera_capture) <!-- no module doc -->

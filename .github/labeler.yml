@@ -2,9 +2,70 @@
 # The action is ./.github/workflows/label.yml
 # Docs for the syntax in this file can be found at
 # https://github.com/actions/labeler
+#
+# Scope labels are not set here: Tools/ci/label_pr_scope.py applies at most one.
 
-
-# Add 'Documentation' label to any changes within 'docs' folder or any subfolders
-"Documentation 📑":
+"kind:test":
 - changed-files:
-  - any-glob-to-any-file: docs/**
+  - any-glob-to-any-file:
+    - integrationtests/**
+    - test/**
+    - test_data/**
+    - validation/**
+    - src/systemcmds/tests/**
+    - "**/*[Tt]est.*"
+    - "**/*_test.*"
+    - "**/test_*.*"
+
+"risk:security":
+- changed-files:
+  - any-glob-to-any-file:
+    - SECURITY.md
+    - src/drivers/stub_keystore/**
+    - src/drivers/sw_crypto/**
+    - src/lib/crypto/**
+    - Tools/log_encryption/**
+    - Tools/test_keys/**
+
+"vehicle:airship":
+- changed-files:
+  - any-glob-to-any-file:
+    - src/modules/airship_att_control/**
+    - docs/**/frames_airship/**
+
+"vehicle:copter":
+- changed-files:
+  - any-glob-to-any-file:
+    - src/modules/mc_*/**
+    - docs/**/frames_multicopter/**
+    - docs/**/complete_vehicles_mc/**
+
+"vehicle:fixed-wing":
+- changed-files:
+  - any-glob-to-any-file:
+    - src/modules/fw_*/**
+    - docs/**/frames_plane/**
+    - docs/**/flying/fixed_wing*
+
+"vehicle:rover":
+- changed-files:
+  - any-glob-to-any-file:
+    - src/modules/rover_*/**
+    - docs/**/frames_rover/**
+
+"vehicle:spacecraft":
+- changed-files:
+  - any-glob-to-any-file:
+    - src/modules/spacecraft/**
+
+"vehicle:uuv":
+- changed-files:
+  - any-glob-to-any-file:
+    - src/modules/uuv_*/**
+    - docs/**/frames_sub/**
+
+"vehicle:vtol":
+- changed-files:
+  - any-glob-to-any-file:
+    - src/modules/vtol_att_control/**
+    - docs/**/frames_vtol/**

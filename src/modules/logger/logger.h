@@ -81,9 +81,11 @@ struct LoggerSubscription : public uORB::SubscriptionInterval {
 	uint8_t msg_id{MSG_ID_INVALID};
 };
 
-class Logger : public ModuleBase<Logger>, public ModuleParams
+class Logger : public ModuleBase, public ModuleParams
 {
 public:
+	static Descriptor desc;
+
 	enum class LogMode {
 		while_armed = 0,
 		boot_until_disarm,
@@ -115,6 +117,9 @@ public:
 	static int task_spawn(int argc, char *argv[]);
 
 	/** @see ModuleBase */
+	static int run_trampoline(int argc, char *argv[]);
+
+	/** @see ModuleBase */
 	static Logger *instantiate(int argc, char *argv[]);
 
 	/** @see ModuleBase */
@@ -144,7 +149,10 @@ public:
 
 	void print_statistics(LogType type);
 
-	void set_arm_override(bool override) { _manually_logging_override = override; }
+	void set_manual_logging(bool enabled)
+	{
+		_manual_logging_command.store(enabled ? (int)ManualLoggingCommand::Start : (int)ManualLoggingCommand::Stop);
+	}
 
 	void trigger_watchdog_now()
 	{
@@ -154,11 +162,16 @@ public:
 	}
 
 private:
+	enum class ManualLoggingCommand {
+		None,
+		Start,
+		Stop,
+	};
 
 	static constexpr int		MAX_MISSION_TOPICS_NUM = 5; /**< Maximum number of mission topics */
 	static constexpr unsigned	MAX_NO_LOGFILE = 999;	/**< Maximum number of log files */
 	static constexpr const char	*LOG_ROOT[(int)LogType::Count] = {
-		CONFIG_BOARD_ROOT_PATH "/log",
+		PX4_STORAGEDIR "/log",
 		CONFIG_BOARD_ROOT_PATH "/mission_log"
 	};
 
@@ -251,7 +264,7 @@ private:
 	/**
 	 * callback to write the performance counters
 	 */
-	static void perf_iterate_callback(perf_counter_t handle, void *user);
+	static void perf_iterate_callback(const char *counter_line, void *user);
 
 	/**
 	 * callback for print_load_buffer() to print the process load
@@ -345,12 +358,15 @@ private:
 	LogFileName					_file_name[(int)LogType::Count];
 
 	bool						_prev_file_log_start_state{false}; ///< previous state depending on logging mode (arming or aux1 state)
-	bool						_manually_logging_override{false};
+	bool						_manual_start_override{false};
+	bool						_manual_stop_active{false};
+	bool						_continuous_log_stopped{false}; ///< boot_until_shutdown log was stopped manually
+	px4::atomic_int				_manual_logging_command{(int)ManualLoggingCommand::None};
 
 	Statistics					_statistics[(int)LogType::Count];
 	hrt_abstime					_last_sync_time{0}; ///< last time a sync msg was sent
 
-	LogMode						_log_mode;
+	const LogMode					_log_mode;
 	const bool					_log_name_timestamp;
 
 	LoggerSubscription	 			*_subscriptions{nullptr}; ///< all subscriptions for full & mission log (in front)
@@ -382,6 +398,8 @@ private:
 	hrt_abstime					_logger_status_last {0};
 	int						_lockstep_component{-1};
 
+	size_t						_max_log_file_size {0}; ///< max log file size in bytes (0 = unlimited)
+
 	uint32_t					_message_gaps{0};
 
 	timer_callback_data_s				_timer_callback_data{};
@@ -394,6 +412,8 @@ private:
 
 	DEFINE_PARAMETERS(
 		(ParamInt<px4::params::SDLOG_UTC_OFFSET>) _param_sdlog_utc_offset,
+		(ParamInt<px4::params::SDLOG_MAX_SIZE>) _param_sdlog_max_size,
+		(ParamInt<px4::params::SDLOG_ROTATE>) _param_sdlog_rotate,
 		(ParamInt<px4::params::SDLOG_DIRS_MAX>) _param_sdlog_dirs_max,
 		(ParamInt<px4::params::SDLOG_PROFILE>) _param_sdlog_profile,
 		(ParamInt<px4::params::SDLOG_MISSION>) _param_sdlog_mission,

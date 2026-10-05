@@ -186,6 +186,39 @@ TEST_F(EkfBasicsTest, gpsFusion)
 	EXPECT_EQ(0, (int) _ekf->control_status_flags().synthetic_mag_z);
 }
 
+TEST_F(EkfBasicsTest, gravityIsStandardBeforeGlobalPosition)
+{
+	// GIVEN: an initialized EKF with IMU/baro/mag but NO GPS (no global position yet)
+	// THEN: the prediction gravity stays at the standard constant default
+	EXPECT_FLOAT_EQ(_ekf->getGravityMss(), CONSTANTS_ONE_G);
+}
+
+TEST_F(EkfBasicsTest, gravityStaysStandardNearEquator)
+{
+	// GIVEN: GPS fixed within 1 deg of the equator
+	_sensor_simulator.setGpsLatitude(0.5);
+	_sensor_simulator.startGps();
+	_sensor_simulator.runSeconds(11);
+
+	// THEN: GPS is fused but the latitude is within the recompute threshold of the
+	// 0-reference, so gravity remains the standard constant (matches legacy behavior)
+	ASSERT_EQ(1, (int) _ekf->control_status_flags().gnss_pos);
+	EXPECT_FLOAT_EQ(_ekf->getGravityMss(), CONSTANTS_ONE_G);
+}
+
+TEST_F(EkfBasicsTest, gravityUpdatesAtHighLatitude)
+{
+	// GIVEN: GPS fixed at the simulator default latitude (47.3566094 deg)
+	_sensor_simulator.startGps();
+	_sensor_simulator.runSeconds(11);
+
+	// THEN: gravity is re-evaluated to the latitude-dependent Somigliana value
+	ASSERT_EQ(1, (int) _ekf->control_status_flags().gnss_pos);
+	EXPECT_FLOAT_EQ(_ekf->getGravityMss(), LatLonAlt::Wgs84::gravity(math::radians(47.3566094)));
+	// and it has moved measurably away from the standard constant
+	EXPECT_GT(fabsf(_ekf->getGravityMss() - CONSTANTS_ONE_G), 1e-3f);
+}
+
 TEST_F(EkfBasicsTest, accelBiasEstimation)
 {
 	// GIVEN: initialized EKF with default IMU, baro and mag input
@@ -194,7 +227,7 @@ TEST_F(EkfBasicsTest, accelBiasEstimation)
 
 	_sensor_simulator.startGps();
 	_sensor_simulator.setImuBias(accel_bias_sim, Vector3f(0.0f, 0.0f, 0.0f));
-	_ekf->set_min_required_gps_health_time(1e6);
+	_sensor_simulator._gps.setMinRequiredGnssHealthTime(1e6);
 	_sensor_simulator.runSeconds(60);
 
 	const Vector3f pos = _ekf->getPosition();
@@ -226,7 +259,7 @@ TEST_F(EkfBasicsTest, reset_ekf_global_origin_gps_initialized)
 	_sensor_simulator.setGpsLatitude(_latitude_new);
 	_sensor_simulator.setGpsLongitude(_longitude_new);
 	_sensor_simulator.setGpsAltitude(_altitude_new);
-	_ekf->set_min_required_gps_health_time(1e6);
+	_sensor_simulator._gps.setMinRequiredGnssHealthTime(1e6);
 	_sensor_simulator.runSeconds(1);
 	_sensor_simulator.runSeconds(5);
 

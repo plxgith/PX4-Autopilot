@@ -36,6 +36,8 @@
 #include <termios.h>
 #include <math.h>
 
+ModuleBase::Descriptor GhstRc::desc{task_spawn, custom_command, print_usage};
+
 GhstRc::GhstRc(const char *device) :
 	ModuleParams(nullptr),
 	ScheduledWorkItem(MODULE_NAME, px4::serial_port_to_wq(device)),
@@ -88,6 +90,11 @@ int GhstRc::task_spawn(int argc, char *argv[])
 		return -1;
 	}
 
+	if (!device_name) {
+		PX4_ERR("valid device required");
+		return PX4_ERROR;
+	}
+
 	if (board_rc_conflicting(device_name)) {
 		PX4_INFO("unable to start, conflict with PX4IO on %s", device_name);
 		return PX4_ERROR;
@@ -101,8 +108,8 @@ int GhstRc::task_spawn(int argc, char *argv[])
 			return PX4_ERROR;
 		}
 
-		_object.store(instance);
-		_task_id = task_id_is_work_queue;
+		desc.object.store(instance);
+		desc.task_id = task_id_is_work_queue;
 
 		instance->ScheduleOnInterval(_current_update_interval);
 
@@ -129,7 +136,7 @@ void GhstRc::Run()
 
 		close(_rcs_fd);
 
-		exit_and_cleanup();
+		exit_and_cleanup(desc);
 		return;
 	}
 
@@ -255,7 +262,7 @@ void GhstRc::Run()
 
 int GhstRc::custom_command(int argc, char *argv[])
 {
-	if (!is_running()) {
+	if (!is_running(desc)) {
 		int ret = GhstRc::task_spawn(argc, argv);
 
 		if (ret) {
@@ -307,5 +314,5 @@ This module does Ghost (GHST) RC input parsing.
 
 extern "C" __EXPORT int ghst_rc_main(int argc, char *argv[])
 {
-	return GhstRc::main(argc, argv);
+	return ModuleBase::main(GhstRc::desc, argc, argv);
 }

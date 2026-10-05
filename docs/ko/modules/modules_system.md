@@ -56,8 +56,10 @@ If camera capture is enabled, then trigger information from the camera capture p
 otherwise trigger information at the point the camera was commanded to trigger is published
 (from the `camera_trigger` module).
 
-The `CAMERA_IMAGE_CAPTURED` message is then emitted (by streaming code) following `CameraCapture` updates.
-`CameraCapture` topics are also logged and can be used for geotagging.
+The `CAMERA_IMAGE_CAPTURED` message is then emitted (by streaming code) following `CameraCapture` updates,
+unless `CAM_CAP_REPORT` is disabled (for cameras that report captures themselves, e.g. cameras
+implementing the MAVLink Camera Protocol). `CameraCapture` topics are always logged and can be used
+for geotagging regardless.
 
 ### 구현
 
@@ -88,10 +90,13 @@ Source: [drivers/cdcacm_autostart](https://github.com/PX4/PX4-Autopilot/tree/mai
 
 ### 설명
 
-This module listens on USB and auto-configures the protocol depending on the bytes received.
-The supported protocols are: MAVLink, nsh, and ublox serial passthrough. If the parameter SYS_USB_AUTO=2
-the module will only try to start mavlink as long as the USB VBUS is detected. Otherwise it will spin
-and continue to check for VBUS and start mavlink once it is detected.
+Manages the USB CDC/ACM serial device (`/dev/ttyACM0`).
+
+`SYS_USB_AUTO` selects the protocol policy once USB VBUS is detected:
+
+- `0` Disabled: bring up the USB serial device only.
+- `1` Auto-detect: wait for host bytes and start MAVLink, nsh, or u-blox passthrough.
+- `2` MAVLink (default): start MAVLink immediately so the autopilot transmits first
 
 ### Usage {#cdcacm_autostart_usage}
 
@@ -127,6 +132,16 @@ commander <command> [arguments...]
 
    check         Run preflight checks
 
+   safety        Change prearm safety state
+     on|off      [on] to activate safety, [off] to deactivate safety and allow
+                 control surface movements
+
+   actuator_group_test Drive a functional actuator group (torque/thrust/tilt)
+                 for a brief preflight check
+     roll|pitch|yaw|tilt|xthrust|ythrust|zthrust Group
+     [value]     Normalized command [-1.0, +1.0]; default 1.0 for torque/tilt,
+                 0.1 for thrust
+
    arm
      [-f]        Force arming (do not run preflight checks)
 
@@ -141,8 +156,8 @@ commander <command> [arguments...]
 
    mode          Change flight mode
      manual|acro|offboard|stabilized|altctl|posctl|altitude_cruise|position:slow
-                 |auto:mission|auto:loiter|auto:rtl|auto:takeoff|auto:land|auto:
-                 precland|ext1 Flight mode
+                 |auto:mission|auto:loiter|auto:course|auto:rtl|auto:takeoff|aut
+                 o:land|auto:precland|ext1 Flight mode
 
    pair
 
@@ -246,6 +261,40 @@ esc_battery <command> [arguments...]
    status        print status info
 ```
 
+## failure_injection_manager
+
+Source: [modules/failure_injection_manager](https://github.com/PX4/PX4-Autopilot/tree/main/src/modules/failure_injection_manager)
+
+### 설명
+
+Central module for handling failure injection. It collects failure requests, tracks
+the set of active failures, and publishes them on the `failure_injection` topic for
+the apply-sites to act on.
+
+Failures can be triggered through:
+
+- `MAV_CMD_INJECT_FAILURE` over MAVLink (e.g. from MAVSDK)
+- the `failure` console command
+- an RC switch: `SYS_FAIL_RC_SRC` selects the aux input, and `SYS_FAIL_RC_UNIT` /
+  `SYS_FAIL_RC_MODE` / `SYS_FAIL_RC_INST` define the failure applied while it is on
+
+Requires `SYS_FAILURE_EN` to be set; the startup script only starts this module when it is.
+
+Failures can be applied both in simulation and on real hardware, where the apply-sites are
+compiled in alongside this module.
+
+### Usage {#failure_injection_manager_usage}
+
+```
+failure_injection_manager <command> [arguments...]
+ Commands:
+   start
+
+   stop
+
+   status        print status info
+```
+
 ## gyro_calibration
 
 Source: [modules/gyro_calibration](https://github.com/PX4/PX4-Autopilot/tree/main/src/modules/gyro_calibration)
@@ -317,7 +366,7 @@ Source: [drivers/heater](https://github.com/PX4/PX4-Autopilot/tree/main/src/driv
 
 ### 설명
 
-Background process running periodically on the LP work queue to regulate IMU temperature at a setpoint.
+Background process running periodically on the INS{i} queue to regulate temperature at a setpoint.
 
 This task can be started at boot from the startup scripts by setting SENS_EN_THERMAL or via CLI.
 
@@ -348,7 +397,8 @@ i2c_launcher <command> [arguments...]
  Commands:
    start
      -b <val>    Bus number
-     -t <val>    battery index for calibration values (1 or 3)
+     [-t <val>]  battery index for calibration values (1-3)
+                 default: 1
 
    stop
 
@@ -662,6 +712,27 @@ netman <command> [arguments...]
                  default: eth0
 ```
 
+## nfs_mount
+
+Source: [modules/nfs_mount](https://github.com/PX4/PX4-Autopilot/tree/main/src/modules/nfs_mount)
+
+### 설명
+
+Mounts an NFS filesystem from NFS_IP on NFS_MOUNT_MOUNT_POINT.
+Started automatically by rcS when NFS_EN is set.
+
+### Usage {#nfs_mount_usage}
+
+```
+nfs_mount <command> [arguments...]
+ Commands:
+   start
+
+   stop
+
+   status        print status info
+```
+
 ## pwm_input
 
 Source: [drivers/pwm_input](https://github.com/PX4/PX4-Autopilot/tree/main/src/drivers/pwm_input)
@@ -728,7 +799,7 @@ The module is typically used together with uORB publisher rules, to specify whic
 The replay module will just publish all messages that are found in the log. It also applies the parameters from
 the log.
 
-The replay procedure is documented on the [System-wide Replay](https://docs.px4.io/main/en/debug/system_wide_replay.html)
+The replay procedure is documented on the [System-wide Replay](../debug/system_wide_replay.md)
 page.
 
 ### Usage {#replay_usage}
@@ -917,6 +988,30 @@ system_power_simulation <command> [arguments...]
    status        print status info
 ```
 
+## task_watchdog
+
+Source: [modules/task_watchdog](https://github.com/PX4/PX4-Autopilot/tree/main/src/modules/task_watchdog)
+
+### 설명
+
+Detects when a higher-priority task starves the system by running too long.
+When starvation is detected, dumps the offending task's registers and stack,
+and saves a cpuload snapshot.
+
+### Usage {#task_watchdog_usage}
+
+```
+task_watchdog <command> [arguments...]
+ Commands:
+   start
+
+   trigger       Manually trigger the watchdog
+
+   stop
+
+   status        print status info
+```
+
 ## tattu_can
 
 Source: [drivers/tattu_can](https://github.com/PX4/PX4-Autopilot/tree/main/src/drivers/tattu_can)
@@ -1068,6 +1163,28 @@ uxrce_dds_client <command> [arguments...]
      [-n <val>]  Client DDS namespace. If not provided but UXRCE_DDS_NS_IDX is
                  between 0 and 9999 inclusive, then uav_ + UXRCE_DDS_NS_IDX will
                  be used
+
+   stop
+
+   status        print status info
+```
+
+## vision_target_estimator
+
+Source: [modules/vision_target_estimator](https://github.com/PX4/PX4-Autopilot/tree/main/src/modules/vision_target_estimator)
+
+### 설명
+
+Module to estimate the position and orientation of a target using relative sensors.
+
+The module runs periodically on the px4::wq_configurations::vte queue.
+
+### Usage {#vision_target_estimator_usage}
+
+```
+vision_target_estimator <command> [arguments...]
+ Commands:
+   start         Start the background task
 
    stop
 

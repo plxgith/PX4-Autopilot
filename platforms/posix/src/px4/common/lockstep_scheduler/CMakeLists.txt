@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 
 # We want to test the lockstep schedule even if it is not used otherwise.
 px4_add_library(lockstep_scheduler
@@ -12,3 +12,4 @@ target_include_directories(lockstep_scheduler
 )
 
 px4_add_functional_gtest(SRC test/src/lockstep_scheduler_test.cpp LINKLIBS lockstep_scheduler)
+px4_add_functional_gtest(SRC test/src/lockstep_components_test.cpp LINKLIBS lockstep_scheduler)

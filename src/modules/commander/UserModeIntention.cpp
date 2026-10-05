@@ -44,8 +44,6 @@ UserModeIntention::UserModeIntention(const vehicle_status_s &vehicle_status,
 bool UserModeIntention::change(uint8_t user_intended_nav_state, ModeChangeSource source, bool allow_fallback,
 			       bool force)
 {
-	_ever_had_mode_change = true;
-
 	if (_handler) {
 		// If a replacement mode is selected, select the internal one instead. The replacement will be selected after.
 		user_intended_nav_state = _handler->getReplacedModeIfAny(user_intended_nav_state);
@@ -77,7 +75,8 @@ bool UserModeIntention::change(uint8_t user_intended_nav_state, ModeChangeSource
 
 		// Special case termination state: even though this mode prevents arming,
 		// still don't switch out of it after disarm and thus store it in _nav_state_after_disarming.
-		if (!_health_and_arming_checks.modePreventsArming(user_intended_nav_state)
+		if ((!_health_and_arming_checks.modePreventsArming(user_intended_nav_state)
+		     && !isTakeOffIntended(user_intended_nav_state))
 		    || user_intended_nav_state == vehicle_status_s::NAVIGATION_STATE_TERMINATION) {
 			_nav_state_after_disarming = user_intended_nav_state;
 		}

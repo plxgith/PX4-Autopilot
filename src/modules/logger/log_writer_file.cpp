@@ -243,7 +243,7 @@ bool LogWriterFile::start_log(LogType type, const char *filename)
 
 int LogWriterFile::hardfault_store_filename(const char *log_file)
 {
-#if defined(__PX4_NUTTX) && defined(px4_savepanic)
+#if defined(__PX4_NUTTX) && defined(px4_savepanic) && defined(HARDFAULT_ULOG_PATH)
 	int fd = open(HARDFAULT_ULOG_PATH, O_TRUNC | O_WRONLY | O_CREAT);
 
 	if (fd < 0) {
@@ -291,7 +291,11 @@ int LogWriterFile::thread_start()
 	param.sched_priority = SCHED_PRIORITY_DEFAULT - 40;
 	(void)pthread_attr_setschedparam(&thr_attr, &param);
 
+#ifdef CONFIG_FS_LITTLEFS
+	pthread_attr_setstacksize(&thr_attr, PX4_STACK_ADJUSTED(1800));  /* littlefs needs more stack */
+#else
 	pthread_attr_setstacksize(&thr_attr, PX4_STACK_ADJUSTED(1170));
+#endif
 
 	int ret = pthread_create(&_thread, &thr_attr, &LogWriterFile::run_helper, this);
 	pthread_attr_destroy(&thr_attr);
@@ -658,7 +662,7 @@ bool LogWriterFile::LogFileBuffer::start_log(const char *filename)
 						    (ssize_t)_buffer_size_min);
 
 		if ((reduced_buffer_size > 0) && ((ssize_t)_buffer_size > reduced_buffer_size)) {
-			PX4_WARN("requested buffer size %dB limited to available %dB (available plus 1 kB margin)",
+			PX4_WARN("requested buffer size %zuB limited to available %zdB (available plus 1 kB margin)",
 				 _buffer_size, reduced_buffer_size);
 
 			_buffer_size = reduced_buffer_size;
@@ -679,7 +683,7 @@ bool LogWriterFile::LogFileBuffer::start_log(const char *filename)
 	// Clear buffer and counters
 	_head = 0;
 	_count = 0;
-	_total_written = 0;
+	_total_written.store(0);
 
 	_should_run = true;
 
@@ -715,7 +719,7 @@ void LogWriterFile::LogFileBuffer::close_file()
 			PX4_WARN("closing log file failed (%i)", errno);
 
 		} else {
-			PX4_INFO("closed logfile, bytes written: %zu", _total_written);
+			PX4_INFO("closed logfile, bytes written: %zu", _total_written.load());
 		}
 	}
 }
@@ -724,6 +728,7 @@ void LogWriterFile::LogFileBuffer::reset()
 {
 	_head = 0;
 	_count = 0;
+	_total_written.store(0);
 	_fd = -1;
 }
 

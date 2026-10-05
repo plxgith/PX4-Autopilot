@@ -1,0 +1,137 @@
+module_name: navigator
+parameters:
+- group: Mission
+  definitions:
+    NAV_LOITER_RAD:
+      description:
+        short: FW Loiter radius
+        long: Default for fixed-wing loiters, e.g. in Hold mode. Positive values loiter
+          clockwise, negative values counter-clockwise.
+      type: float
+      default: 80.0
+      unit: m
+      min: -10000
+      max: 10000
+      decimal: 1
+      increment: 0.5
+    NAV_ACC_RAD:
+      description:
+        short: Acceptance radius
+        long: Overridden by a waypoint's own acceptance radius, if set. For fixed-wing and
+          rovers, the controller's acceptance radius is used instead when it is larger.
+      type: float
+      default: 10.0
+      unit: m
+      min: 0.05
+      max: 200.0
+      decimal: 1
+      increment: 0.5
+    NAV_FW_ALT_RAD:
+      description:
+        short: FW Altitude acceptance radius
+      type: float
+      default: 10.0
+      unit: m
+      min: 0.05
+      max: 200.0
+      decimal: 1
+      increment: 0.5
+    NAV_FW_ALTL_RAD:
+      description:
+        short: FW Altitude acceptance radius before landing
+        long: FW acceptance alt for last waypoint before landing.
+          Usually smaller than NAV_FW_ALT_RAD; accuracy matters more near the ground.
+      type: float
+      default: 5.0
+      unit: m
+      min: 0.05
+      max: 200.0
+      decimal: 1
+    NAV_MC_ALT_RAD:
+      description:
+        short: MC Altitude acceptance radius
+      type: float
+      default: 0.8
+      unit: m
+      min: 0.05
+      max: 200.0
+      decimal: 1
+      increment: 0.5
+    NAV_TRAFF_AVOID:
+      description:
+        short: Traffic avoidance action (Xtrack only)
+        long: Changes take effect at the next cross-track conflict level transition.
+      type: enum
+      values:
+        0: Disabled
+        1: Warn only
+        2: Return mode
+        3: Land mode
+        4: Position Hold mode
+        5: Terminate
+      default: 1
+      min: 0
+      max: 5
+    NAV_TRAFF_A_HOR:
+      description:
+        short: Crosstrack conflict distance threshold
+        long: Maximum absolute distance from the projected traffic track.
+      type: float
+      default: 500
+      unit: m
+      min: 500
+    NAV_TRAFF_A_VER:
+      description:
+        short: Crosstrack vertical separation threshold
+      type: float
+      default: 500
+      unit: m
+      min: 10
+      max: 500
+    NAV_TRAFF_COLL_T:
+      description:
+        short: Crosstrack collision time threshold
+        long: |-
+          A conflict is raised when the time estimate is below this threshold.
+          The estimate is the current 3D separation divided by the sum of the ownship and traffic speed magnitudes.
+      type: int32
+      default: 60
+      unit: s
+      min: 1
+      max: 900000000
+    NAV_FORCE_VT:
+      description:
+        short: Force VTOL mode takeoff and land
+      type: boolean
+      default: 1
+    NAV_MIN_LTR_ALT:
+      description:
+        short: Minimum loiter altitude
+        long: Altitude above Home used when Hold mode is entered without an altitude,
+          e.g. from an RC switch. Doesn't apply to mission loiters or reposition ("Go to")
+          setpoints. Set to -1 to disable.
+      type: float
+      default: -1.0
+      unit: m
+      min: -1
+      decimal: 1
+      increment: 0.5
+    NAV_MIN_GND_DIST:
+      description:
+        short: Minimum height above ground during Mission and Return
+        long: Minimum height AGL in Return and Mission (excluding landing commands).
+          Requires a distance sensor.
+          Stops further descent but doesn't force a climb. Set to -1 to disable.
+      type: float
+      default: -1.0
+      unit: m
+      min: -1
+      decimal: 1
+      increment: 1
+    NAV_LTR_LAST_DL:
+      description:
+        short: Loiter at last GCS heartbeat position on data link loss
+        long: If disabled, the vehicle loiters at its current position. Only applies to
+          Hold mode during failsafe actions.
+      type: boolean
+      default: 0

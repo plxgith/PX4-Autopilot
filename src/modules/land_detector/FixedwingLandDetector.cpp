@@ -41,6 +41,8 @@
 
 #include "FixedwingLandDetector.h"
 
+#include <lib/geo/geo.h>
+
 namespace land_detector
 {
 
@@ -48,7 +50,6 @@ FixedwingLandDetector::FixedwingLandDetector()
 {
 	// Use Trigger time when transitioning from in-air (false) to landed (true) / ground contact (true).
 	_landed_hysteresis.set_hysteresis_time_from(false, _param_lndfw_trig_time.get() * 1_s);
-	_landed_hysteresis.set_hysteresis_time_from(true, FLYING_TRIGGER_TIME_US);
 }
 
 bool FixedwingLandDetector::_get_landed_state()
@@ -58,18 +59,43 @@ bool FixedwingLandDetector::_get_landed_state()
 		return true;
 	}
 
+	// Force the landed state to stay landed if we're currently in an early state of the takeoff state machines.
+	// This prevents premature transitions to in-air during the early takeoff phase.
+	if (_landed_hysteresis.get_state()) {
+		launch_detection_status_s launch_detection_status{};
+		_launch_detection_status_sub.copy(&launch_detection_status);
+
+		fixed_wing_runway_control_s fixed_wing_runway_control{};
+		_fixed_wing_runway_control_sub.copy(&fixed_wing_runway_control);
+
+		const bool launch_status_fresh = hrt_elapsed_time(&launch_detection_status.timestamp) < 500_ms;
+		const bool runway_status_fresh = hrt_elapsed_time(&fixed_wing_runway_control.timestamp) < 500_ms;
+
+		// Check if we're in catapult/hand-launch waiting state
+		const bool waiting_for_catapult_launch = launch_status_fresh
+				&& launch_detection_status.launch_detection_state == launch_detection_status_s::STATE_WAITING_FOR_LAUNCH;
+
+		// Check if we're in runway takeoff early phase (throttle ramp or clamped to runway)
+		const bool waiting_for_auto_runway_climbout = runway_status_fresh
+				&& fixed_wing_runway_control.runway_takeoff_state < fixed_wing_runway_control_s::STATE_CLIMBOUT;
+
+		const bool in_auto_takeoff_mode = (_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION)
+						  || (_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_TAKEOFF);
+
+		// Bridge the gap between arming and the takeoff status being published.
+		const bool waiting_for_takeoff_status = in_auto_takeoff_mode
+							&& !launch_status_fresh && !runway_status_fresh
+							&& (_vehicle_status.takeoff_time == 0)
+							&& (hrt_elapsed_time(&_vehicle_status.armed_time) < 1_s);
+
+		if (waiting_for_catapult_launch || waiting_for_auto_runway_climbout || waiting_for_takeoff_status) {
+			return true;
+		}
+	}
+
 	bool landDetected = false;
 
-	launch_detection_status_s launch_detection_status{};
-	_launch_detection_status_sub.copy(&launch_detection_status);
-
-	// force the landed state to stay landed if we're currently in the catapult/hand-launch launch process. Detect that we are in this state
-	// by checking if the last publication of launch_detection_status is less than 0.5s old, and we're still in the wait for launch state.
-	if (_landed_hysteresis.get_state() &&  hrt_elapsed_time(&launch_detection_status.timestamp) < 500_ms
-	    && launch_detection_status.launch_detection_state == launch_detection_status_s::STATE_WAITING_FOR_LAUNCH) {
-		landDetected = true;
-
-	} else if (hrt_elapsed_time(&_vehicle_local_position.timestamp) < 1_s) {
+	if (hrt_elapsed_time(&_vehicle_local_position.timestamp) < 1_s) {
 
 		float val = 0.0f;
 
@@ -109,10 +135,19 @@ bool FixedwingLandDetector::_get_landed_state()
 			_airspeed_filtered = 0.95f * _airspeed_filtered + 0.05f * airspeed_validated.true_airspeed_m_s;
 		}
 
-		// A leaking lowpass prevents biases from building up, but
-		// gives a mostly correct response for short impulses.
-		const float acc_hor = matrix::Vector2f(_acceleration).norm();
-		_xy_accel_filtered = _xy_accel_filtered * 0.8f + acc_hor * 0.18f;
+		// rotate the body-frame specific force to the earth frame and add gravity back,
+		// such that a stationary vehicle measures ~0 at any attitude.
+		vehicle_attitude_s vehicle_attitude;
+
+		if (_vehicle_attitude_sub.copy(&vehicle_attitude)) {
+			const matrix::Vector3f accel_earth = matrix::Quatf(vehicle_attitude.q).rotateVector(_acceleration)
+							     + matrix::Vector3f(0.f, 0.f, CONSTANTS_ONE_G);
+			const float acc_hor = matrix::Vector2f(accel_earth.xy()).norm();
+
+			// A leaking lowpass prevents biases from building up, but
+			// gives a mostly correct response for short impulses.
+			_xy_accel_filtered = _xy_accel_filtered * 0.8f + acc_hor * 0.18f;
+		}
 
 		// Check for angular velocity
 		const float rot_vel_hor = _angular_velocity.norm();

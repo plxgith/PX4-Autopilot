@@ -35,8 +35,12 @@ if(${CMAKE_VERSION} VERSION_LESS_EQUAL "3.15")
 	message(WARNING "skipping uxrce_dds_client, Micro-XRCE-DDS-Client needs to be fixed to work with CMAKE_VERSION ${CMAKE_VERSION}")
 
 else()
-
-	set(microxrceddsclient_src_dir   ${CMAKE_CURRENT_SOURCE_DIR}/Micro-XRCE-DDS-Client)
+	if(CONFIG_UXRCE_DDS_CLIENT_USE_DDS_V3)
+		message(WARNING "Using Micro-XRCE-DDS-Client v3 for uxrce_dds_client module")
+		set(microxrceddsclient_src_dir   ${CMAKE_CURRENT_SOURCE_DIR}/Micro-XRCE-DDS-Client-v3)
+	else()
+		set(microxrceddsclient_src_dir   ${CMAKE_CURRENT_SOURCE_DIR}/Micro-XRCE-DDS-Client)
+	endif()
 	set(microxrceddsclient_build_dir ${CMAKE_CURRENT_BINARY_DIR})
 
 	px4_add_git_submodule(TARGET git_micro_xrce_dds_client PATH "${microxrceddsclient_src_dir}")
@@ -62,8 +66,18 @@ else()
 		set(lib_dir "lib")
 	endif()
 
-	include(ExternalProject)
+	if(PX4_PLATFORM STREQUAL "nuttx")
+		set(c_flags_with_includes "${c_flags_with_includes} -Wno-cast-align -D__PX4_NUTTX")
+	endif()
 
+	# Match UXRCE_DDS_CLIENT_UDP in uxrce_dds_client.h: NuttX targets without networking have no UDP transport
+	if(PX4_PLATFORM STREQUAL "nuttx" AND NOT CONFIG_NET)
+		set(uclient_profile_udp OFF)
+	else()
+		set(uclient_profile_udp ON)
+	endif()
+
+	include(ExternalProject)
 	ExternalProject_Add(
 		libmicroxrceddsclient_project
 		PREFIX      ${microxrceddsclient_build_dir}
@@ -78,7 +92,7 @@ else()
 			-DCMAKE_EXE_LINKER_FLAGS:STRING=${CMAKE_EXE_LINKER_FLAGS}
 			-DUCLIENT_PIC:BOOL=OFF
 			-DUCLIENT_PROFILE_TCP:BOOL=OFF
-			-DUCLIENT_PROFILE_UDP:BOOL=ON
+			-DUCLIENT_PROFILE_UDP:BOOL=${uclient_profile_udp}
 			-DUCLIENT_PROFILE_SERIAL:BOOL=ON
 			-DUCLIENT_PROFILE_DISCOVERY:BOOL=OFF
 			-DUCLIENT_PROFILE_CUSTOM_TRANSPORT:BOOL=OFF
@@ -134,12 +148,7 @@ else()
 		STACK_MAIN 9000
 		INCLUDES
 			${CMAKE_CURRENT_SOURCE_DIR}
-		COMPILE_FLAGS
-			#-O0
-			# -DDEBUG_BUILD
-			${MAX_CUSTOM_OPT_LEVEL}
 		SRCS
-			${CMAKE_CURRENT_BINARY_DIR}/dds_topics.h
 			uxrce_dds_client.cpp
 			uxrce_dds_client.h
 			vehicle_command_srv.cpp

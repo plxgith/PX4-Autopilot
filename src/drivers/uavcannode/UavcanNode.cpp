@@ -36,9 +36,20 @@
 #include "boot_app_shared.h"
 #include "boot_alt_app_shared.h"
 
+// Weak default: return the compile-time name from uavcan_board_identity.
+// Boards that resolve the name at runtime can provide a strong override.
+extern "C" __attribute__((weak)) const char *board_get_uavcan_hw_name(void)
+{
+	return HW_UAVCAN_NAME;
+}
+
 #include <drivers/drv_watchdog.h>
 #include <lib/geo/geo.h>
 #include <lib/version/version.h>
+
+#if defined(CONFIG_UAVCANNODE_COMMAND_SHELL)
+#include <errno.h>
+#endif // CONFIG_UAVCANNODE_COMMAND_SHELL
 
 #if defined(CONFIG_UAVCANNODE_BATTERY_INFO)
 #include "Publishers/BatteryInfo.hpp"
@@ -121,6 +132,10 @@
 #include "Subscribers/ServoArrayCommand.hpp"
 #endif // CONFIG_UAVCANNODE_SERVO_ARRAY_COMMAND
 
+#if defined(CONFIG_UAVCANNODE_HARDPOINT_COMMAND)
+#include "Subscribers/HardpointCommand.hpp"
+#endif // CONFIG_UAVCANNODE_HARDPOINT_COMMAND
+
 using namespace time_literals;
 
 namespace uavcannode
@@ -165,6 +180,9 @@ UavcanNode::UavcanNode(CanInitHelper *can_init, uint32_t bitrate, uavcan::ICanDr
 	_node(can_driver, system_clock, _pool_allocator),
 	_time_sync_slave(_node),
 	_fw_update_listner(_node),
+#if defined(CONFIG_UAVCANNODE_COMMAND_SHELL)
+	_command_shell_server(_node),
+#endif // CONFIG_UAVCANNODE_COMMAND_SHELL
 	_param_server(_node),
 	_dyn_node_id_client(_node),
 	_reset_timer(_node)
@@ -202,6 +220,10 @@ UavcanNode::~UavcanNode()
 
 		} while (_instance);
 	}
+
+#if defined(CONFIG_UAVCANNODE_COMMAND_SHELL)
+	close_shell();
+#endif // CONFIG_UAVCANNODE_COMMAND_SHELL
 
 	_publisher_list.clear();
 	_subscriber_list.clear();
@@ -280,7 +302,7 @@ void UavcanNode::fill_node_info()
 	char fw_git_short[9] = {};
 	std::memmove(fw_git_short, px4_firmware_version_string(), 8);
 	char *end = nullptr;
-	swver.vcs_commit = std::strtol(fw_git_short, &end, 16);
+	swver.vcs_commit = std::strtoul(fw_git_short, &end, 16);
 	swver.optional_field_flags |= swver.OPTIONAL_FIELD_FLAG_VCS_COMMIT;
 	swver.major = AppDescriptor.major_version;
 	swver.minor = AppDescriptor.minor_version;
@@ -305,6 +327,8 @@ void UavcanNode::busevent_signal_trampoline()
 static void cb_reboot(const uavcan::TimerEvent &)
 {
 	watchdog_pet();
+	// Params persist only through the deferred autosave, which board_reset() does not wait for
+	param_save_default(true);
 	board_reset(0);
 }
 
@@ -345,11 +369,89 @@ void UavcanNode::cb_beginfirmware_update(const uavcan::ReceivedDataStructure<Uav
 	}
 }
 
+#if defined(CONFIG_UAVCANNODE_COMMAND_SHELL)
+
+void UavcanNode::close_shell()
+{
+	delete _shell;
+	_shell = nullptr;
+}
+
+bool UavcanNode::shell_recv(const uavcan::ReceivedDataStructure<UavcanNode::AccessCommandShell::Request> &req)
+{
+	// no early return on an empty request: write() flushes whatever is still queued,
+	// and an idle poll is the only thing that arrives while the user is not typing
+	uint8_t input_buf[decltype(req.input)::MaxSize];
+
+	for (size_t i = 0; i < req.input.size(); ++i) {
+		input_buf[i] = req.input[i];
+	}
+
+	return _shell->write(input_buf, req.input.size());
+}
+
+void UavcanNode::shell_send(uavcan::ServiceResponseDataStructure<UavcanNode::AccessCommandShell::Response> &rsp)
+{
+	uint8_t output_buf[decltype(rsp.output)::MaxSize];
+	const size_t available = _shell->available();
+	// cap to the response's max payload size
+	const size_t to_read = math::min(available, sizeof(output_buf));
+	const size_t n = to_read > 0 ? _shell->read(output_buf, to_read) : 0;
+
+	for (size_t i = 0; i < n; ++i) {
+		rsp.output.push_back(output_buf[i]);
+	}
+}
+
+void UavcanNode::cb_access_command_shell(const uavcan::ReceivedDataStructure<UavcanNode::AccessCommandShell::Request>
+		&req, uavcan::ServiceResponseDataStructure<UavcanNode::AccessCommandShell::Response> &rsp)
+{
+	const uavcan::NodeID source = req.getSrcNodeID();
+
+	// reset applies regardless of current owner; otherwise a single shared session
+	if ((req.flags & req.FLAG_RESET_SHELL) || (_shell != nullptr && _shell_owner != source)) {
+		close_shell();
+	}
+
+	if (_shell != nullptr && !_shell->is_running()) {
+		close_shell();
+	}
+
+	if (_shell == nullptr) {
+		_shell = new uavcannode::UavcanNodeShell();
+
+		if (_shell == nullptr || _shell->start() < 0) {
+			PX4_ERR("AccessCommandShell: failed to start shell");
+			delete _shell;
+			_shell = nullptr;
+			rsp.flags = rsp.FLAG_SHELL_ERROR;
+			return;
+		}
+
+		_shell_owner = source;
+	}
+
+	if (!shell_recv(req)) {
+		PX4_ERR("AccessCommandShell: shell stdin backed up, input dropped");
+		rsp.flags |= rsp.FLAG_SHELL_ERROR;
+	}
+
+	shell_send(rsp);
+
+	// shell_send() may not have drained everything that fit in one response
+	if (_shell->available() > 0) {
+		rsp.flags |= rsp.FLAG_HAS_PENDING_STDOUT;
+	}
+}
+
+#endif // CONFIG_UAVCANNODE_COMMAND_SHELL
+
 int UavcanNode::init(uavcan::NodeID node_id, UAVCAN_DRIVER::BusEvent &bus_events)
 {
-	_node.setName(HW_UAVCAN_NAME);
+	_node.setName(board_get_uavcan_hw_name());
 
-	// Was the node_id supplied by the bootloader?
+	// Nonzero node_id came from the bootloader handoff or CANNODE_NODE_ID;
+	// zero means dynamic node ID allocation runs in Run()
 
 	if (node_id != 0) {
 		_node.setNodeID(node_id);
@@ -361,6 +463,15 @@ int UavcanNode::init(uavcan::NodeID node_id, UAVCAN_DRIVER::BusEvent &bus_events
 		PX4_ERR("firmware update listener start failed");
 		return PX4_ERROR;
 	}
+
+#if defined(CONFIG_UAVCANNODE_COMMAND_SHELL)
+
+	if (_command_shell_server.start(AccessCommandShellCallback(this, &UavcanNode::cb_access_command_shell)) < 0) {
+		PX4_ERR("command shell server start failed");
+		return PX4_ERROR;
+	}
+
+#endif // CONFIG_UAVCANNODE_COMMAND_SHELL
 
 #if defined(CONFIG_UAVCANNODE_BATTERY_INFO)
 	_publisher_list.add(new BatteryInfo(this, _node));
@@ -384,7 +495,13 @@ int UavcanNode::init(uavcan::NodeID node_id, UAVCAN_DRIVER::BusEvent &bus_events
 #endif // CONFIG_UAVCANNODE_GNSS_FIX
 
 #if defined(CONFIG_UAVCANNODE_MAGNETIC_FIELD_STRENGTH)
-	_publisher_list.add(new MagneticFieldStrength2(this, _node));
+	int32_t cannode_pub_mag = 1;
+	param_get(param_find("CANNODE_PUB_MAG"), &cannode_pub_mag);
+
+	if (cannode_pub_mag == 1) {
+		_publisher_list.add(new MagneticFieldStrength2(this, _node));
+	}
+
 #endif // CONFIG_UAVCANNODE_MAGNETIC_FIELD_STRENGTH
 
 #if defined(CONFIG_UAVCANNODE_RANGE_SENSOR_MEASUREMENT)
@@ -421,12 +538,25 @@ int UavcanNode::init(uavcan::NodeID node_id, UAVCAN_DRIVER::BusEvent &bus_events
 	_publisher_list.add(new SafetyButton(this, _node));
 #endif // CONFIG_UAVCANNODE_SAFETY_BUTTON
 
+#if defined(CONFIG_UAVCANNODE_STATIC_PRESSURE) || defined(CONFIG_UAVCANNODE_STATIC_TEMPERATURE)
+	int32_t cannode_pub_bar = 1;
+	param_get(param_find("CANNODE_PUB_BAR"), &cannode_pub_bar);
+#endif
+
 #if defined(CONFIG_UAVCANNODE_STATIC_PRESSURE)
-	_publisher_list.add(new StaticPressure(this, _node));
+
+	if (cannode_pub_bar == 1) {
+		_publisher_list.add(new StaticPressure(this, _node));
+	}
+
 #endif // CONFIG_UAVCANNODE_STATIC_PRESSURE
 
 #if defined(CONFIG_UAVCANNODE_STATIC_TEMPERATURE)
-	_publisher_list.add(new StaticTemperature(this, _node));
+
+	if (cannode_pub_bar == 1) {
+		_publisher_list.add(new StaticTemperature(this, _node));
+	}
+
 #endif // CONFIG_UAVCANNODE_STATIC_TEMPERATURE
 
 #if defined(CONFIG_UAVCANNODE_ARMING_STATUS)
@@ -466,6 +596,10 @@ int UavcanNode::init(uavcan::NodeID node_id, UAVCAN_DRIVER::BusEvent &bus_events
 	_subscriber_list.add(new ServoArrayCommand(_node));
 #endif // CONFIG_UAVCANNODE_SERVO_ARRAY_COMMAND
 
+#if defined(CONFIG_UAVCANNODE_HARDPOINT_COMMAND)
+	_subscriber_list.add(new HardpointCommand(_node));
+#endif // CONFIG_UAVCANNODE_HARDPOINT_COMMAND
+
 	for (auto &subscriber : _subscriber_list) {
 		subscriber->init();
 	}
@@ -481,10 +615,13 @@ class RestartRequestHandler: public uavcan::IRestartRequestHandler
 {
 	bool handleRestartRequest(uavcan::NodeID request_source) override
 	{
-		PX4_INFO("UAVCAN: Restarting by request from %i\n", int(request_source.get()));
-		usleep(20 * 1000 * 1000);
-		board_reset(0);
-		return true; // Will never be executed BTW
+		PX4_INFO("UAVCAN: Restarting by request from %i", int(request_source.get()));
+
+		// The response is only sent after this returns, so reset from a timer
+		UavcanNode *node = UavcanNode::instance();
+		node->_reset_timer.setCallback(cb_reboot);
+		node->_reset_timer.startOneShotWithDelay(uavcan::MonotonicDuration::fromMSec(1000));
+		return true;
 	}
 } restart_request_handler;
 
@@ -547,7 +684,7 @@ void UavcanNode::Run()
 		 */
 
 		if (_dyn_node_id_client.isAllocationComplete()) {
-			PX4_INFO("Got node ID %d", _dyn_node_id_client.getAllocatedNodeID().get());
+			PX4_INFO("Assigned node ID %d", _dyn_node_id_client.getAllocatedNodeID().get());
 
 			_node.setNodeID(_dyn_node_id_client.getAllocatedNodeID());
 			_init_state = Allocated;
@@ -713,6 +850,12 @@ void UavcanNode::PrintInfo()
 	printf("\tMonotonic time: %llu\n", _node.getMonotonicTime().toUSec());
 	printf("\tUtc time:       %llu\n", _node.getUtcTime().toUSec());
 
+#if defined(UAVCAN_KINETIS_NUTTX) || defined(UAVCAN_STM32_NUTTX) || defined(UAVCAN_STM32H7_NUTTX)
+	const uavcan_hrt_clock::SyncStatus sync = UAVCAN_DRIVER::clock::getSyncStatus();
+	printf("\tSync:           %lu adjustments, last %ld us, rate %ld ppb\n", (unsigned long)sync.adjustments,
+	       (long)sync.last_adjustment_usec, (long)sync.rate_ppb);
+#endif
+
 	printf("\n");
 
 	// CAN driver status
@@ -802,13 +945,18 @@ extern "C" int uavcannode_start(int argc, char *argv[])
 		valid = bootloader_app_shared_read(&shared, BootLoader);
 	}
 
+	// Consume the region even when the handoff is rejected below: on boards
+	// booted by a non-PX4 bootloader nothing else ever invalidates it
 	if (valid == 0) {
+		bootloader_app_shared_invalidate();
+	}
+
+	// Trust the handoff only if it carries a plausible bitrate (CANNODE_BITRATE
+	// minimum), healing regions poisoned by firmware running previous code
+	if (valid == 0 && shared.bus_speed >= 20000) {
 
 		bitrate = shared.bus_speed;
 		node_id = shared.node_id;
-
-		// Invalidate to prevent deja vu
-		bootloader_app_shared_invalidate();
 
 	} else {
 		// Node ID
@@ -822,6 +970,20 @@ extern "C" int uavcannode_start(int argc, char *argv[])
 		{
 			(void)param_get(param_find("CANNODE_BITRATE"), &bitrate);
 		}
+	}
+
+	// CANNODE_NODE_ID == 0 (default) keeps dynamic node ID allocation, reusing an ID the
+	// bootloader may have already allocated. 1..125 sets a static node ID, overriding
+	// anything the bootloader negotiated. The bootloader never sees this parameter: it
+	// learns our node ID only through the firmware update handoff in cb_beginfirmware_update.
+	int32_t cannode_node_id = 0;
+	param_get(param_find("CANNODE_NODE_ID"), &cannode_node_id);
+
+	if (cannode_node_id < 0 || cannode_node_id > uavcan::NodeID::MaxRecommendedForRegularNodes) {
+		PX4_ERR("Invalid CANNODE_NODE_ID %" PRId32 ", ignoring", cannode_node_id);
+
+	} else if (cannode_node_id > 0) {
+		node_id = cannode_node_id;
 	}
 
 	if (

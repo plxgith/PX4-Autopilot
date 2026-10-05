@@ -18,11 +18,11 @@ PX4-Autopilot contains a template for writing a new application (module) that ru
 
 工作队列任务应用程序与普通(任务)应用程序相同。 除了它需要指定它是一个工作队列任务，并在初始化期间运行调度它本身。
 
-示例显示了如何操作。
-总结：
+示例显示了如何操作。总结：
 
 1. Specify the dependency on the work queue library in the cmake definition file ([CMakeLists.txt](https://github.com/PX4/PX4-Autopilot/blob/main/src/examples/work_item/CMakeLists.txt)):
-   ```
+
+   ```txt
    ...
    DEPENDS
       px4_work_queue
@@ -35,8 +35,8 @@ PX4-Autopilot contains a template for writing a new application (module) that ru
 
    ```cpp
    WorkItemExample::WorkItemExample() :
-       ModuleParams(nullptr),
-       ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::test1)
+      ModuleParams(nullptr),
+      ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::test1)
    {
    }
    ```
@@ -48,9 +48,11 @@ PX4-Autopilot contains a template for writing a new application (module) that ru
 
 4. Implement the `ScheduledWorkItem::Run()` method to perform "work".
 
-5. Implement the `task_spawn` method, specifying that the task is a work queue (using the `task_id_is_work_queue` id.
+5. Implement the `task_spawn` method, specifying that the task is a work queue (using the `task_id_is_work_queue` id).
 
-6. Schedule the work queue task using one of the scheduling methods (in the example we use `ScheduleOnInterval` from within the `init` method).
+6. Schedule the work queue task using one of the scheduling methods.
+   In the example, `init()` calls `registerCallback()` on a uORB subscription so that `Run()` is triggered whenever a new `sensor_accel` message is published.
+   `ScheduleOnInterval` is an alternative for fixed-rate scheduling.
 
 ## 任务
 
@@ -66,6 +68,6 @@ PX4/PX4-Autopilot contains a template for writing a new application (module) tha
   [startup script](../concept/system_startup.md).
 - 命令行参数解析。
 - Documentation: the `PRINT_MODULE_*` methods serve two purposes (the API is
-  documented [in the source code](https://github.com/PX4/PX4-Autopilot/blob/v1.8.0/src/platforms/px4_module.h#L381)):
+  documented [in the source code](https://github.com/PX4/PX4-Autopilot/blob/v1.17.0/platforms/common/include/px4_platform_common/module.h)):
   - They are used to print the command-line usage when entering `module help` on the console.
   - They are automatically extracted via script to generate the [Modules & Commands Reference](../modules/modules_main.md) page.

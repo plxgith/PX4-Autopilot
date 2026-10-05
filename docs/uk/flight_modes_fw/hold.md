@@ -2,11 +2,14 @@
 
 <img src="../../assets/site/position_fixed.svg" title="Position fix required (e.g. GPS)" width="30px" />
 
-The _Hold_ flight mode causes the vehicle to loiter (circle) around its current GPS position and maintain its current altitude.
+The _Hold_ flight mode causes the vehicle to loiter around its current GPS position and maintain its current altitude.
+
+The mode supports a [number of distinct loiter modes](#loiter-modes), which are triggered using different QGC controls or MAVLink commands.
+These allow loitering with circular and figure 8 flight paths.
 
 :::tip
 _Hold mode_ can be used to pause a mission or to help you regain control of a vehicle in an emergency.
-Зазвичай він активується за допомогою наперед заданого перемикача.
+It is usually activated with a pre-programmed RC switch.
 :::
 
 ::: info
@@ -24,24 +27,112 @@ _Hold mode_ can be used to pause a mission or to help you regain control of a ve
 
 :::
 
-## Технічний підсумок
+## Loiter modes
 
-Літак кружляє навколо позиції утримання GPS на поточній висоті.
-The vehicle will first ascend to [NAV_MIN_LTR_ALT](#NAV_MIN_LTR_ALT) if the mode is engaged below this altitude.
+### Default Loiter
 
-Рух стіків радіокерування ігнорується.
+The aircraft circles around the position at which the mode was triggered and maintain its current altitude.
+The loiter radius is set by the parameter [NAV_LOITER_RAD](#NAV_LOITER_RAD).
+Note that if the vehicle altitude is below [NAV_MIN_LTR_ALT](#NAV_MIN_LTR_ALT), it will ascend to that minimum altitude before circling.
 
-### Параметри
+The default loiter mode is entered when you switch to Hold mode without explicitly specifying any loiter behaviour.
+For example, if you switch to Hold mode using an RC switch, select **Hold** on the QGC flight mode selector, or activate the mode using the MAVLink [MAV_CMD_DO_SET_MODE](https://mavlink.io/en/messages/common.html#MAV_CMD_DO_SET_MODE) command.
+
+### Orbit Loiter Mode
+
+<Badge type="tip" text="PX4 v1.12" />
+
+The aircraft travels towards a _specified_ orbit center position, then circles it with a given direction and radius.
+
+This behaviour can be accessed in QGroundControl by clicking on the map in Fly view, selecting **Orbit at Location**, and configuring the radius.
+
+The behavior can be triggered using the MAVLink [MAV_CMD_DO_ORBIT](https://mavlink.io/en/messages/common.html#MAV_CMD_DO_ORBIT) command.
+Note that PX4 respects the specified centre point (`param5`, `param6`, `param7`), and the radius and direction (`param1`).
+PX4 ignores `param3` (Yaw behaviour) and `param4` (Orbits).
+The value of `param2` (velocity) is also ignored, but the speed can be controlled using the [MAV_CMD_DO_CHANGE_SPEED](https://mavlink.io/en/messages/common.html#MAV_CMD_DO_CHANGE_SPEED) command (constrained between `FW_AIRSPD_MAX` and `FW_AIRSPD_MIN`).
+PX4 outputs orbit status using the [ORBIT_EXECUTION_STATUS](https://mavlink.io/en/messages/common.html#ORBIT_EXECUTION_STATUS) message.
+
+### Figure 8 Loiter Mode
+
+<Badge type="tip" text="PX4 v1.15" /> <Badge type="warning" text="Experimental" />
+
+The aircraft flys towards the closest point on a specified figure 8 path and then follows it.
+The path is defined by the figure 8 centre position, orientation, and radius of two circles.
+
+The feature is experimental, and is not present in PX4 firmware by default (on most flight controller boards).
+It can be included by setting the `CONFIG_FIGURE_OF_EIGHT` key in the [PX4 board configuration](../hardware/porting_guide_config.md#px4-board-configuration-kconfig) for your board and rebuilding.
+For example, this is enabled on the [default.px4board](https://github.com/PX4/PX4-Autopilot/blob/main/boards/auterion/fmu-v6s/default.px4board#L46) file for the `auterion/fmu-v6s` board.
+
+The behavior can be triggered using the MAVLink [MAV_CMD_DO_FIGURE_EIGHT](https://mavlink.io/en/messages/common.html#MAV_CMD_DO_FIGURE_EIGHT) command (PX4 respects all the parameters).
+PX4 outputs the figure 8 status using the [FIGURE_EIGHT_EXECUTION_STATUS](https://mavlink.io/en/messages/common.html#FIGURE_EIGHT_EXECUTION_STATUS) message.
+
+:::info
+Figure 8 loitering is not currently supported by QGC: [QGC#12778: Need Support Figure of eight (8 figure) loitering by QGC](https://github.com/mavlink/qgroundcontrol/issues/12778).
+:::
+
+Figure 8 loitering is also available in the simulator.
+You can test it in [Gazebo](../sim_gazebo_gz/index.md) using a fixed wing frame:
+
+```sh
+make px4_sitl gz_rc_cessna
+```
+
+## Altitude Ramp on Reposition (Go-to)
+
+When you command the vehicle to a new loiter location at a different altitude — for example a QGroundControl _Go to location_ / [reposition](https://mavlink.io/en/messages/common.html#MAV_CMD_DO_REPOSITION) while in Hold mode — PX4 does not change the altitude setpoint in a single step.
+Instead it ramps the altitude setpoint linearly (a first order hold, FOH) from the vehicle's **current altitude** to the new target altitude, reaching the target by the time the vehicle arrives at the loiter circle around the new location.
+The result is a smooth diagonal climb or descent along the transit to the new location, rather than an immediate climb/descent followed by level flight.
+
+![Fixed-wing altitude profile for a climbing go-to in Hold mode](../../assets/flight_modes/fw_goto_altitude_foh.png)
+
+The ramp is anchored at the altitude the vehicle is at when the new target is received, and its progress is measured by the vehicle's horizontal approach to the target (not by time).
+
+If the vehicle cannot follow the ramp (for example when the required climb or sink rate exceeds what the aircraft can achieve), the altitude setpoint still reaches the full target altitude at the loiter circle.
+Any remaining altitude error is then removed by climbing or sinking once the vehicle reaches the horizontal position of the new location.
+
+:::info
+The ramp is (re)started whenever the target altitude changes; a reposition that keeps the same altitude does not change the vehicle's altitude.
+:::
+
+<!-- AUTO-GENERATED: mode_requirements_fixed_wing_auto_loiter -->
+
+### Mode Requirements
+
+The following requirements must be met to arm in this mode, or to switch to this mode when it is armed.
+
+- [`mode_req_angular_velocity`](../flight_modes/mode_requirements.md#mode_req_angular_velocity) — Angular velocity
+- [`mode_req_attitude`](../flight_modes/mode_requirements.md#mode_req_attitude) — Attitude/pose
+- [`mode_req_global_position_relaxed`](../flight_modes/mode_requirements.md#mode_req_global_position_relaxed) — Position measurement updates in a global coordinate frame but accepts poor accuracy
+- [`mode_req_local_alt`](../flight_modes/mode_requirements.md#mode_req_local_alt) — Local altitude relative to EKF2 origin ('0') position
+- [`mode_req_local_position_relaxed`](../flight_modes/mode_requirements.md#mode_req_local_position_relaxed) — Position relative to EKF2 origin ('0') point but accepts poor accuracy
+- [`mode_req_wind_and_flight_time_compliance`](../flight_modes/mode_requirements.md#mode_req_wind_and_flight_time_compliance) — Safety compliance limits on wind and flight time.
+
+<!-- END AUTO-GENERATED: mode_requirements_fixed_wing_auto_loiter -->
+
+## Параметри
 
 Поведінку режиму утримання можна налаштувати за допомогою наведених нижче параметрів.
 
-| Параметр                                                                                                                                                                | Опис                                                                                                                                                             |
+| Parameter                                                                                                                                                               | Опис                                                                                                                                                             |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [NAV_LOITER_RAD](../advanced_config/parameter_reference.md#NAV_LOITER_RAD)                                                    | Радіус кола обертання.                                                                                                                           |
+| <a id="NAV_LOITER_RAD"></a>[NAV_LOITER_RAD](../advanced_config/parameter_reference.md#NAV_LOITER_RAD)                         | Радіус кола обертання.                                                                                                                           |
 | <a id="NAV_MIN_LTR_ALT"></a>[NAV_MIN_LTR_ALT](../advanced_config/parameter_reference.md#NAV_MIN_LTR_ALT) | Мінімальна висота для режиму очікування (транспортний засіб підніметься на цю висоту, якщо режим увімкнуто на меншій висоті). |
+
+## MAVLink Commands
+
+The following commands are relevant to this mode:
+
+- [MAV_CMD_DO_ORBIT](https://mavlink.io/en/messages/common.html#MAV_CMD_DO_ORBIT) - Switch to Hold mode and start the specified [Orbit loiter](#orbit-loiter-mode).
+  Params 2 (velocity), 3 (yaw), 4 (orbits) are ignored.
+  [ORBIT_EXECUTION_STATUS](https://mavlink.io/en/messages/common.html#ORBIT_EXECUTION_STATUS) is emitted.
+- [MAV_CMD_DO_FIGURE_EIGHT](https://mavlink.io/en/messages/common.html#MAV_CMD_DO_FIGURE_EIGHT) - Switch to Hold mode and start the specified [Figure 8 loiter](#figure-8-loiter-mode).
+  All params are respected.
+  [FIGURE_EIGHT_EXECUTION_STATUS](https://mavlink.io/en/messages/common.html#FIGURE_EIGHT_EXECUTION_STATUS) is emitted.
+
+Note, other commands may be supported.
 
 ## Дивіться також
 
-[Hold Mode (MC)](../flight_modes_mc/hold.md)
+- [Hold Mode (MC)](../flight_modes_mc/hold.md)
 
 <!-- this maps to AUTO_LOITER in flight mode state machine -->

@@ -2,6 +2,41 @@
 # - If you want to keep the tests running in GitHub Actions you need to uncomment the "runs-on: ubuntu-latest" lines
 #   and comment the "runs-on: [runs-on,runner=..." lines.
 # - If you would like to duplicate this setup try setting up "RunsOn" on your own AWS account try https://runs-on.com
+#
+# ===================================================================================
+# RELEASE UPLOAD LOGIC
+# ===================================================================================
+# This workflow handles building firmware and uploading to S3 + GitHub Releases.
+#
+# S3 Bucket Structure (s3://px4-travis/Firmware/):
+#   - master/          <- Latest main branch build (for QGC compatibility)
+#   - stable/          <- Latest stable release, controlled by 'stable' branch
+#   - beta/            <- Latest pre-release, controlled by 'beta' branch
+#   - vX.Y.Z/          <- Archived stable release
+#   - vX.Y.Z-beta1/    <- Archived pre-release
+#
+# Trigger Behavior:
+#   - Tag v1.16.1        -> Upload to: v1.16.1/ only (versioned archive)
+#   - Tag v1.17.0-beta1  -> Upload to: v1.17.0-beta1/ only (versioned archive)
+#   - Branch main        -> Upload to: master/ (for QGC compatibility)
+#   - Branch stable      -> Upload to: stable/ (QGC stable firmware)
+#   - Branch beta        -> Upload to: beta/ (QGC beta firmware)
+#   - Branch release/**  -> Build only, no S3 upload (CI validation)
+#   - Pull requests      -> Build only, no S3 upload (CI validation)
+#
+# GitHub Releases:
+#   - All version tags create a draft GitHub Release
+#   - Pre-releases (alpha/beta/rc suffixes) are automatically marked as such
+#   - CAN node firmware is attached as <target>.uavcan.bin and
+#     <target>_canbootloader.bin
+#   - In-tree *_bootloader targets are attached as <target>_bootloader.bin
+#     (raw SWD image). Bootloader .px4 files are not attached.
+#
+# IMPORTANT: Version tags do NOT upload to stable/ or beta/. Only the
+# corresponding branch pushes control those directories. This prevents
+# pre-release tags from accidentally overwriting stable firmware (#26340)
+# and avoids race conditions between tag and branch builds.
+# ===================================================================================
 
 name: Build all targets
 
@@ -16,44 +51,130 @@ on:
       - 'release/**'
     paths-ignore:
       - 'docs/**'
+  # Pull requests skip this workflow when no changed file can affect a
+  # firmware build. Later patterns win, so build inputs living under an
+  # ignored directory are re-included at the end.
   pull_request:
     branches:
       - '**'
-    paths-ignore:
-      - 'docs/**'
+    paths:
+      - '**'
+      - '!docs/**'
+      - '!*.md'
+      - '!CITATION.cff'
+      - '!codecov.yml'
+      - '!.editorconfig'
+      - '!.clang-tidy'
+      - '!.dockerignore'
+      - '!.agents/**'
+      - '!.claude/**'
+      - '!.devcontainer/**'
+      - '!.vscode/**'
+      - '!.github/**'
+      - '!launch/**'
+      - '!test/**'
+      - '!test_data/**'
+      - '!Tools/astyle/**'
+      - '!Tools/bench_test/**'
+      - '!Tools/ci/**'
+      - '!Tools/HIL/**'
+      - '!Tools/Matlab/**'
+      - '!Tools/msg/generate_msg_docs.py'
+      - '!Tools/packaging/containers/**'
+      - '!Tools/setup/**'
+      # Build inputs under the ignored paths above
+      - '.github/workflows/build_all_targets.yml'
+      - '.github/runs-on.yml'
+      - '.github/actions/setup-ccache/**'
+      - '.github/actions/save-ccache/**'
+      - 'Tools/ci/build_all_config.yml'
+      - 'Tools/ci/build_all_runner.py'
+      - 'Tools/ci/check_elf_imports.py'
+      - 'Tools/ci/filter_cold_seeders.py'
+      - 'Tools/ci/generate_board_targets_json.py'
+      - 'Tools/ci/generate_sbom.py'
+      - 'Tools/ci/license-overrides.yaml'
+      - 'Tools/ci/package_build_artifacts.sh'
+      - 'Tools/ci/test_build_all_runner.py'
+      - 'Tools/ci/test_generate_board_targets_json.py'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+  actions: read
+  packages: read
+
 jobs:
   group_targets:
     name: Scan for Board Targets
     # runs-on: ubuntu-latest
-    runs-on: [runs-on,runner=1cpu-linux-x64,image=ubuntu22-full-x64,"run-id=${{ github.run_id }}",spot=false]
+    runs-on: [runs-on,runner=1cpu-linux-x64,image=ubuntu24-full-x64,"run-id=${{ github.run_id }}",spot=false,extras=s3-cache]
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
+      seeders: ${{ steps.set-seeders.outputs.seeders }}
+      cold_seeders: ${{ steps.filter-seeders.outputs.cold_seeders }}
+      has_cold: ${{ steps.filter-seeders.outputs.has_cold }}
       timestamp: ${{ steps.set-timestamp.outputs.timestamp }}
       branchname: ${{ steps.set-branch.outputs.branchname }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6
 
-      - name: Update python packaging to avoid canonicalize_version() error
-        run: |
-            pip3 install -U packaging
-
+      # This job runs outside the build container, so it installs its own
+      # dependencies. It needs what the matrix generator actually reaches:
+      # yaml, kconfiglib via Tools/kconfig/loadconfig.py, and empy plus
+      # pyros-genmsg for the zenoh generator that loadconfig shells out to
+      # in ensure_env(). Everything else it runs is stdlib.
       - name: Install Python Dependencies
-        uses: py-actions/py-dependency-install@v4
-        with:
-          path: "./Tools/setup/requirements.txt"
+        run: pip3 install pyyaml kconfiglib 'empy>=3.3,<4' pyros-genmsg
 
+      - name: Test Build Matrix and Slot Assignment
+        working-directory: Tools/ci
+        run: python3 -m unittest -v test_generate_board_targets_json test_build_all_runner
+
+      # The generator runs as a standalone assignment so a non-zero exit
+      # fails the step; embedded in `echo "x=$(...)"` it would be masked
+      # and the empty output silently skips the whole build matrix.
       - id: set-matrix
-        run: echo "::set-output name=matrix::$(./Tools/ci/generate_board_targets_json.py --group)"
+        name: Generate Build Matrix
+        run: |
+          matrix=$(./Tools/ci/generate_board_targets_json.py --group)
+          {
+            echo "matrix<<EOF"
+            echo "$matrix"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - id: set-seeders
+        name: Generate Seeder Matrix
+        run: |
+          seeders=$(./Tools/ci/generate_board_targets_json.py --group --seeders)
+          {
+            echo "seeders<<EOF"
+            echo "$seeders"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # Seed only chip families whose ccache namespace has no warm cache.
+      # Fail-open semantics live in the script: any probe problem emits
+      # the full matrix, reproducing unconditional seeding.
+      - id: filter-seeders
+        name: Probe Family Caches
+        env:
+          ALL_SEEDERS: ${{ steps.set-seeders.outputs.seeders }}
+        run: ./Tools/ci/filter_cold_seeders.py <<< "$ALL_SEEDERS"
 
       - id: set-timestamp
-        run: echo "::set-output name=timestamp::$(date +"%Y%m%d%H%M%S")"
+        name: Save Current Timestamp
+        run: |
+          timestamp=$(date +"%Y%m%d%H%M%S")
+          echo "timestamp=$timestamp" >> "$GITHUB_OUTPUT"
 
       - id: set-branch
+        name: Save Current Branch Name
         run: |
           echo "branchname=${{
             github.event_name == 'pull_request' &&
@@ -69,77 +190,176 @@ jobs:
           echo "${{ steps.set-branch.outputs.branchname }}"
           echo "$(./Tools/ci/generate_board_targets_json.py --group --verbose)"
 
-  setup:
-    name: Build Group [${{ matrix.group }}][${{ matrix.arch == 'nuttx' && 'x86' || 'arm64' }}]
-    # runs-on: ubuntu-latest
-    runs-on: [runs-on,"runner=8cpu-linux-${{ matrix.runner }}","image=ubuntu24-full-${{ matrix.runner }}","run-id=${{ github.run_id }}",spot=false]
+  # ===========================================================================
+  # CACHE SEEDER JOBS (conditional)
+  # ===========================================================================
+  # Build one representative target per chip family to warm the ccache,
+  # but only for families whose cache namespace came up cold in the
+  # group_targets probe. Measured steady state is zero seeder restores
+  # (group jobs live on their own rolling caches), so on warm runs the
+  # whole stage skips and the build matrix starts immediately. When a
+  # family IS cold (matrix regrouping, cache expiry, new chip family),
+  # its seeder runs and still gates the matrix, which is the only case
+  # where the warmup is worth waiting for.
+  # ===========================================================================
+
+  seed:
+    name: Seed [${{ matrix.chip_family }}]
     needs: group_targets
+    if: needs.group_targets.outputs.has_cold == 'true'
+    runs-on: [runs-on,"runner=8cpu-linux-${{ matrix.runner }}","image=ubuntu24-full-${{ matrix.runner }}","run-id=${{ github.run_id }}",spot=false,extras=s3-cache]
+    strategy:
+      matrix: ${{ fromJson(needs.group_targets.outputs.cold_seeders) }}
+      fail-fast: false
+    container:
+      image: ${{ matrix.container }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - name: Configure Git Safe Directory
+        run: git config --system --add safe.directory '*'
+      - uses: ./.github/actions/setup-ccache
+        id: ccache
+        with:
+          cache-key-prefix: ${{ matrix.cache_prefix }}-${{ matrix.group }}
+          max-size: 400M
+      - name: Build seed target
+        run: make ${{ matrix.target }}
+      - uses: ./.github/actions/save-ccache
+        if: always()
+        with:
+          cache-primary-key: ${{ steps.ccache.outputs.cache-primary-key }}
+
+  setup:
+    name: Build [${{ matrix.runner }}][${{ matrix.group }}]
+    # runs-on: ubuntu-latest
+    runs-on: [runs-on,"runner=4cpu-linux-${{ matrix.runner }}","image=ubuntu24-full-${{ matrix.runner }}","run-id=${{ github.run_id }}",spot=false,extras=s3-cache]
+    needs: [group_targets, seed]
+    if: "!failure() && !cancelled()"
     strategy:
       matrix: ${{ fromJson(needs.group_targets.outputs.matrix) }}
       fail-fast: false
     container:
       image: ${{ matrix.container }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-
-      - name: Git ownership workaround
+      - name: Configure Git Safe Directory
         run: git config --system --add safe.directory '*'
 
-      - name: Setup ccache
-        uses: actions/cache@v4
+      - name: Cache - Restore ccache
+        id: ccache-restore
+        uses: actions/cache/restore@v5
         with:
           path: ~/.ccache
-          key: ${{ matrix.group }}-ccache-${{ needs.group_targets.outputs.timestamp }}
-          restore-keys: ${{ matrix.group }}-ccache-${{ needs.group_targets.outputs.timestamp }}
+          key: ${{ matrix.cache_prefix }}-${{ matrix.group }}-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ${{ matrix.cache_prefix }}-${{ matrix.group }}-${{ github.ref_name }}-
+            ${{ matrix.cache_prefix }}-${{ matrix.group }}-${{ github.base_ref || 'main' }}-
+            ${{ matrix.cache_prefix }}-${{ matrix.group }}-
+            ${{ matrix.cache_prefix }}-
 
-      - name: Configure ccache
+      - name: Cache - Configure ccache
         run: |
-            mkdir -p ~/.ccache
-            echo "base_dir = ${GITHUB_WORKSPACE}" > ~/.ccache/ccache.conf
-            echo "compression = true" >> ~/.ccache/ccache.conf
-            echo "compression_level = 6" >> ~/.ccache/ccache.conf
-            echo "max_size = 120M" >> ~/.ccache/ccache.conf
-            echo "hash_dir = false" >> ~/.ccache/ccache.conf
-            ccache -s
-            ccache -z
+          mkdir -p ~/.ccache
+          echo "base_dir = ${GITHUB_WORKSPACE}" > ~/.ccache/ccache.conf
+          echo "compression = true" >> ~/.ccache/ccache.conf
+          echo "compression_level = 6" >> ~/.ccache/ccache.conf
+          echo "max_size = ${{ matrix.cache_size }}" >> ~/.ccache/ccache.conf
+          echo "hash_dir = false" >> ~/.ccache/ccache.conf
+          echo "compiler_check = content" >> ~/.ccache/ccache.conf
+          ccache -s
+          ccache -z
 
-      - name: Building [${{ matrix.group }}]
-        run: |
-            ./Tools/ci/build_all_runner.sh ${{matrix.targets}} ${{matrix.arch}}
+      - name: Building Artifacts
+        run: ./Tools/ci/build_all_runner.py --slots ${{ matrix.slots }} ${{ join(matrix.targets, ' ') }}
+
+      # Full per-target compiler output, one collapsed group per target, kept
+      # out of the build step so a running job shows progress, not logs.
+      - name: Build Logs
+        if: ${{ !cancelled() }}
+        run: ./Tools/ci/build_all_runner.py --print-logs
 
       - name: Arrange Build Artifacts
         run: |
           ./Tools/ci/package_build_artifacts.sh
 
       - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: px4_${{matrix.group}}_build_artifacts
           path: artifacts/
+          # Long enough for PR authors to download a build, and for the
+          # artifacts job below to copy push and tag builds to S3.
+          retention-days: 1
 
-      - name: Cache Save
-        run: ccache -s
+      - uses: ./.github/actions/save-ccache
+        if: success()
+        with:
+          cache-primary-key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
 
+  # ===========================================================================
+  # ARTIFACT UPLOAD JOB
+  # ===========================================================================
+  # Uploads build artifacts to S3 and creates GitHub Releases.
+  # Runs for version tags (v*), main, stable, and beta branch pushes.
+  # See header comments for full upload logic documentation.
+  # ===========================================================================
   artifacts:
-    name: Upload Artifacts to S3
+    name: Upload Artifacts
     # runs-on: ubuntu-latest
     runs-on: [runs-on,runner=1cpu-linux-x64,image=ubuntu24-full-x64,"run-id=${{ github.run_id }}",spot=false]
     needs: [setup, group_targets]
-    if: contains(fromJSON('["main", "stable", "beta"]'), needs.group_targets.outputs.branchname)
+    if: startsWith(github.ref, 'refs/tags/v') || contains(fromJSON('["main","stable","beta"]'), needs.group_targets.outputs.branchname)
+    outputs:
+      uploadlocation: ${{ steps.upload-location.outputs.uploadlocation }}
     steps:
       - name: Download Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts/
           merge-multiple: true
 
-      - name: Branch Name
+      - name: Choose Upload Location
+        id: upload-location
         run: |
-          echo "${{ needs.group_targets.outputs.branchname }}"
+          set -euo pipefail
 
-      - name: Uploading Artifacts to S3 [${{ needs.group_targets.outputs.branchname == 'main' && 'master' || needs.group_targets.outputs.branchname }}]
+          ref="${GITHUB_REF}"
+          branch=${{ needs.group_targets.outputs.branchname  }}
+          location="$branch"
+          is_prerelease="false"
+
+          # Main branch uploads to "master" for QGC backward compatibility
+          if [[ "$branch" == "main" ]]; then
+            location="master"
+          fi
+
+          # Version tags: upload to versioned directory (e.g., v1.16.1/)
+          if [[ "$ref" == refs/tags/v[0-9]* ]]; then
+            tag="${ref#refs/tags/}"
+            location="$tag"
+
+            # Pre-release tags contain -alpha, -beta, or -rc suffix
+            if [[ "$tag" =~ -(alpha|beta|rc) ]]; then
+              is_prerelease="true"
+            fi
+          fi
+
+          echo "uploadlocation=$location" >> $GITHUB_OUTPUT
+          echo "is_prerelease=$is_prerelease" >> $GITHUB_OUTPUT
+
+      - name: Uploading Artifacts to S3 [${{ steps.upload-location.outputs.uploadlocation }}]
         uses: jakejarvis/s3-sync-action@master
         with:
           args: --acl public-read
@@ -149,25 +369,24 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: 'us-west-1'
           SOURCE_DIR: artifacts/
-          DEST_DIR: Firmware/${{ needs.group_targets.outputs.branchname == 'main' && 'master' || needs.group_targets.outputs.branchname }}/
+          DEST_DIR: Firmware/${{ steps.upload-location.outputs.uploadlocation }}/
 
-  release:
-    name: Create Release and Upload Artifacts
-    permissions:
-      contents: write
-    # runs-on: ubuntu-latest
-    runs-on: [runs-on,runner=1cpu-linux-x64,image=ubuntu24-full-x64,"run-id=${{ github.run_id }}",spot=false]
-    needs: [setup, group_targets]
-    if: startsWith(github.ref, 'refs/tags/')
-    steps:
-      - name: Download Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts/
-          merge-multiple: true
-
-      - name: Upload Binaries to Release
+      # Create a draft GitHub Release for all version tags
+      # Pre-releases are automatically marked as such
+      # preserve_order uploads assets sequentially: the default parallel
+      # upload of hundreds of assets trips GitHub's secondary rate limit
+      - name: Upload Artifacts to GitHub Release
         uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
           draft: true
-          files: artifacts/*.px4
+          prerelease: ${{ steps.upload-location.outputs.is_prerelease == 'true' }}
+          preserve_order: true
+          files: |
+            artifacts/*.px4
+            artifacts/*.uavcan.bin
+            artifacts/*_bootloader.bin
+            artifacts/*_canbootloader.bin
+            artifacts/*.deb
+            artifacts/**/*.sbom.spdx.json
+          name: ${{ steps.upload-location.outputs.uploadlocation }}

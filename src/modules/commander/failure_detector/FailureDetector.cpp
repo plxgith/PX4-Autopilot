@@ -39,6 +39,7 @@
 */
 
 #include "FailureDetector.hpp"
+#include "../HealthAndArmingChecks/HealthAndArmingChecks.hpp"
 
 using namespace time_literals;
 
@@ -49,44 +50,55 @@ FailureDetector::FailureDetector(ModuleParams *parent) :
 
 bool FailureDetector::update(const vehicle_status_s &vehicle_status, const vehicle_control_mode_s &vehicle_control_mode)
 {
-	_failure_injector.update();
+	if (_failure_injection_config.update()) {
+		_injected_motor_masks = failure_injection::process_motor(_failure_injection_config);
+	}
 
-	failure_detector_status_u status_prev = _status;
+	failure_detector_status_u status_prev = _failure_detector_status;
 
 	if (vehicle_control_mode.flag_control_attitude_enabled) {
 		updateAttitudeStatus(vehicle_status);
+		updateAltitudeStatus(vehicle_status, vehicle_control_mode);
 
 		if (_param_fd_ext_ats_en.get()) {
 			updateExternalAtsStatus();
 		}
 
 	} else {
-		_status.flags.roll = false;
-		_status.flags.pitch = false;
-		_status.flags.alt = false;
-		_status.flags.ext = false;
-	}
-
-	// esc_status subscriber is shared between subroutines
-	esc_status_s esc_status;
-
-	if (_esc_status_sub.update(&esc_status)) {
-		_failure_injector.manipulateEscStatus(esc_status);
-
-		if (_param_escs_en.get()) {
-			updateEscsStatus(vehicle_status, esc_status);
-		}
-
-		if (_param_fd_actuator_en.get()) {
-			updateMotorStatus(vehicle_status, esc_status);
-		}
+		_failure_detector_status.flags.roll = false;
+		_failure_detector_status.flags.pitch = false;
+		_failure_detector_status.flags.alt = false;
+		_failure_detector_status.flags.ext = false;
+		// Reset altitude loss state so it reinitialises cleanly when altitude control re-engages.
+		_alt_loss_ref_z = NAN;
+		_alt_loss_hysteresis.set_state_and_update(false, hrt_absolute_time());
 	}
 
 	if (_param_fd_imb_prop_thr.get() > 0) {
 		updateImbalancedPropStatus();
 	}
 
-	return _status.value != status_prev.value;
+	return _failure_detector_status.value != status_prev.value;
+}
+
+void FailureDetector::publishStatus(bool esc_arm_status, uint16_t motor_failure_mask)
+{
+	const uint16_t injected_motor_failure_mask = _injected_motor_masks.failure_mask;
+
+	failure_detector_status_s failure_detector_status{};
+	failure_detector_status.fd_roll = _failure_detector_status.flags.roll;
+	failure_detector_status.fd_pitch = _failure_detector_status.flags.pitch;
+	failure_detector_status.fd_alt = _failure_detector_status.flags.alt;
+	failure_detector_status.fd_ext = _failure_detector_status.flags.ext;
+	failure_detector_status.fd_arm_escs = esc_arm_status || (motor_failure_mask != 0);
+	failure_detector_status.fd_battery = _failure_detector_status.flags.battery;
+	failure_detector_status.fd_imbalanced_prop = _failure_detector_status.flags.imbalanced_prop;
+	failure_detector_status.fd_motor = (motor_failure_mask != 0) || (injected_motor_failure_mask != 0);
+	failure_detector_status.imbalanced_prop_metric = _imbalanced_prop_lpf.getState();
+	failure_detector_status.motor_failure_mask = motor_failure_mask | injected_motor_failure_mask;
+	failure_detector_status.motor_stop_mask = _injected_motor_masks.stop_mask;
+	failure_detector_status.timestamp = hrt_absolute_time();
+	_failure_detector_status_pub.publish(failure_detector_status);
 }
 
 void FailureDetector::updateAttitudeStatus(const vehicle_status_s &vehicle_status)
@@ -123,18 +135,67 @@ void FailureDetector::updateAttitudeStatus(const vehicle_status_s &vehicle_statu
 		const bool roll_status = (max_roll > FLT_EPSILON) && (fabsf(roll) > max_roll);
 		const bool pitch_status = (max_pitch > FLT_EPSILON) && (fabsf(pitch) > max_pitch);
 
-		hrt_abstime time_now = hrt_absolute_time();
+		hrt_abstime now = hrt_absolute_time();
 
 		// Update hysteresis
 		_roll_failure_hysteresis.set_hysteresis_time_from(false, (hrt_abstime)(1_s * _param_fd_fail_r_ttri.get()));
 		_pitch_failure_hysteresis.set_hysteresis_time_from(false, (hrt_abstime)(1_s * _param_fd_fail_p_ttri.get()));
-		_roll_failure_hysteresis.set_state_and_update(roll_status, time_now);
-		_pitch_failure_hysteresis.set_state_and_update(pitch_status, time_now);
+		_roll_failure_hysteresis.set_state_and_update(roll_status, now);
+		_pitch_failure_hysteresis.set_state_and_update(pitch_status, now);
 
 		// Update status
-		_status.flags.roll = _roll_failure_hysteresis.get_state();
-		_status.flags.pitch = _pitch_failure_hysteresis.get_state();
+		_failure_detector_status.flags.roll = _roll_failure_hysteresis.get_state();
+		_failure_detector_status.flags.pitch = _pitch_failure_hysteresis.get_state();
 	}
+}
+
+void FailureDetector::updateAltitudeStatus(const vehicle_status_s &vehicle_status,
+		const vehicle_control_mode_s &vehicle_control_mode)
+{
+	const float threshold = _param_fd_alt_loss.get();
+
+	if (threshold < FLT_EPSILON
+	    || !vehicle_control_mode.flag_control_altitude_enabled
+	    || vehicle_status.vehicle_type != vehicle_status_s::VEHICLE_TYPE_ROTARY_WING) {
+		_failure_detector_status.flags.alt = false;
+		_alt_loss_ref_z = NAN;
+		return;
+	}
+
+	vehicle_local_position_s lpos{};
+	vehicle_local_position_setpoint_s lpos_sp{};
+	_vehicle_local_position_sub.copy(&lpos);
+	_vehicle_local_position_setpoint_sub.copy(&lpos_sp);
+
+	// Adjust reference on EKF z reset to avoid false triggers
+	if (lpos.z_reset_counter != _alt_loss_z_reset_counter) {
+		if (PX4_ISFINITE(_alt_loss_ref_z)) {
+			_alt_loss_ref_z += lpos.delta_z;
+		}
+
+		_alt_loss_z_reset_counter = lpos.z_reset_counter;
+	}
+
+	const hrt_abstime now = hrt_absolute_time();
+
+	if (lpos.z > lpos_sp.z) {
+		// Ratcheting NED-z reference: tracks the highest altitude reached while below setpoint.
+		if (!PX4_ISFINITE(_alt_loss_ref_z)) {
+			_alt_loss_ref_z = lpos.z;
+		}
+
+		_alt_loss_ref_z = math::constrain(_alt_loss_ref_z, lpos_sp.z, lpos.z);
+
+		const bool is_below_threshold = (lpos.z - _alt_loss_ref_z) > threshold;
+		_alt_loss_hysteresis.set_hysteresis_time_from(false, (hrt_abstime)(1_s * _param_fd_alt_loss_ttri.get()));
+		_alt_loss_hysteresis.set_state_and_update(is_below_threshold, now);
+
+	} else {
+		_alt_loss_ref_z = NAN;
+		_alt_loss_hysteresis.set_state_and_update(false, now);
+	}
+
+	_failure_detector_status.flags.alt = _alt_loss_hysteresis.get_state();
 }
 
 void FailureDetector::updateExternalAtsStatus()
@@ -146,44 +207,14 @@ void FailureDetector::updateExternalAtsStatus()
 		uint32_t pulse_width = pwm_input.pulse_width;
 		bool ats_trigger_status = (pulse_width >= (uint32_t)_param_fd_ext_ats_trig.get()) && (pulse_width < 3_ms);
 
-		hrt_abstime time_now = hrt_absolute_time();
-
 		// Update hysteresis
 		_ext_ats_failure_hysteresis.set_hysteresis_time_from(false, 100_ms); // 5 consecutive pulses at 50hz
-		_ext_ats_failure_hysteresis.set_state_and_update(ats_trigger_status, time_now);
+		_ext_ats_failure_hysteresis.set_state_and_update(ats_trigger_status, hrt_absolute_time());
 
-		_status.flags.ext = _ext_ats_failure_hysteresis.get_state();
+		_failure_detector_status.flags.ext = _ext_ats_failure_hysteresis.get_state();
 	}
 }
 
-void FailureDetector::updateEscsStatus(const vehicle_status_s &vehicle_status, const esc_status_s &esc_status)
-{
-	hrt_abstime time_now = hrt_absolute_time();
-
-	if (vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED) {
-		const int limited_esc_count = math::min(esc_status.esc_count, esc_status_s::CONNECTED_ESC_MAX);
-		const int all_escs_armed_mask = (1 << limited_esc_count) - 1;
-		const bool is_all_escs_armed = (all_escs_armed_mask == esc_status.esc_armed_flags);
-
-		bool is_esc_failure = !is_all_escs_armed;
-
-		for (int i = 0; i < limited_esc_count; i++) {
-			is_esc_failure = is_esc_failure || (esc_status.esc[i].failures > 0);
-		}
-
-		_esc_failure_hysteresis.set_hysteresis_time_from(false, 300_ms);
-		_esc_failure_hysteresis.set_state_and_update(is_esc_failure, time_now);
-
-		if (_esc_failure_hysteresis.get_state()) {
-			_status.flags.arm_escs = true;
-		}
-
-	} else {
-		// reset ESC bitfield
-		_esc_failure_hysteresis.set_state_and_update(false, time_now);
-		_status.flags.arm_escs = false;
-	}
-}
 
 void FailureDetector::updateImbalancedPropStatus()
 {
@@ -223,10 +254,10 @@ void FailureDetector::updateImbalancedPropStatus()
 
 			if ((imu_status.accel_device_id != 0)
 			    && (imu_status.accel_device_id == _selected_accel_device_id)) {
-				const float dt = math::constrain((imu_status.timestamp - _imu_status_timestamp_prev) * 1e-6f, 0.01f, 1.f);
+				const hrt_abstime dt_us = math::constrain(imu_status.timestamp - _imu_status_timestamp_prev, 10_ms, 1_s);
 				_imu_status_timestamp_prev = imu_status.timestamp;
 
-				_imbalanced_prop_lpf.setParameters(dt, _imbalanced_prop_lpf_time_constant);
+				_imbalanced_prop_lpf.setParameters(dt_us, _imbalanced_prop_lpf_time_constant);
 
 				const float std_x = sqrtf(math::max(imu_status.var_accel[0], 0.f));
 				const float std_y = sqrtf(math::max(imu_status.var_accel[1], 0.f));
@@ -237,121 +268,8 @@ void FailureDetector::updateImbalancedPropStatus()
 				const float metric_lpf = _imbalanced_prop_lpf.update(metric);
 
 				const bool is_imbalanced = metric_lpf > _param_fd_imb_prop_thr.get();
-				_status.flags.imbalanced_prop = is_imbalanced;
+				_failure_detector_status.flags.imbalanced_prop = is_imbalanced;
 			}
 		}
-	}
-}
-
-void FailureDetector::updateMotorStatus(const vehicle_status_s &vehicle_status, const esc_status_s &esc_status)
-{
-	// What need to be checked:
-	//
-	// 1. ESC telemetry disappears completely -> dead ESC or power loss on that ESC
-	// 2. ESC failures like overvoltage, overcurrent etc. But DShot driver for example is not populating the field 'esc_report.failures'
-	// 3. Motor current too low. Compare drawn motor current to expected value from a parameter
-	// -- ESC voltage does not really make sense and is highly dependent on the setup
-
-	// First wait for some ESC telemetry that has the required fields. Before that happens, don't check this ESC
-	// Then check
-
-	const hrt_abstime time_now = hrt_absolute_time();
-
-	// Only check while armed
-	if (vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED) {
-		const int limited_esc_count = math::min(esc_status.esc_count, esc_status_s::CONNECTED_ESC_MAX);
-
-		actuator_motors_s actuator_motors{};
-		_actuator_motors_sub.copy(&actuator_motors);
-
-		// Check individual ESC reports
-		for (int esc_status_idx = 0; esc_status_idx < limited_esc_count; esc_status_idx++) {
-
-			const esc_report_s &cur_esc_report = esc_status.esc[esc_status_idx];
-
-			// Map the esc status index to the actuator function index
-			const unsigned i_esc = cur_esc_report.actuator_function - actuator_motors_s::ACTUATOR_FUNCTION_MOTOR1;
-
-			if (i_esc >= actuator_motors_s::NUM_CONTROLS) {
-				continue;
-			}
-
-			// Check if ESC telemetry was available and valid at some point. This is a prerequisite for the failure detection.
-			if (!(_motor_failure_esc_valid_current_mask & (1 << i_esc)) && cur_esc_report.esc_current > 0.0f) {
-				_motor_failure_esc_valid_current_mask |= (1 << i_esc);
-			}
-
-			// Check for telemetry timeout
-			const hrt_abstime telemetry_age = time_now - cur_esc_report.timestamp;
-			const bool esc_timed_out = telemetry_age > 300_ms;
-
-			const bool esc_was_valid = _motor_failure_esc_valid_current_mask & (1 << i_esc);
-			const bool esc_timeout_currently_flagged = _motor_failure_esc_timed_out_mask & (1 << i_esc);
-
-			if (esc_was_valid && esc_timed_out && !esc_timeout_currently_flagged) {
-				// Set flag
-				_motor_failure_esc_timed_out_mask |= (1 << i_esc);
-
-			} else if (!esc_timed_out && esc_timeout_currently_flagged) {
-				// Reset flag
-				_motor_failure_esc_timed_out_mask &= ~(1 << i_esc);
-			}
-
-			// Check if ESC current is too low
-			if (cur_esc_report.esc_current > FLT_EPSILON) {
-				_motor_failure_esc_has_current[i_esc] = true;
-			}
-
-			if (_motor_failure_esc_has_current[i_esc]) {
-				float esc_throttle = 0.f;
-
-				if (PX4_ISFINITE(actuator_motors.control[i_esc])) {
-					esc_throttle = fabsf(actuator_motors.control[i_esc]);
-				}
-
-				const bool throttle_above_threshold = esc_throttle > _param_fd_motor_throttle_thres.get();
-				const bool current_too_low = cur_esc_report.esc_current < esc_throttle *
-							     _param_fd_motor_current2throttle_thres.get();
-
-				if (throttle_above_threshold && current_too_low && !esc_timed_out) {
-					if (_motor_failure_undercurrent_start_time[i_esc] == 0) {
-						_motor_failure_undercurrent_start_time[i_esc] = time_now;
-					}
-
-				} else {
-					if (_motor_failure_undercurrent_start_time[i_esc] != 0) {
-						_motor_failure_undercurrent_start_time[i_esc] = 0;
-					}
-				}
-
-				if (_motor_failure_undercurrent_start_time[i_esc] != 0
-				    && (time_now - _motor_failure_undercurrent_start_time[i_esc]) > _param_fd_motor_time_thres.get() * 1_ms
-				    && (_motor_failure_esc_under_current_mask & (1 << i_esc)) == 0) {
-					// Set flag
-					_motor_failure_esc_under_current_mask |= (1 << i_esc);
-
-				} // else: this flag is never cleared, as the motor is stopped, so throttle < threshold
-			}
-		}
-
-		bool critical_esc_failure = (_motor_failure_esc_timed_out_mask != 0 || _motor_failure_esc_under_current_mask != 0);
-
-		if (critical_esc_failure && !(_status.flags.motor)) {
-			// Add motor failure flag to bitfield
-			_status.flags.motor = true;
-
-		} else if (!critical_esc_failure && _status.flags.motor) {
-			// Reset motor failure flag
-			_status.flags.motor = false;
-		}
-
-	} else { // Disarmed
-		// reset ESC bitfield
-		for (int i_esc = 0; i_esc < actuator_motors_s::NUM_CONTROLS; i_esc++) {
-			_motor_failure_undercurrent_start_time[i_esc] = 0;
-		}
-
-		_motor_failure_esc_under_current_mask = 0;
-		_status.flags.motor = false;
 	}
 }

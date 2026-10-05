@@ -93,7 +93,7 @@
 #define BOARD_SPI_BUS_MAX_BUS_ITEMS 3
 
 /* I2C busses */
-#define BOARD_OVERRIDE_I2C_BUS_EXTERNAL
+#define BOARD_OVERRIDE_I2C_BUS_TOPOLOGY
 
 /*
  * ADC channels
@@ -164,6 +164,7 @@
  * Connected to the IO MCU; tell compiler to enable support
  */
 #define PX4IO_HEATER_ENABLED
+#define HEATER_NUM 1
 
 __BEGIN_DECLS
 

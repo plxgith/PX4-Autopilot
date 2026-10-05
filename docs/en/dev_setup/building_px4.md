@@ -39,15 +39,6 @@ Navigate into the **PX4-Autopilot** directory and start [Gazebo SITL](../sim_gaz
 make px4_sitl gz_x500
 ```
 
-::: details  If you installed Gazebo Classic
-Start  [Gazebo Classic SITL](../sim_gazebo_classic/index.md) using the following command:
-
-```sh
-make px4_sitl gazebo-classic
-```
-
-:::
-
 This will bring up the PX4 console:
 
 ![PX4 Console](../../assets/toolchain/console_gazebo.png)
@@ -88,6 +79,16 @@ cd PX4-Autopilot
 make px4_fmu-v5_default
 ```
 
+:::tip
+You can also build using the [px4-dev Docker container](../test_and_ci/docker.md) without installing the toolchain locally.
+From the PX4-Autopilot directory:
+
+```sh
+./Tools/docker_run.sh 'make px4_fmu-v5_default'
+```
+
+:::
+
 A successful run will end with similar output to:
 
 ```sh
@@ -113,20 +114,21 @@ The following list shows the build commands for the [Pixhawk standard](../flight
 - [Holybro Pixhawk 5X (FMUv5X)](../flight_controller/pixhawk5x.md): `make px4_fmu-v5x_default`
 - [Pixhawk 4 (FMUv5)](../flight_controller/pixhawk4.md): `make px4_fmu-v5_default`
 - [Pixhawk 4 Mini (FMUv5)](../flight_controller/pixhawk4_mini.md): `make px4_fmu-v5_default`
-- [CUAV V5+ (FMUv5)](../flight_controller/cuav_v5_plus.md): `make px4_fmu-v5_default`
-- [CUAV V5 nano (FMUv5)](../flight_controller/cuav_v5_nano.md): `make px4_fmu-v5_default`
+- [CUAV V5+ (FMUv5)](../flight_controller/cuav_v5_plus.md): `make px4_fmu-v5_default` - Discontinued
+- [CUAV V5 nano (FMUv5)](../flight_controller/cuav_v5_nano.md): `make px4_fmu-v5_default` - Discontinued
 - [Pixracer (FMUv4)](../flight_controller/pixracer.md): `make px4_fmu-v4_default`
 - [Pixhawk 3 Pro](../flight_controller/pixhawk3_pro.md): `make px4_fmu-v4pro_default`
 - [Pixhawk Mini](../flight_controller/pixhawk_mini.md): `make px4_fmu-v3_default`
 - [Pixhawk 2 (Cube Black) (FMUv3)](../flight_controller/pixhawk-2.md): `make px4_fmu-v3_default`
 - [mRo Pixhawk (FMUv3)](../flight_controller/mro_pixhawk.md): `make px4_fmu-v3_default` (supports 2MB Flash)
-- [Holybro pix32 (FMUv2)](../flight_controller/holybro_pix32.md): `make px4_fmu-v2_default`
-- [Pixfalcon (FMUv2)](../flight_controller/pixfalcon.md): `make px4_fmu-v2_default`
-- [Dropix (FMUv2)](../flight_controller/dropix.md): `make px4_fmu-v2_default`
-- [Pixhawk 1 (FMUv2)](../flight_controller/pixhawk.md): `make px4_fmu-v2_default`
+- [Holybro pix32 (FMUv2)](../flight_controller/autopilot_discontinued.md): `make px4_fmu-v2_default` - Discontinued
+- [Pixfalcon (FMUv2)](../flight_controller/autopilot_discontinued.md): `make px4_fmu-v2_default` - Discontinued
+- [Dropix (FMUv2)](../flight_controller/autopilot_discontinued.md): `make px4_fmu-v2_default` - Discontinued
+- [Pixhawk 1 (FMUv2)](../flight_controller/autopilot_discontinued.md): `make px4_fmu-v2_default` - Discontinued
 
   :::warning
-  You **must** use a supported version of GCC to build this board (e.g. the same as used by [CI/docker](../test_and_ci/docker.md)) or remove modules from the build. Building with an unsupported GCC may fail, as PX4 is close to the board's 1MB flash limit.
+  You **must** use a supported version of GCC to build this board (e.g. the `gcc-arm-none-eabi` package from the current Ubuntu LTS, which is the same toolchain used by CI) or remove modules from the build.
+  Building with an unsupported GCC may fail, as PX4 is close to the board's 1MB flash limit.
   :::
 
 - Pixhawk 1 with 2 MB flash: `make px4_fmu-v3_default`
@@ -168,6 +170,27 @@ You can also list all configuration targets using the command:
 make list_config_targets
 ```
 
+## Submodules
+
+PX4 pulls a number of libraries (NuttX, MAVLink, and others) in as git submodules.
+Each build checks them once when it configures:
+
+| Submodule state                         | Local build               | CI (`CI=true`)       |
+| --------------------------------------- | ------------------------- | -------------------- |
+| At the commit PX4 records               | Builds                    | Builds               |
+| Missing                                 | Fetched, then builds      | Fetched, then builds |
+| At another commit (e.g. you changed it) | Warns, builds it as it is | Fails                |
+
+A submodule at another commit is never reset, so you can develop and test changes to a submodule (for example a NuttX upgrade) in place.
+The build warns about it every time, and you are responsible for keeping it in the state you want.
+To check out the commits PX4 records (for example after switching branches), run:
+
+```sh
+git submodule sync --recursive && git submodule update --init --recursive
+```
+
+Set `GIT_SUBMODULES_ARE_EVIL=1` to skip the check entirely and manage submodules yourself.
+
 ## Compiling in a Graphical IDE
 
 [VSCode](../dev_setup/vscode.md) is the officially supported (and recommended) IDE for PX4 development.
@@ -191,7 +214,7 @@ The `region 'flash' overflowed by XXXX bytes` error indicates that the firmware 
 This is common for `make px4_fmu-v2_default` builds, where the flash size is limited to 1MB.
 
 If you're building the _vanilla_ master branch, the most likely cause is using an unsupported version of GCC.
-In this case, install the version specified in the [Developer Toolchain](../dev_setup/dev_env.md) instructions.
+In this case, install the `gcc-arm-none-eabi` package from the current Ubuntu LTS as described in the [Developer Toolchain](../dev_setup/dev_env.md) instructions.
 
 If building your own branch, it is possible that you have increased the firmware size over the 1MB limit.
 In this case you will need to remove any drivers/modules that you don't need from the build.
@@ -204,18 +227,25 @@ The PX4 build system opens a large number of files, so you may exceed this numbe
 The build toolchain will then report `Too many open files` for many files, as shown below:
 
 ```sh
-/usr/local/Cellar/gcc-arm-none-eabi/20171218/bin/../lib/gcc/arm-none-eabi/7.2.1/../../../../arm-none-eabi/bin/ld: cannot find NuttX/nuttx/fs/libfs.a: Too many open files
+arm-none-eabi-ld: cannot find NuttX/nuttx/fs/libfs.a: Too many open files
 ```
 
-The solution is to increase the maximum allowed number of open files (e.g. to 300).
+The solution is to increase the maximum allowed number of open files (to 2048, matching the [macOS setup instructions](../dev_setup/dev_env_mac.md#prerequisites)).
 You can do this in the macOS _Terminal_ for each session:
 
-- Run this script [Tools/mac_set_ulimit.sh](https://github.com/PX4/PX4-Autopilot/blob/main/Tools/mac_set_ulimit.sh), or
-- Enter this command:
+- Source this script [Tools/mac_set_ulimit.sh](https://github.com/PX4/PX4-Autopilot/blob/main/Tools/mac_set_ulimit.sh) (it must be sourced, not executed, to affect your current shell):
 
   ```sh
-  ulimit -S -n 300
+  source Tools/mac_set_ulimit.sh
   ```
+
+- Or enter the command directly:
+
+  ```sh
+  ulimit -S -n 2048
+  ```
+
+To apply it to every new terminal, add the `ulimit` line to `~/.zshrc` as described in the macOS setup.
 
 ### macOS Catalina: Problem running cmake
 
@@ -227,34 +257,9 @@ xcode-select --install
 sudo ln -s /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/* /usr/local/include/
 ```
 
-### Ubuntu 18.04: Compile errors involving arm_none_eabi_gcc
-
-Build issues related to `arm_none_eabi_gcc`may be due to a broken g++ toolchain installation.
-You can verify that this is the case by checking for missing dependencies using:
-
-```sh
-arm-none-eabi-gcc --version
-arm-none-eabi-g++ --version
-arm-none-eabi-gdb --version
-arm-none-eabi-size --version
-```
-
-Example of bash output with missing dependencies:
-
-```sh
-arm-none-eabi-gdb --version
-arm-none-eabi-gdb: command not found
-```
-
-This can be resolved by removing and [reinstalling the compiler](https://askubuntu.com/questions/1243252/how-to-install-arm-none-eabi-gdb-on-ubuntu-20-04-lts-focal-fossa).
-
-### Ubuntu 18.04: Visual Studio Code is unable to watch for file changes in this large workspace
-
-See [Visual Studio Code IDE (VSCode) > Troubleshooting](../dev_setup/vscode.md#troubleshooting).
-
 ### Failed to import Python packages
 
-"Failed to import" errors when running the `make px4_sitl jmavsim` command indicates that some Python packages are not installed (where expected).
+"Failed to import" errors when running the `make px4_sitl gz_x500` command indicates that some Python packages are not installed (where expected).
 
 ```sh
 Failed to import jinja2: No module named 'jinja2'
@@ -262,12 +267,12 @@ You may need to install it using:
     pip3 install --user jinja2
 ```
 
-If you have already installed these dependencies this may be because there is more than one Python version on the computer (e.g. Python 2.7.16 Python 3.8.3), and the module is not present in the version used by the build toolchain.
+If you have already installed these dependencies this may be because there is more than one Python version on the computer (e.g. Python 2.7.16 and Python 3.8.3), and the module is not present in the version used by the build toolchain.
 
-You should be able to fix this by explicitly installing the dependencies as shown:
+You should be able to fix this by installing the dependencies from the repository's requirements file:
 
 ```sh
-pip3 install --user pyserial empty toml numpy pandas jinja2 pyyaml pyros-genmsg packaging
+pip3 install --user -r Tools/setup/requirements.txt
 ```
 
 ## PX4 Make Build Targets
@@ -286,7 +291,7 @@ make [VENDOR_][MODEL][_VARIANT] [VIEWER_MODEL_DEBUGGER_WORLD]
 - **VENDOR:** The manufacturer of the board: `px4`, `aerotenna`, `airmind`, `atlflight`, `auav`, `beaglebone`, `intel`, `nxp`, etc.
   The vendor name for Pixhawk series boards is `px4`.
 - **MODEL:** The _board model_ "model": `sitl`, `fmu-v2`, `fmu-v3`, `fmu-v4`, `fmu-v5`, `navio2`, etc.
-- **VARIANT:** Indicates particular configurations: e.g. `bootloader`, `cyphal`, which contain components that are not present in the `default` configuration.
+- **VARIANT:** Indicates particular configurations: e.g. `bootloader`, `cyphal`, `sih`, which add or remove components to/from the `default` configuration.
   Most commonly this is `default`, and may be omitted.
 
 :::tip
@@ -300,10 +305,10 @@ make list_config_targets
 
 **VIEWER_MODEL_DEBUGGER_WORLD:**
 
-- **VIEWER:** This is the simulator ("viewer") to launch and connect: `gz`, `gazebo`, `jmavsim`, `none` <!-- , ?airsim -->
+- **VIEWER:** This is the simulator ("viewer") to launch and connect: `gz`, `gazebo`, `none` <!-- , ?airsim -->
 
   :::tip
-  `none` can be used if you want to launch PX4 and wait for a simulator (jmavsim, Gazebo, Gazebo Classic, or some other simulator).
+  `none` can be used if you want to launch PX4 and wait for a simulator (Gazebo, Gazebo Classic, or some other simulator).
   For example, `make px4_sitl none_iris` launches PX4 without a simulator (but with the iris airframe).
   :::
 
@@ -316,15 +321,6 @@ make list_config_targets
   Default is [empty.world](https://github.com/PX4/PX4-SITL_gazebo-classic/blob/main/worlds/empty.world).
   For more information see [Gazebo Classic > Loading a Specific World](../sim_gazebo_classic/index.md#loading-a-specific-world).
 
-:::tip
-You can get a list of _all_ available `VIEWER_MODEL_DEBUGGER_WORLD` options using the command below:
-
-```sh
-make px4_sitl list_vmd_make_targets
-```
-
-:::
-
 ::: info
 
 - Most of the values in the `CONFIGURATION_TARGET` and `VIEWER_MODEL_DEBUGGER` have defaults, and are hence optional.
@@ -332,7 +328,7 @@ make px4_sitl list_vmd_make_targets
 - You can use three underscores if you want to specify a default value between two other settings.
   For example, `gazebo-classic___gdb` is equivalent to `gazebo-classic_iris_gdb`.
 - You can use a `none` value for `VIEWER_MODEL_DEBUGGER` to start PX4 and wait for a simulator.
-  For example start PX4 using `make px4_sitl_default none` and jMAVSim using `./Tools/simulation/jmavsim/jmavsim_run.sh -l`.
+  For example start PX4 using `make px4_sitl_default none` and then start your simulator.
 
 :::
 

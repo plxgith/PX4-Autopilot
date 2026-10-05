@@ -44,6 +44,11 @@
 namespace land_detector
 {
 
+RoverLandDetector::RoverLandDetector()
+{
+	_landed_hysteresis.set_hysteresis_time_from(true, 500_ms);
+}
+
 bool RoverLandDetector::_get_ground_contact_state()
 {
 	return true;
@@ -58,7 +63,7 @@ bool RoverLandDetector::_get_landed_state()
 
 	}
 
-	// If we are in RTL and have reached the last valid waypoint then we are landed.
+	// If we are in Return and have reached the last valid waypoint then we are landed.
 	if (_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_RTL) {
 		vehicle_global_position_s vehicle_global_position{};
 		_vehicle_global_position_sub.copy(&vehicle_global_position);
@@ -73,11 +78,6 @@ bool RoverLandDetector::_get_landed_state()
 	}
 
 	return !_armed;  // If we are armed we are not landed.
-}
-
-void RoverLandDetector::_set_hysteresis_factor(const int factor)
-{
-	_landed_hysteresis.set_hysteresis_time_from(true, 500_ms);
 }
 
 } // namespace land_detector

@@ -78,7 +78,7 @@ The shutter integration setting (`param2`) is only obeyed with a GPIO backend.
 
 ## Trigger Configuration
 
-Cameras can be connected to the FC for triggering using different intefaces, such as PWM, and GPIO, by specifying the appropriate [trigger interface backend](#trigger-interface-backends).
+Cameras can be connected to the FC for triggering using different interfaces, such as PWM, and GPIO, by specifying the appropriate [trigger interface backend](#trigger-interface-backends).
 You can also indicate the camera [trigger mode](#trigger-modes).
 
 This configuration can most easily be done from the _QGroundControl_ [Vehicle Setup > Camera](https://docs.qgroundcontrol.com/master/en/qgc-user-guide/setup_view/camera.html#px4-camera-setup) section.
@@ -178,6 +178,10 @@ The red and black ouptputs are connected to the servo rail/ground and the white 
 PX4 emits the MAVLink [CAMERA_TRIGGER](https://mavlink.io/en/messages/common.html#CAMERA_TRIGGER) message on both camera trigger and camera capture.
 If camera capture is configured, the timestamp from the camera capture driver is used, otherwise the triggering timestamp.
 :::
+
+PX4 also reports each capture to the ground station as a [CAMERA_IMAGE_CAPTURED](https://mavlink.io/en/messages/common.html#CAMERA_IMAGE_CAPTURED) message.
+This is controlled by [CAM_CAP_REPORT](../advanced_config/parameter_reference.md#CAM_CAP_REPORT), which is enabled by default and only needs to be disabled for cameras that report captures themselves (see [Capture Reporting](../camera/mavlink_v1_camera.md#capture-reporting)).
+Captures are logged for geotagging either way.
 
 ## Testing Trigger Functionality
 
@@ -307,7 +311,7 @@ Wire up your cameras to your AUX port by connecting the ground and signal pins t
 ### Step 4
 
 You will have to modify your driver to follow the sequence diagram above.
-Public reference implementations for [IDS Imaging UEye](https://github.com/ProjectArtemis/ueye_cam) cameras and for [IEEE1394 compliant](https://github.com/andre-nguyen/camera1394) cameras are available.
+Public reference implementations for [IDS Imaging UEye](https://github.com/anqixu/ueye_cam) cameras and for [IEEE1394 compliant](https://github.com/andre-nguyen/camera1394) cameras are available.
 
 ## See Also
 

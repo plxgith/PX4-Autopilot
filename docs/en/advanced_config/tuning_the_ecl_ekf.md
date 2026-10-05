@@ -268,13 +268,13 @@ GPS measurements will be used for position and velocity if the following conditi
 
 - GPS use is enabled via setting of the [EKF2_GPS_CTRL](../advanced_config/parameter_reference.md#EKF2_GPS_CTRL) parameter.
 - GPS quality checks have passed.
-  These checks are controlled by the [EKF2_GPS_CHECK](../advanced_config/parameter_reference.md#EKF2_GPS_CHECK) and `EKF2_REQ_*` parameters.
+  These checks are controlled by the [GNSS_CHECK](../advanced_config/parameter_reference.md#GNSS_CHECK) and `GNSS_REQ_*` parameters.
 
 For more details about the configuration of height sources, [click here](#height).
 
 #### Yaw Measurements
 
-Some GPS receivers such as the [Trimble MB-Two RTK GPS receiver](https://oemgnss.trimble.com/en/products/receiver-modules/mb-two) can be used to provide a heading measurement that replaces the use of magnetometer data.
+Dual-antenna and moving base GNSS receivers (see [GPS as Yaw/Heading Source](../gps_compass/rtk_gps.md#configuring-gps-as-yaw-heading-source)) can be used to provide a heading measurement that replaces the use of magnetometer data.
 This can be a significant advantage when operating in an environment where large magnetic anomalies are present, or at latitudes here the earth's magnetic field has a high inclination.
 Use of GPS yaw measurements is enabled by setting bit position 3 to 1 (adding 8) in the [EKF2_GPS_CTRL](../advanced_config/parameter_reference.md#EKF2_GPS_CTRL) parameter.
 
@@ -301,51 +301,119 @@ Once the vehicle has performed sufficient horizontal movement to make the yaw ob
 
 Data from GPS receivers can be blended using an algorithm that weights data based on reported accuracy (this works best if both receivers output data at the same rate and use the same accuracy).
 The mechanism also provides automatic failover if data from a receiver is lost (it allows, for example, a standard GPS to be used as a backup to a more accurate RTK receiver).
-This is controlled by the [SENS_GPS_MASK](../advanced_config/parameter_reference.md#SENS_GPS_MASK) parameter.
+This is controlled by the [SENS_GNSS_MASK](../advanced_config/parameter_reference.md#SENS_GNSS_MASK) parameter.
 
-The [SENS_GPS_MASK](../advanced_config/parameter_reference.md#SENS_GPS_MASK) parameter is set by default to disable blending and always use the first receiver, so it will have to be set to select which receiver accuracy metrics are used to decide how much each receiver output contributes to the blended solution.
-Where different receiver models are used, it is important that the [SENS_GPS_MASK](../advanced_config/parameter_reference.md#SENS_GPS_MASK) parameter is set to a value that uses accuracy metrics that are supported by both receivers.
-For example do not set bit position 0 to `true` unless the drivers for both receivers publish values in the `s_variance_m_s` field of the `vehicle_gps_position` message that are comparable.
+The [SENS_GNSS_MASK](../advanced_config/parameter_reference.md#SENS_GNSS_MASK) parameter is set by default to disable blending and always use the first receiver, so it will have to be set to select which receiver accuracy metrics are used to decide how much each receiver output contributes to the blended solution.
+Where different receiver models are used, it is important that the [SENS_GNSS_MASK](../advanced_config/parameter_reference.md#SENS_GNSS_MASK) parameter is set to a value that uses accuracy metrics that are supported by both receivers.
+For example do not set bit position 0 to `true` unless the drivers for both receivers publish values in the `speed_accuracy` field of the `sensor_gnss` message that are comparable.
 This can be difficult with receivers from different manufacturers due to the different way that accuracy is defined, e.g. CEP vs 1-sigma, etc.
 
 The following items should be checked during setup:
 
 - Verify that data for the second receiver is present.
-  This will be logged as `vehicle_gps_position_1` and can also be checked when connected via the _nsh console_ using the command `listener vehicle_gps_position -i 1`.
+  This will be logged as `sensor_gnss_1` and can also be checked when connected via the _nsh console_ using the command `listener sensor_gnss -i 1`.
   The [GPS_2_CONFIG](../advanced_config/parameter_reference.md#GPS_2_CONFIG) parameter will need to be set correctly.
-- Check the `s_variance_m_s`, `eph` and `epv` data from each receiver and decide which accuracy metrics can be used.
-  If both receivers output sensible `s_variance_m_s` and `eph` data, and GPS vertical position is not being used directly for navigation, then setting [SENS_GPS_MASK](../advanced_config/parameter_reference.md#SENS_GPS_MASK) to 3 is recommended.
-  Where only `eph` data is available and both receivers do not output `s_variance_m_s` data, set [SENS_GPS_MASK](../advanced_config/parameter_reference.md#SENS_GPS_MASK) to 2.
+- Check the `speed_accuracy`, `eph` and `epv` data from each receiver and decide which accuracy metrics can be used.
+  If both receivers output sensible `speed_accuracy` and `eph` data, and GPS vertical position is not being used directly for navigation, then setting [SENS_GNSS_MASK](../advanced_config/parameter_reference.md#SENS_GNSS_MASK) to 3 is recommended.
+  Where only `eph` data is available and both receivers do not output `speed_accuracy` data, set [SENS_GNSS_MASK](../advanced_config/parameter_reference.md#SENS_GNSS_MASK) to 2.
   Bit position 2 would only be set if the GPS had been selected as the reference height source with the [EKF2_HGT_REF](../advanced_config/parameter_reference.md#EKF2_HGT_REF) parameter and both receivers output sensible `epv` data.
-- The output from the blended receiver data is logged as `ekf_gps_position`, and can be checked whilst connect via the nsh terminal using the command `listener ekf_gps_position`.
+- The output from the blended receiver data is logged as `vehicle_gnss`, and can be checked whilst connect via the nsh terminal using the command `listener vehicle_gnss`.
 - Where receivers output at different rates, the blended output will be at the rate of slower receiver.
   Where possible receivers should be configured to output at the same rate.
 
 #### GNSS Performance Requirements
 
-For the ECL to accept GNSS data for navigation, certain minimum requirements need to be satisfied over a period of time, defined by [EKF2_REQ_GPS_H](../advanced_config/parameter_reference.md#EKF2_REQ_GPS_H) (10 seconds by default).
+For the ECL to accept GNSS data for navigation, certain minimum requirements need to be satisfied over a period of time, defined by [GNSS_REQ_TIME](../advanced_config/parameter_reference.md#GNSS_REQ_TIME) (10 seconds by default).
 
-Minima are defined in the [EKF2*REQ*\*](../advanced_config/parameter_reference.md#EKF2_REQ_EPH) parameters and each check can be enabled/disabled using the [EKF2_GPS_CHECK](../advanced_config/parameter_reference.md#EKF2_GPS_CHECK) parameter.
+Minima are defined in the [GNSS*REQ*\*](../advanced_config/parameter_reference.md#GNSS_REQ_EPH) parameters and each check can be enabled/disabled using the [GNSS_CHECK](../advanced_config/parameter_reference.md#GNSS_CHECK) parameter.
 
 The table below shows the different metrics directly reported or calculated from the GNSS data, and the minimum required values for the data to be used by ECL.
 In addition, the _Average Value_ column shows typical values that might reasonably be obtained from a standard GNSS module (e.g. u-blox M8 series) - i.e. values that are considered good/acceptable.
 
 | Metric               | Minimum required                                                                          | Average Value | Units | Notes                                                                                                                                       |
 | -------------------- | ----------------------------------------------------------------------------------------- | ------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| eph                  | <&nbsp;3 ([EKF2_REQ_EPH](../advanced_config/parameter_reference.md#EKF2_REQ_EPH))         | 0.8           | m     | Standard deviation of horizontal position error                                                                                             |
-| epv                  | <&nbsp;5 ([EKF2_REQ_EPV](../advanced_config/parameter_reference.md#EKF2_REQ_EPV))         | 1.5           | m     | Standard deviation of vertical position error                                                                                               |
-| Number of satellites | ≥6&nbsp;([EKF2_REQ_NSATS](../advanced_config/parameter_reference.md#EKF2_REQ_NSATS))      | 14            | -     |
-| sacc                 | <&nbsp;0.5 ([EKF2_REQ_SACC](../advanced_config/parameter_reference.md#EKF2_REQ_SACC))     | 0.2           | m/s   | Standard deviation of horizontal speed error                                                                                                |
+| eph                  | <&nbsp;3 ([GNSS_REQ_EPH](../advanced_config/parameter_reference.md#GNSS_REQ_EPH))         | 0.8           | m     | Standard deviation of horizontal position error                                                                                             |
+| epv                  | <&nbsp;5 ([GNSS_REQ_EPV](../advanced_config/parameter_reference.md#GNSS_REQ_EPV))         | 1.5           | m     | Standard deviation of vertical position error                                                                                               |
+| Number of satellites | ≥6&nbsp;([GNSS_REQ_NSATS](../advanced_config/parameter_reference.md#GNSS_REQ_NSATS))      | 14            | -     |
+| sacc                 | <&nbsp;0.5 ([GNSS_REQ_SACC](../advanced_config/parameter_reference.md#GNSS_REQ_SACC))     | 0.2           | m/s   | Standard deviation of horizontal speed error                                                                                                |
 | fix type             | ≥&nbsp;3                                                                                  | 4             | -     | 0-1: no fix, 2: 2D fix, 3: 3D fix, 4: RTCM code differential, 5: Real-Time Kinematic, float, 6: Real-Time Kinematic, fixed, 8: Extrapolated |
-| PDOP                 | <&nbsp;2.5 ([EKF2_REQ_PDOP](../advanced_config/parameter_reference.md#EKF2_REQ_PDOP))     | 1.0           | -     | Position dilution of precision                                                                                                              |
-| hpos drift rate      | <&nbsp;0.1 ([EKF2_REQ_HDRIFT](../advanced_config/parameter_reference.md#EKF2_REQ_HDRIFT)) | 0.01          | m/s   | Drift rate calculated from reported GNSS position (when stationary).                                                                        |
-| vpos drift rate      | <&nbsp;0.2 ([EKF2_REQ_VDRIFT](../advanced_config/parameter_reference.md#EKF2_REQ_VDRIFT)) | 0.02          | m/s   | Drift rate calculated from reported GNSS altitude (when stationary).                                                                        |
-| hspd                 | <&nbsp;0.1 ([EKF2_REQ_HDRIFT](../advanced_config/parameter_reference.md#EKF2_REQ_HDRIFT)) | 0.01          | m/s   | Filtered magnitude of reported GNSS horizontal velocity.                                                                                    |
-| vspd                 | <&nbsp;0.2 ([EKF2_REQ_VDRIFT](../advanced_config/parameter_reference.md#EKF2_REQ_VDRIFT)) | 0.02          | m/s   | Filtered magnitude of reported GNSS vertical velocity.                                                                                      |
+| PDOP                 | <&nbsp;2.5 ([GNSS_REQ_PDOP](../advanced_config/parameter_reference.md#GNSS_REQ_PDOP))     | 1.0           | -     | Position dilution of precision                                                                                                              |
+| hpos drift rate      | <&nbsp;0.1 ([GNSS_REQ_HDRIFT](../advanced_config/parameter_reference.md#GNSS_REQ_HDRIFT)) | 0.01          | m/s   | Drift rate calculated from reported GNSS position (when stationary).                                                                        |
+| vpos drift rate      | <&nbsp;0.2 ([GNSS_REQ_VDRIFT](../advanced_config/parameter_reference.md#GNSS_REQ_VDRIFT)) | 0.02          | m/s   | Drift rate calculated from reported GNSS altitude (when stationary).                                                                        |
+| hspd                 | <&nbsp;0.1 ([GNSS_REQ_HDRIFT](../advanced_config/parameter_reference.md#GNSS_REQ_HDRIFT)) | 0.01          | m/s   | Filtered magnitude of reported GNSS horizontal velocity.                                                                                    |
+| vspd                 | <&nbsp;0.2 ([GNSS_REQ_VDRIFT](../advanced_config/parameter_reference.md#GNSS_REQ_VDRIFT)) | 0.02          | m/s   | Filtered magnitude of reported GNSS vertical velocity.                                                                                      |
 
 ::: info
 The `hpos_drift_rate`, `vpos_drift_rate` and `hspd` are calculated over a period of 10 seconds and published in the `ekf2_gps_drift` topic.
 Note that `ekf2_gps_drift` is not logged!
+:::
+
+#### GNSS Fault Detection
+
+PX4's GNSS fault detection protects against malicious or erroneous GNSS signals using selective fusion control based on measurement validation.
+
+The fault detection logic depends on the GPS mode, and also operates differently for horizontal position and altitude measurements.
+The mode is set using the [EKF2_GPS_MODE](../advanced_config/parameter_reference.md#EKF2_GPS_MODE) parameter:
+
+- **Automatic (`0`)** (Default): Assumes that GNSS is generally reliable and is likely to be recovered.
+  EKF2 resets on fusion timeouts if no other source of position is available.
+- **Dead-reckoning (`1`)**: Assumes that GNSS might be lost indefinitely, so resets should be avoided while we have other estimates of position data.
+  EKF2 may reset if no other sources of position or velocity are available.
+  If GNSS altitude OR horizontal position data drifts, the system disables fusion of both measurements simultaneously (even if one would still pass validation) and avoids performing resets.
+
+::: tip
+See also [Fault Detection](https://youtu.be/CMGQJNPiTJg?si=sFtdf4AQbcOH8-u8) in "Fuse, Reset, or Reject? Handling Various Data-sources in EKF2" _PX4 Developer Summit 2025_, Marco Hauswirth, Auterion AG
+:::
+
+##### Detection Logic
+
+Horizontal Position:
+
+- **Automatic mode**: Horizontal position resets to GNSS data if no other horizontal position source is currently being fused (e.g., Auxiliary Global Position - AGP).
+- **Dead-reckoning mode**: Horizontal position resets to GNSS data only if no other horizontal position OR velocity source is currently being fused (e.g., AGP, airspeed, optical flow).
+
+Altitude:
+
+- The altitude logic is more complex due to the height reference sensor ([EKF2_HGT_REF](../advanced_config/parameter_reference.md#EKF2_HGT_REF)) parameter, which is typically set to GNSS or baro in GNSS-denied scenarios.
+- If height reference is set to baro, GNSS-based height resets are prevented (except when baro fusion fails completely and height reference automatically switches to GNSS).
+- When height reference is set to GNSS:
+- **Automatic mode**: Resets occur on drifting GNSS altitude measurements.
+- **Dead-reckoning mode**: When validation starts failing, the system prevents GNSS altitude resets and labels the GNSS data as faulty.
+
+##### Faulty GNSS Data During Boot
+
+The system cannot automatically detect faulty GNSS data during vehicle boot as no baseline comparison exists.
+
+If GNSS fusion is enabled ([EKF2_GPS_CTRL](../advanced_config/parameter_reference.md#EKF2_GPS_CTRL)), operators will observe incorrect positions on maps and should disable GNSS fusion, then manually set the correct position via ground control station.
+The global position gets corrected, and if [SENS_BAR_AUTOCAL](../advanced_config/parameter_reference.md#SENS_BAR_AUTOCAL) was enabled, baro offsets are automatically adjusted (through bias correction, not parameter changes).
+
+##### Enabling GNSS Fusion Mid-Flight
+
+With Faulty GNSS Data:
+
+- **Automatic mode**: Vehicle will reset to faulty position - potentially dangerous.
+- **Dead-reckoning mode**: Large measurement differences cause GNSS rejection and fault detection activation.
+
+With Valid GNSS Data:
+
+- **Automatic mode**: Vehicle will reset to GNSS measurements.
+- **Dead-reckoning mode**: If estimated position/altitude is close enough to measurements, fusion resumes; if too far apart, data gets labeled as faulty.
+
+##### Notes
+
+- **Dual Detection**: Horizontal and altitude checks run completely separately but both lead to the same result when triggered - all GNSS fusion gets disabled.
+- **Recovery**: Only the specific check that labeled data as invalid can re-enable fusion.
+- **Alternative Sources**: Dead-reckoning mode provides enhanced protection by requiring absence of alternative navigation sources before allowing resets.
+- **Boot Vulnerability**: Initial faulty GNSS data cannot be detected automatically; requires operator intervention and manual position correction.
+
+#### Ground Position Lock
+
+When a vehicle equipped with dead-reckoning sensors (e.g. airspeed for fixed-wing, or optical flow) is sitting on the ground before takeoff, those sensors provide little to no aiding — airspeed and optical flow measurements are unreliable at rest. In this case, the EKF relies on _constant position fusion_ (fusing a synthetic position measurement at the last known position) to prevent the estimate from drifting. However, this is only active when the vehicle is detected as stationary, so handling the vehicle or starting the engine can interrupt it.
+
+To counter this, [EKF2_POS_LOCK](../advanced_config/parameter_reference.md#EKF2_POS_LOCK) can be enabled to force constant position fusion to run while landed and the global horizontal position has already been initialized.
+
+::: note
+`EKF2_POS_LOCK` has no effect in flight.
 :::
 
 ### Range Finder
@@ -536,7 +604,7 @@ When this has been done, the performance metadata files can be processed to prov
 - Attitude output data is found in the [VehicleAttitude](https://github.com/PX4/PX4-Autopilot/blob/main/msg/versioned/VehicleAttitude.msg) message.
 - Local position output data is found in the [VehicleLocalPosition](https://github.com/PX4/PX4-Autopilot/blob/main/msg/versioned/VehicleLocalPosition.msg) message.
 - Global \(WGS-84\) output data is found in the [VehicleGlobalPosition](https://github.com/PX4/PX4-Autopilot/blob/main/msg/versioned/VehicleGlobalPosition.msg) message.
-- Wind velocity output data is found in the [Wind.msg](https://github.com/PX4/PX4-Autopilot/blob/main/msg/Wind.msg) message.
+- Wind velocity output data is found in the [AirspeedWind.msg](https://github.com/PX4/PX4-Autopilot/blob/main/msg/AirspeedWind.msg) message.
 
 ### States
 
@@ -670,7 +738,7 @@ For a binary pass/fail summary for each sensor, refer to innovation_check_flags 
 ### GPS Quality Checks
 
 The EKF applies a number of GPS quality checks before commencing GPS aiding.
-These checks are controlled by the [EKF2_GPS_CHECK](../advanced_config/parameter_reference.md#EKF2_GPS_CHECK) and `EKF2_REQ_*` parameters.
+These checks are controlled by the [GNSS_CHECK](../advanced_config/parameter_reference.md#GNSS_CHECK) and `GNSS_REQ_*` parameters.
 The pass/fail status for these checks is logged in the [EstimatorStatus](https://github.com/PX4/PX4-Autopilot/blob/main/msg/EstimatorStatus.msg).gps_check_fail_flags message.
 This integer will be zero when all required GPS checks have passed.
 If the EKF is not commencing GPS alignment, check the value of the integer against the bitmask definition `gps_check_fail_flags` in [EstimatorStatus](https://github.com/PX4/PX4-Autopilot/blob/main/msg/EstimatorStatus.msg).
@@ -740,7 +808,7 @@ Determining which of these is the primary cause requires a methodical approach t
 - Plot the horizontal position innovation test ratio - [EstimatorStatus](https://github.com/PX4/PX4-Autopilot/blob/main/msg/EstimatorStatus.msg).pos_test_ratio
 - Plot the height innovation test ratio - [EstimatorStatus](https://github.com/PX4/PX4-Autopilot/blob/main/msg/EstimatorStatus.msg).hgt_test_ratio
 - Plot the magnetometer innovation test ratio - [EstimatorStatus](https://github.com/PX4/PX4-Autopilot/blob/main/msg/EstimatorStatus.msg).mag_test_ratio
-- Plot the GPS receiver reported speed accuracy - [SensorGps.msg](https://github.com/PX4/PX4-Autopilot/blob/main/msg/SensorGps.msg).s_variance_m_s
+- Plot the GPS receiver reported speed accuracy - [SensorGnss.msg](https://github.com/PX4/PX4-Autopilot/blob/main/msg/SensorGnss.msg).speed_accuracy
 - Plot the IMU delta angle state estimates - [EstimatorStatus](https://github.com/PX4/PX4-Autopilot/blob/main/msg/EstimatorStatus.msg).states\[10\], states\[11\] and states\[12\]
 - Plot the EKF internal high frequency vibration metrics:
   - Delta angle coning vibration - [EstimatorStatus](https://github.com/PX4/PX4-Autopilot/blob/main/msg/EstimatorStatus.msg).vibe\[0\]
@@ -806,7 +874,7 @@ If we also look at the GPS horizontal velocity innovations and innovation varian
 ### Determination of GPS Data Loss
 
 Loss of GPS data will be shown by the velocity and position innovation test ratios 'flat-lining'.
-If this occurs, check the other GPS status data in `vehicle_gps_position` for further information.
+If this occurs, check the other GPS status data in `vehicle_gnss` for further information.
 
 The following plot shows the NED GPS velocity innovations `ekf2_innovations_0.vel_pos_innov[0 ... 2]`, the GPS NE position innovations `ekf2_innovations_0.vel_pos_innov[3 ... 4]` and the Baro vertical position innovation `ekf2_innovations_0.vel_pos_innov[5]` generated from a simulated VTOL flight using SITL Gazebo.
 
@@ -838,3 +906,4 @@ If no terrain estimate is available this parameter will have no effect and the s
 ## Further Information
 
 - [PX4 State Estimation Overview](https://youtu.be/HkYRJJoyBwQ), _PX4 Developer Summit 2019_, Dr. Paul Riseborough): Overview of the estimator, and major changes from 2018/19, and the expected improvements through 2019/20.
+- [Fuse, Reset, or Reject? Handling Various Data-sources in EKF2](https://www.youtube.com/watch?v=CMGQJNPiTJg) - _PX4 Developer Summit 2025_, Marco Hauswirth, Auterion AG

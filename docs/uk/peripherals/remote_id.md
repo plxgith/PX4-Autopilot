@@ -22,12 +22,12 @@ Remote ID hardware can only be connected via DroneCAN on `main` branch builds (b
 
 PX4 integrates with Remote ID hardware that supports:
 
-- [Open Drone ID](https://mavlink.io/en/services/opendroneid.html) MAVLink protocol<Badge type="tip" text="PX4 v1.14" />
-- Remote ID over CAN<Badge type="tip" text="PX4 main (v1.16)" />
+- [Open Drone ID](https://mavlink.io/en/services/opendroneid.html) MAVLink protocol <Badge type="tip" text="PX4 v1.14" />
+- Remote ID over CAN <Badge type="tip" text="PX4 main (v1.16)" />
 
 Було протестовано з наступними пристроями:
 
-- [Cube ID](https://docs.cubepilot.org/user-guides/cube-id/cube-id) (CubePilot)
+- [Cube ID](https://docs.cubepilot.org/cube-id/cube-id) (CubePilot)
 - [Db201](https://dronescout.co/dronebeacon-mavlink-remote-id-transponder/) (BlueMark) - Tested via serial port. Not tested via CAN port.
 - [Db202mav](https://dronescout.co/dronebeacon-mavlink-remote-id-transponder/) (BlueMark) - Less expensive variant without CAN port.
 - [Holybro RemoteID Module](https://holybro.com/products/remote-id) (Holybro)
@@ -41,7 +41,7 @@ Most commonly they are connected directly to the `TELEM2` port (if it is not bei
 
 ### Cube ID
 
-[Cube ID](https://docs.cubepilot.org/user-guides/cube-id/cube-id) can be connected using a serial or CAN port.
+[Cube ID](https://docs.cubepilot.org/cube-id/cube-id) can be connected using a serial or CAN port.
 
 It comes with 6-pin and 4-pin JST-GH 1.25mm cables that can be connected directly to the `TELEM` serial port and `CAN` ports, respectively, on most recent Pixhawk flight controllers.
 
@@ -75,7 +75,7 @@ TX та RX на контролері польоту повинні бути пі
 
 The Cube ID uses proprietary firmware (not [ArduRemoteID](https://github.com/ArduPilot/ArduRemoteID) like some other remote id beacons).
 
-For firmware update instructions see [Cube ID > Updating](https://docs.cubepilot.org/user-guides/cube-id/cube-id#updating).
+For firmware update instructions see [Cube ID > Updating](https://docs.cubepilot.org/cube-id/cube-id#updating).
 
 ### BlueMark Db201/Db202mav
 
@@ -144,20 +144,19 @@ The [CAN Remote ID Not Working](../peripherals/remote_id.md#can-remote-id-not-wo
 
 Немає потреби явно увімкнювати Віддалений ідентифікатор (підтримувані повідомлення про Віддалений ідентифікатор транслюються за замовчуванням або повинні бути запитані в поточній реалізації, навіть якщо жоден віддалений ідентифікатор не підключений).
 
-### Запобігання Зброєнню на підставі Віддаленого Ідентифікатора
+### Remote ID Failsafe and Arming Check
 
-To only allow arming when a Remote ID is ready, [set](../advanced_config/parameters.md#conditional-parameters) the parameter [COM_ARM_ODID](#COM_ARM_ODID) to `2` (it is disabled by default).
+<Badge type="tip" text="PX4 v1.18" />
 
-| Параметр                                                                                                                                  | Опис                                                                                                                                                                                                                                                                                                        |
-| ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a id="COM_ARM_ODID"></a>[COM_ARM_ODID](../advanced_config/parameter_reference.md#COM_ARM_ODID) | Увімкніть систему виявлення та перевірки стану ідентифікатора дрона. `0`: Disable (default), `1`: Warn if Remote ID not detected but still allow arming, `2`: Only allow arming if Remote ID is present. |
+The [COM_ARM_ODID](../advanced_config/parameter_reference.md#COM_ARM_ODID) parameter configures both the arming check and the in-flight failsafe action when the Remote ID system is missing or unhealthy.
+For more information see [Remote ID Failsafe](http://localhost:5173/px4_user_guide/en/config/safety#remote-id-failsafe) in _Safety Configuration_.
 
 ## Тестування мовлення модуля
 
 Інтегратори повинні перевірити, що модуль віддаленого ідентифікатора транслює правильну інформацію, таку як місцезнаходження БПЛА, ідентифікатор, ідентифікатор оператора та інше.
 Це найлегше зробити за допомогою стороннього додатку на вашому мобільному пристрої:
 
-- [Drone Scanner](https://github.com/dronetag/drone-scanner) (Google Play or Apple App store)
+- [Drone Scanner](https://help.dronetag.com/drone-scanner/) (Google Play or Apple App store)
 - [OpenDroneID OSM](https://play.google.com/store/apps/details?id=org.opendroneid.android_osm&hl=en&gl=US) (Google Play)
 
 ## Імплементація
@@ -166,7 +165,6 @@ PX4 v1.14 передає ці повідомлення за замовчуван
 
 - [OPEN_DRONE_ID_LOCATION](https://mavlink.io/en/messages/common.html#OPEN_DRONE_ID_LOCATION) (1 Hz) - UAV location, altitude, direction, and speed.
 - [OPEN_DRONE_ID_SYSTEM](https://mavlink.io/en/messages/common.html#OPEN_DRONE_ID_SYSTEM) (1 Hz) Operator location/altitude, multiple aircraft information (group/swarm, if applicable), full timestamp and possible category/class information.
-
   - Реалізація передбачає, що оператор знаходиться в домашньому положенні транспортного засобу (ще не підтримує отримання позиції оператора з ПЗУ).
     Вважається, що це відповідає вимогам лише для віддалених ідентифікаторів трансляції.
 
@@ -175,7 +173,7 @@ The following message can be streamed on request (using [MAV_CMD_SET_MESSAGE_INT
 - [OPEN_DRONE_ID_BASIC_ID](https://mavlink.io/en/messages/common.html#OPEN_DRONE_ID_BASIC_ID) - UAV identity information (essentially a serial number)
   - PX4 v1.14 specifies a serial number ([MAV_ODID_ID_TYPE_SERIAL_NUMBER](https://mavlink.io/en/messages/common.html#MAV_ODID_ID_TYPE_SERIAL_NUMBER)) but does not use the required format (ANSI/CTA-2063 format).
 
-PX4 prevents arming based on Remote ID health if parameter [COM_ARM_ODID](../advanced_config/parameter_reference.md#COM_ARM_ODID) is set to `2`.
+PX4 can prevent arming and/or trigger an in-flight failsafe based on Remote ID health via the [COM_ARM_ODID](../advanced_config/parameter_reference.md#COM_ARM_ODID) parameter.
 The UAV will then require `HEARTBEAT` messages from the Remote ID as a precondition for arming the UAV.
 You can also set the parameter to `1` to warn but still allow arming when Remote ID `HEARTBEAT` messages are not detected.
 

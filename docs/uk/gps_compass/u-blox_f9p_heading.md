@@ -10,7 +10,7 @@ The two GPS devices in this scenario are referred to as the _Moving Base_ and _R
 Підтримуються наступні пристрої:
 
 - [ARK RTK GPS](https://arkelectron.com/product/ark-rtk-gps/) (arkelectron.com)
-- [SparkFun GPS-RTK2 Board - ZED-F9P](https://www.sparkfun.com/products/15136) (www.sparkfun.com)
+- [SparkFun GPS-RTK2 Board - ZED-F9P](https://www.sparkfun.com/sparkfun-gps-rtk2-board-zed-f9p-qwiic-gps-15136.html) (www.sparkfun.com)
 - [SIRIUS RTK GNSS ROVER (F9P)](https://store-drotek.com/911-sirius-rtk-gnss-rover-f9p.html) (store-drotek.com)
 - [mRo u-blox ZED-F9 RTK L1/L2 GPS](https://store.mrobotics.io/product-p/m10020d.htm) (store.mrobotics.io)
 - [Holybro H-RTK F9P Helical or Base](https://holybro.com/products/h-rtk-f9p-gnss-series) (Holybro Store)
@@ -40,6 +40,8 @@ Ideally the two antennas should be identical, on the same level/horizontal plane
   - Головний GPS = Ровер
   - Допоміжний GPS = Рухома База
 - Set [GPS_UBX_MODE](../advanced_config/parameter_reference.md#GPS_UBX_MODE) to `Heading` (1)
+- Set [GPS_UBX_BAUD1](../advanced_config/parameter_reference.md#GPS_UBX_BAUD1) if a UART1 rate other than the default is required (0 keeps 115200). Use a higher rate for high update rates or when RTCM is sent on UART1 ([GPS_UBX_MODE](../advanced_config/parameter_reference.md#GPS_UBX_MODE) 3/4), and a lower rate on long serial cables.
+- Set [GPS_UBX_BAUD2](../advanced_config/parameter_reference.md#GPS_UBX_BAUD2) if a UART2 rate other than the default (230400) is required. UART2 carries RTCM between the modules in this setup.
 - [EKF2_GPS_CTRL](../advanced_config/parameter_reference.md#EKF2_GPS_CTRL) parameter bit 3 must be set (see [RTK GPS > GPS as Yaw/Heading Source](../gps_compass/rtk_gps.md#configuring-gps-as-yaw-heading-source)).
 - [GPS_YAW_OFFSET](../advanced_config/parameter_reference.md#GPS_YAW_OFFSET) may need to be set (see [RTK GPS > GPS as Yaw/Heading Source](../gps_compass/rtk_gps.md#configuring-gps-as-yaw-heading-source)).
 - Перезавантажте та зачекайте, доки обидва пристрої отримають сигнал GPS.
@@ -56,4 +58,5 @@ If using RTK with a fixed base station the secondary GPS will show the RTK state
 ## Подальша інформація
 
 - [ZED-F9P Moving base applications (Application note)](https://content.u-blox.com/sites/default/files/documents/ZED-F9P-MovingBase_AppNote_UBX-19009093.pdf) - General setup/instructions.
+- [u-blox Diagnostics with u-center](../gps_compass/u-center.md) - UART2 diagnostic mode (not available with heading/moving-base modes, which already use UART2 for RTCM).
 - [RTK GPS > GPS as Yaw/Heading Source](../gps_compass/rtk_gps.md#configuring-gps-as-yaw-heading-source)

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2021 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2021-2026 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,24 +33,31 @@
 
 #pragma once
 
+#include <lib/failure_injection/FailureInjection.hpp>
 #include <lib/perf/perf_counter.h>
 #include <px4_platform_common/defines.h>
 #include <px4_platform_common/module.h>
 #include <px4_platform_common/module_params.h>
 #include <px4_platform_common/px4_work_queue/ScheduledWorkItem.hpp>
+#include <uORB/Publication.hpp>
 #include <uORB/PublicationMulti.hpp>
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionInterval.hpp>
+#include <uORB/SubscriptionMultiArray.hpp>
+#include <uORB/topics/failure_injection.h>
 #include <uORB/topics/parameter_update.h>
-#include <uORB/topics/sensor_gps.h>
+#include <uORB/topics/rtcm_data.h>
+#include <uORB/topics/sensor_gnss.h>
 #include <uORB/topics/vehicle_global_position.h>
 #include <uORB/topics/vehicle_local_position.h>
 
 using namespace time_literals;
 
-class SensorGpsSim : public ModuleBase<SensorGpsSim>, public ModuleParams, public px4::ScheduledWorkItem
+class SensorGpsSim : public ModuleBase, public ModuleParams, public px4::ScheduledWorkItem
 {
 public:
+	static Descriptor desc;
+
 	SensorGpsSim();
 	~SensorGpsSim() override;
 
@@ -66,7 +73,16 @@ public:
 	bool init();
 
 private:
+	static constexpr int GPS_MAX_INSTANCES = 2;
+
 	void Run() override;
+
+	void updateFailureConfig();
+
+	// True while rtcm_corrections messages keep arriving (stale after RTCM_TIMEOUT, like the gps driver).
+	bool updateRtcmCorrections();
+
+	void publishWithFailures(int instance, sensor_gnss_s gnss, uORB::PublicationMulti<sensor_gnss_s> &pub);
 
 	// generate white Gaussian noise sample with std=1
 	static float generate_wgn();
@@ -77,12 +93,39 @@ private:
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 	uORB::Subscription _vehicle_global_position_sub{ORB_ID(vehicle_global_position_groundtruth)};
 	uORB::Subscription _vehicle_local_position_sub{ORB_ID(vehicle_local_position_groundtruth)};
+	uORB::SubscriptionMultiArray<rtcm_data_s, rtcm_data_s::MAX_INSTANCES> _rtcm_corrections_sub{ORB_ID::rtcm_corrections};
 
-	uORB::PublicationMulti<sensor_gps_s> _sensor_gps_pub{ORB_ID(sensor_gps)};
+	uORB::PublicationMulti<sensor_gnss_s> _sensor_gnss_pub{ORB_ID(sensor_gnss)};
+	uORB::PublicationMulti<sensor_gnss_s> _sensor_gnss_pub2{ORB_ID(sensor_gnss)};
 
 	perf_counter_t _loop_perf{perf_alloc(PC_ELAPSED, MODULE_NAME": cycle")};
 
+	// Failure injection (FAILURE_UNIT_SENSOR_GPS): active config + per-instance last-good sample.
+	failure_injection::Config _failure_config;
+	failure_injection::Stuck<sensor_gnss_s> _stuck[GPS_MAX_INSTANCES];
+
+	static constexpr hrt_abstime RTCM_TIMEOUT{5_s};
+	hrt_abstime _last_rtcm_time{0};
+
+	// GPS Markov process noise state
+	float _gps_pos_noise_n{0.0f};
+	float _gps_pos_noise_e{0.0f};
+	float _gps_pos_noise_d{0.0f};
+	float _gps_vel_noise_n{0.0f};
+	float _gps_vel_noise_e{0.0f};
+	float _gps_vel_noise_d{0.0f};
+
+	// Gauss-Markov noise parameters, rate-corrected from GZBridge (30 Hz) to SIH (8 Hz)
+	static constexpr float _pos_noise_amplitude{0.8f};
+	static constexpr float _pos_random_walk{0.02f};
+	static constexpr float _pos_markov_time{0.76f};
+	static constexpr float _vel_noise_amplitude{0.05f};
+	static constexpr float _vel_noise_density{0.4f};
+	static constexpr float _vel_markov_time{0.54f};
+
 	DEFINE_PARAMETERS(
-		(ParamInt<px4::params::SIM_GPS_USED>) _sim_gps_used
+		(ParamInt<px4::params::SIM_GPS_USED>)      _sim_gps_used,
+		(ParamFloat<px4::params::SENS_GNSS1_OFFX>) _param_gnss1_offx,
+		(ParamFloat<px4::params::SENS_GNSS1_OFFY>) _param_gnss1_offy
 	)
 };

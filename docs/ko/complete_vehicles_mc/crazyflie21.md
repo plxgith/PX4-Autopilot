@@ -64,56 +64,56 @@ After setting up the PX4 development environment, follow these steps to install 
 
 1. Download the source code of the PX4 Bootloader:
 
-  ```sh
-  git clone https://github.com/PX4/PX4-Bootloader.git --recurse-submodules
-  ```
+   ```sh
+   git clone https://github.com/PX4/PX4-Bootloader.git --recurse-submodules
+   ```
 
 2. Navigate into the top directory of the source code and compile it using:
 
-  ```sh
-  make crazyflie21_bl
-  ```
+   ```sh
+   make crazyflie21_bl
+   ```
 
 3. Put the Crazyflie 2.1 into DFU mode by following these steps:
-  - Ensure it is initially unpowered.
-  - Ensure battery is disconnected.
-  - Hold down the reset button (see figure below...).
-    ![Crazyflie2 Reset Button](../../assets/flight_controller/crazyflie/crazyflie_reset_button.jpg)
-  - Plug into computer's USB port.
-  - After a second, the blue LED should start blinking and after 5 seconds should start blinking faster.
-  - Release button.
+   - Ensure it is initially unpowered.
+   - Ensure battery is disconnected.
+   - Hold down the reset button (see figure below...).
+     ![Crazyflie2 Reset Button](../../assets/flight_controller/crazyflie/crazyflie_reset_button.jpg)
+   - Plug into computer's USB port.
+   - After a second, the blue LED should start blinking and after 5 seconds should start blinking faster.
+   - Release button.
 
 4. Install _dfu-util_:
 
-  ```sh
-  sudo apt-get update
-  sudo apt-get install dfu-util
-  ```
+   ```sh
+   sudo apt-get update
+   sudo apt-get install dfu-util
+   ```
 
 5. Flash bootloader using _dfu-util_ and unplug Crazyflie 2.1 when done:
 
-  ```sh
-  sudo dfu-util -d 0483:df11 -a 0 -s 0x08000000 -D ./build/crazyflie21_bl/crazyflie21_bl.bin
-  ```
+   ```sh
+   sudo dfu-util -d 0483:df11 -a 0 -s 0x08000000 -D ./build/crazyflie21_bl/crazyflie21_bl.bin
+   ```
 
-  When powering on the Crazyflie 2.1 the yellow LED should blink.
+   When powering on the Crazyflie 2.1 the yellow LED should blink.
 
 6. Download the source code of the PX4 autopilot:
 
-  ```sh
-  git clone https://github.com/PX4/PX4-Autopilot.git
-  ```
+   ```sh
+   git clone https://github.com/PX4/PX4-Autopilot.git
+   ```
 
 7. Navigate into the top directory of the source code and compile it using:
 
-  ```sh
-  cd PX4-Autopilot/
-  make bitcraze_crazyflie21_default upload
-  ```
+   ```sh
+   cd PX4-Autopilot/
+   make bitcraze_crazyflie21_default upload
+   ```
 
 8. When prompted to plug in device, plug in Crazyflie 2.1.
-  The yellow LED should start blinking indicating bootloader mode.
-  Then the red LED should turn on indicating that the flashing process has started.
+   The yellow LED should start blinking indicating bootloader mode.
+   Then the red LED should turn on indicating that the flashing process has started.
 
 9. Wait for completion.
 
@@ -122,24 +122,22 @@ After setting up the PX4 development environment, follow these steps to install 
 ## Flashing Original Bitcraze Firmware
 
 1. Download the latest [Crazyflie 2.1 bootloader](https://github.com/bitcraze/crazyflie2-stm-bootloader/releases)
-
 2. Put the Crazyflie 2.1 into DFU mode by following these steps:
-  - Ensure it is initially unpowered.
-  - Ensure battery is disconnected.
-  - Hold down the reset button.
-  - Plug into computer's USB port.
-  - After a second, the blue LED should start blinking and after 5 seconds should start blinking faster.
-  - Release button.
-
+   - Ensure it is initially unpowered.
+   - Ensure battery is disconnected.
+   - Hold down the reset button.
+   - Plug into computer's USB port.
+   - After a second, the blue LED should start blinking and after 5 seconds should start blinking faster.
+   - Release button.
 3. Flash bootloader using _dfu-util_ and unplug Crazyflie 2.1 when done:
 
-  ```sh
-  sudo dfu-util -d 0483:df11 -a 0 -s 0x08000000 -D cf2loader-1.0.bin
-  ```
+   ```sh
+   sudo dfu-util -d 0483:df11 -a 0 -s 0x08000000 -D cf2loader-1.0.bin
+   ```
 
-  When powering on the Crazyflie 2.1 the yellow LED should blink.
+   When powering on the Crazyflie 2.1 the yellow LED should blink.
 
-4. Install the latest Bitcraze Crazyflie 2.1 Firmware using [this](https://www.bitcraze.io/documentation/tutorials/getting-started-with-crazyflie-2-x/#update-fw) tutorial.
+. Install the latest Bitcraze Crazyflie 2.1 Firmware using [this](https://www.bitcraze.io/documentation/tutorials/getting-started-with-crazyflie-2-x/#update-fw) tutorial.
 
 ## Wireless Setup Instructions
 
@@ -151,15 +149,26 @@ The onboard nRF module allows connecting to the board via Bluetooth or through t
 Connecting via **MAVLink**:
 
 - Use a Crazyradio PA alongside a compatible GCS.
-- Download the _crazyflie-lib-python_ source code:
+
+- Download the _crazyflie-lib-python_ source code, and check out the last commit that included `cfbridge.py` (see warning below):
 
   ```sh
   git clone https://github.com/bitcraze/crazyflie-lib-python.git
+  git -C crazyflie-lib-python checkout 829ae10715b5bf2373a7a643434e474ab406fc62
   ```
 
-:::info
-We will use [cfbridge.py](https://github.com/bitcraze/crazyflie-lib-python/blob/master/examples/cfbridge.py) to setup a wireless MAVlink communication link between Crazyflie 2.1 (flashed with PX4) and QGroundControl. _Cfbridge_ enables QGroundControl to communicate with the crazyradio PA.
-The [C based cfbridge](https://github.com/dennisss/cfbridge) is currently experiencing data loss issues, which is why we have chosen to use **cfbridge.py**.
+  ::: info
+  We will use [cfbridge.py](https://github.com/bitcraze/crazyflie-lib-python/blob/829ae10715b5bf2373a7a643434e474ab406fc62/examples/cfbridge.py) to setup a wireless MAVlink communication link between Crazyflie 2.1 (flashed with PX4) and QGroundControl.
+  _Cfbridge_ enables QGroundControl to communicate with the crazyradio PA.
+  The [C based cfbridge](https://github.com/dennisss/cfbridge) is currently experiencing data loss issues, which is why we have chosen to use **cfbridge.py**.
+
+:::
+
+  ::: warning
+  `cfbridge.py` was removed from the `crazyflie-lib-python` repository upstream (April 2026) and was not migrated to Bitcraze's `crazyflie-demos` repository.
+  The commands above check out the last commit that included the file.
+  This part of the workflow is no longer maintained by Bitcraze!
+
 :::
 
 - Make sure you have set the udev permissions to use the USB Radio. To do this, follow the steps listed [here](https://www.bitcraze.io/documentation/repository/crazyflie-lib-python/master/installation/usb_permissions/) and **restart** your computer.

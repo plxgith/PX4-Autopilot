@@ -51,18 +51,25 @@
 
 
 constexpr io_timers_t io_timers[MAX_IO_TIMERS] = {
-	initIOTimer(Timer::EMIOS0)
+	initIOTimer(Timer::EMIOS0_Channel0, Timer::Channel0),
+	initIOTimer(Timer::EMIOS0_Channel1, Timer::Channel1),
+	initIOTimer(Timer::EMIOS0_Channel2, Timer::Channel2),
+	initIOTimer(Timer::EMIOS0_Channel3, Timer::Channel3),
+	initIOTimer(Timer::EMIOS0_Channel4, Timer::Channel4),
+	initIOTimer(Timer::EMIOS0_Channel5, Timer::Channel5),
+	initIOTimer(Timer::EMIOS0_Channel6, Timer::Channel6),
+	initIOTimer(Timer::EMIOS0_Channel7, Timer::Channel7),
 };
 
 constexpr timer_io_channels_t timer_io_channels[MAX_TIMER_IO_CHANNELS] = {
-	initIOTimerChannel(io_timers, {Timer::EMIOS0, Timer::Channel0}, PIN_EMIOS0_CH0_1),
-	initIOTimerChannel(io_timers, {Timer::EMIOS0, Timer::Channel1}, PIN_EMIOS0_CH1_1),
-	initIOTimerChannel(io_timers, {Timer::EMIOS0, Timer::Channel2}, PIN_EMIOS0_CH2_1),
-	initIOTimerChannel(io_timers, {Timer::EMIOS0, Timer::Channel3}, PIN_EMIOS0_CH3_2),
-	initIOTimerChannel(io_timers, {Timer::EMIOS0, Timer::Channel4}, PIN_EMIOS0_CH4_2),
-	initIOTimerChannel(io_timers, {Timer::EMIOS0, Timer::Channel5}, PIN_EMIOS0_CH5_2),
-	initIOTimerChannel(io_timers, {Timer::EMIOS0, Timer::Channel6}, PIN_EMIOS0_CH6_1),
-	initIOTimerChannel(io_timers, {Timer::EMIOS0, Timer::Channel7}, PIN_EMIOS0_CH7_2),
+	initIOTimerChannel(io_timers, {Timer::EMIOS0_Channel0, Timer::Channel0}, PIN_EMIOS0_CH0_1),
+	initIOTimerChannel(io_timers, {Timer::EMIOS0_Channel1, Timer::Channel1}, PIN_EMIOS0_CH1_1),
+	initIOTimerChannel(io_timers, {Timer::EMIOS0_Channel2, Timer::Channel2}, PIN_EMIOS0_CH2_1),
+	initIOTimerChannel(io_timers, {Timer::EMIOS0_Channel3, Timer::Channel3}, PIN_EMIOS0_CH3_2),
+	initIOTimerChannel(io_timers, {Timer::EMIOS0_Channel4, Timer::Channel4}, PIN_EMIOS0_CH4_2),
+	initIOTimerChannel(io_timers, {Timer::EMIOS0_Channel5, Timer::Channel5}, PIN_EMIOS0_CH5_2),
+	initIOTimerChannel(io_timers, {Timer::EMIOS0_Channel6, Timer::Channel6}, PIN_EMIOS0_CH6_1),
+	initIOTimerChannel(io_timers, {Timer::EMIOS0_Channel7, Timer::Channel7}, PIN_EMIOS0_CH7_2),
 };
 
 constexpr io_timers_channel_mapping_t io_timers_channel_mapping =
@@ -98,18 +105,18 @@ const struct timer_io_channels_t led_pwm_channels[MAX_TIMER_LED_CHANNELS] = {
 		.gpio_out = GPIO_LED_R, // RGB_R
 		.gpio_in  = 0,
 		.timer_index = 0,
-		.timer_channel = 19,
+		.timer_channel = 18,
 	},
 	{
 		.gpio_out = GPIO_LED_G, // RGB_G
 		.gpio_in  = 0,
 		.timer_index = 1,
-		.timer_channel = 10,
+		.timer_channel = 9,
 	},
 	{
 		.gpio_out = GPIO_LED_B, // RGB_B
 		.gpio_in  = 0,
 		.timer_index = 1,
-		.timer_channel = 5,
+		.timer_channel = 4,
 	},
 };

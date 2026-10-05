@@ -2,12 +2,12 @@
 
 <LinkedBadge type="warning" text="Experimental" url="../flight_controller/autopilot_experimental.md"/>
 
-:::warning
+::: warning
 PX4 does not manufacture this (or any) autopilot.
-Contact the [manufacturer](https://beagleboard.org/blue) for hardware support or compliance issues.
+Contact the [manufacturer](https://www.beagleboard.org/boards/beaglebone-blue) for hardware support or compliance issues.
 :::
 
-[BeagleBone Blue](https://beagleboard.org/blue) is an all-in-one Linux-based computer.
+[BeagleBone Blue](https://www.beagleboard.org/boards/beaglebone-blue) is an all-in-one Linux-based computer.
 Although it is optimized for robotics, this compact and inexpensive board has all necessary sensors and peripherals needed by a flight controller.
 This topic shows how to set up the board to run PX4 with [librobotcontrol](https://github.com/beagleboard/librobotcontrol) robotics package.
 
@@ -17,13 +17,13 @@ This topic shows how to set up the board to run PX4 with [librobotcontrol](https
 
 _BeagleBone Blue_ images can be found here:
 
-- [Latest stable OS image](https://beagleboard.org/latest-images).
+- [Latest stable OS image](https://www.beagleboard.org/distros).
 - [Test OS images](https://rcn-ee.net/rootfs/bb.org/testing/) (updated frequently).
 
 Information about flashing OS images can be found on [this page](https://github.com/beagleboard/beaglebone-blue/wiki/Flashing-firmware).
 Other useful information can be found in the [FAQ](<https://github.com/beagleboard/beaglebone-blue/wiki/Frequently-Asked-Questions-(FAQ)>).
 
-:::tip
+::: tip
 Optionally you can update to a realtime kernel, and if you do, re-check if _librobotcontrol_ works properly with the realtime kernel.
 :::
 
@@ -31,9 +31,15 @@ The latest OS images at time of updating this document is [AM3358 Debian 10.3 20
 
 ## Cross Compiler Build (Recommend)
 
+::: warning
+The Linaro toolchain previously recommended has been discontinued.
+The instructions below have been updated to use its replacement (the Arm GNU Toolchain) but the changes **have not been tested**.
+Please add a PR to either remove this comment or fix the instructions if you try them!
+:::
+
 The recommended way to build PX4 for _BeagleBone Blue_ is to compile on a development computer and upload the PX4 executable binary directly to the BeagleBone Blue.
 
-:::tip
+::: tip
 This approach is recommended over [native build](#native_builds) due to speed of deployment and ease of use.
 :::
 
@@ -79,28 +85,28 @@ echo "PermitRootLogin yes" >>  /etc/ssh/sshd_config && systemctl restart sshd
    For _rsync_ over SSH with key authentication, follow the steps here (on the development machine):
    1. Generate an SSH key if you have not previously done so:
 
-      ```
+      ```sh
       ssh-keygen -t rsa
       ```
 
       1. ENTER //no passphrase
-      1. ENTER
-      1. ENTER
+      2. ENTER
+      3. ENTER
 
-   1. Define the BeagleBone Blue board as `beaglebone` in **/etc/hosts** and copy the public SSH key to the board for password-less SSH access:
+   2. Define the BeagleBone Blue board as `beaglebone` in **/etc/hosts** and copy the public SSH key to the board for password-less SSH access:
 
-      ```
+      ```sh
       ssh-copy-id debian@beaglebone
       ```
 
-   1. Alternatively you can use the beaglebone's IP directly:
+   3. Alternatively you can use the beaglebone's IP directly:
 
-      ```
+      ```sh
       ssh-copy-id debian@<IP>
       ```
 
-   1. When prompted if you trust: yes
-   1. Enter root password
+   4. When prompted if you trust: yes
+   5. Enter root password
 
 1. Cross Compile Setup
    1. Toolchain download
@@ -113,41 +119,54 @@ echo "PermitRootLogin yes" >>  /etc/ssh/sshd_config && systemctl restart sshd
          cd /opt/bbblue_toolchain/gcc-arm-linux-gnueabihf
          ```
 
-         The ARM Cross Compiler for _BeagleBone Blue_ can be found at [Linaro Toolchain Binaries site](https://www.linaro.org/downloads/#gnu_and_llvm).
+         The ARM Cross Compiler for _BeagleBone Blue_ can be found at the [Arm GNU Toolchain Downloads](https://gitlab.arm.com/tooling/gnu-toolchains-for-arm) site (the official successor to the Linaro toolchain releases previously used here).
 
-         :::tip
+         ::: tip
          GCC in the toolchain should be compatible with kernel in _BeagleBone Blue_.
          General rule of thumb is to choose a toolchain where version of GCC is not higher than version of GCC which comes with the OS image on _BeagleBone Blue_.
          :::
 
-         Download and unpack [gcc-linaro-13.0.0-2022.06-x86_64_arm-linux-gnueabihf.tar.xz](https://snapshots.linaro.org/gnu-toolchain/13.0-2022.06-1/arm-linux-gnueabihf/gcc-linaro-13.0.0-2022.06-x86_64_arm-linux-gnueabihf.tar.xz) to the bbblue_toolchain folder.
+         Download and unpack [arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-linux-gnueabihf.tar.xz](https://developer.arm.com/-/media/Files/downloads/gnu/15.2.rel1/binrel/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-linux-gnueabihf.tar.xz) to the bbblue_toolchain folder.
 
-         Different ARM Cross Compiler versions for _BeagleBone Blue_ can be found at [Linaro Toolchain Binaries site](https://www.linaro.org/downloads/).
+         Different ARM Cross Compiler versions for _BeagleBone Blue_ can be found at the [Arm GNU Toolchain Downloads](https://gitlab.arm.com/tooling/gnu-toolchains-for-arm) site.
 
          ```sh
-         wget https://snapshots.linaro.org/gnu-toolchain/13.0-2022.06-1/arm-linux-gnueabihf/gcc-linaro-13.0.0-2022.06-x86_64_arm-linux-gnueabihf.tar.xz
-         tar -xf gcc-linaro-13.0.0-2022.06-x86_64_arm-linux-gnueabihf.tar.xz
+         wget https://developer.arm.com/-/media/Files/downloads/gnu/15.2.rel1/binrel/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-linux-gnueabihf.tar.xz
+         tar -xf arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-linux-gnueabihf.tar.xz
          ```
 
-         :::tip
+         ::: tip
          The GCC version of the toolchain should be compatible with kernel in _BeagleBone Blue_.
          :::
 
          As a general rule of thumb is to choose a toolchain where the version of GCC is not higher than the version of GCC which comes with the OS image on _BeagleBone Blue_.
 
-      1. Add it to the PATH in ~/.profile as shown below
+         ::: warning
+         PX4's build for this board looks specifically for compiler binaries named `arm-linux-gnueabihf-*` (the naming used by the old Linaro toolchain), but the Arm GNU Toolchain ships them as `arm-none-linux-gnueabihf-*`.
+         Create matching symlinks so the build can find them:
 
          ```sh
-         export PATH=$PATH:/opt/bbblue_toolchain/gcc-arm-linux-gnueabihf/gcc-linaro-13.0.0-2022.06-x86_64_arm-linux-gnueabihf/bin
+         cd /opt/bbblue_toolchain/gcc-arm-linux-gnueabihf/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-linux-gnueabihf/bin
+         for f in arm-none-linux-gnueabihf-*; do
+           ln -s "$f" "${f/arm-none-linux-gnueabihf/arm-linux-gnueabihf}"
+         done
+         ```
+
+         :::
+
+      2. Add it to the PATH in ~/.profile as shown below
+
+         ```sh
+         export PATH=$PATH:/opt/bbblue_toolchain/gcc-arm-linux-gnueabihf/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-linux-gnueabihf/bin
          ```
 
          ::: info
          Logout and Login to apply the change, or execute the same line on your current shell.
          :::
 
-      1. Setup other dependencies by downloading the PX4 source code and then running the setup scripts:
+      3. Setup other dependencies by downloading the PX4 source code and then running the setup scripts:
 
-         ````
+         ````sh
          git clone https://github.com/PX4/PX4-Autopilot.git --recursive
          ols
          ```
@@ -166,7 +185,7 @@ echo "PermitRootLogin yes" >>  /etc/ssh/sshd_config && systemctl restart sshd
 
 Compile and Upload
 
-```
+```sh
 make beaglebone_blue_default upload
 ```
 
@@ -185,9 +204,7 @@ sudo ./bin/px4 -s px4.config
 Currently _librobotcontrol_ requires root access.
 :::
 
-<a id="native_builds"></a>
-
-## Native Builds (optional)
+## Native Builds (optional) {#native_builds}
 
 You can also natively build PX4 builds directly on the BeagleBone Blue.
 
@@ -211,7 +228,7 @@ Run the following commands on the BeagleBone Blue (i.e. via SSH):
 
 ## Changes in config
 
-All changes can be made in de px4.config file directly on beaglebone.
+All changes can be made in the px4.config file directly on beaglebone.
 For example, you can change the WIFI to wlan.
 
 ::: info
@@ -290,8 +307,6 @@ For a quadcopter with GPS and an SBUS receiver, here are typical connections:
 
 1. Connect the ESC of motor 1, 2, 3 and 4 to channel 1, 2, 3 and 4 of servo outputs on BeagleBone Blue, respectively.
    If your ESC connector contains a power output pin, remove it and do not connect it to the power output pin of the servo channel on the BeagleBone Blue.
-
-1. Connect the above mentioned converted SBUS signal to the dsm2 port if you have the matching connector for dsm2, otherwise connect it to any other available UART port and change the corresponding port in **/home/debian/px4/px4.config** accordingly.
-
-1. Connect the signals of GPS module to GPS port on the BeagleBone Blue.
+2. Connect the above mentioned converted SBUS signal to the dsm2 port if you have the matching connector for dsm2, otherwise connect it to any other available UART port and change the corresponding port in **/home/debian/px4/px4.config** accordingly.
+3. Connect the signals of GPS module to GPS port on the BeagleBone Blue.
    Note that the signal pins of the GPS port on the BeagleBone Blue are only 3.3V tolerant, so choose your GPS module accordingly.

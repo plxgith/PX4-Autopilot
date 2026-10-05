@@ -57,7 +57,7 @@
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/vehicle_attitude.h>
-#include <uORB/topics/sensor_gps.h>
+#include <uORB/topics/vehicle_gnss.h>
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_magnetometer.h>
 #include <uORB/topics/vehicle_odometry.h>
@@ -70,9 +70,11 @@ using matrix::wrap_pi;
 
 using namespace time_literals;
 
-class AttitudeEstimatorQ : public ModuleBase<AttitudeEstimatorQ>, public ModuleParams, public px4::WorkItem
+class AttitudeEstimatorQ : public ModuleBase, public ModuleParams, public px4::WorkItem
 {
 public:
+
+	static Descriptor desc;
 
 	AttitudeEstimatorQ();
 	~AttitudeEstimatorQ() override = default;
@@ -94,7 +96,7 @@ private:
 
 	bool init_attitude_q();
 
-	void update_gps_position();
+	void update_gnss_position();
 
 	void update_magnetometer();
 
@@ -124,7 +126,7 @@ private:
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 
 	uORB::Subscription _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
-	uORB::Subscription _vehicle_gps_position_sub{ORB_ID(vehicle_gps_position)};
+	uORB::Subscription _vehicle_gnss_sub{ORB_ID(vehicle_gnss)};
 	uORB::Subscription _vehicle_local_position_sub{ORB_ID(vehicle_local_position)};
 	uORB::Subscription _vehicle_magnetometer_sub{ORB_ID(vehicle_magnetometer)};
 	uORB::Subscription _vehicle_mocap_odometry_sub{ORB_ID(vehicle_mocap_odometry)};
@@ -171,6 +173,8 @@ private:
 	)
 };
 
+ModuleBase::Descriptor AttitudeEstimatorQ::desc{task_spawn, custom_command, print_usage};
+
 AttitudeEstimatorQ::AttitudeEstimatorQ() :
 	ModuleParams(nullptr),
 	WorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers)
@@ -200,7 +204,7 @@ void AttitudeEstimatorQ::Run()
 {
 	if (should_exit()) {
 		_sensors_sub.unregisterCallback();
-		exit_and_cleanup();
+		exit_and_cleanup(desc);
 		return;
 	}
 
@@ -213,21 +217,21 @@ void AttitudeEstimatorQ::Run()
 		update_magnetometer();
 		update_visual_odometry();
 		update_motion_capture_odometry();
-		update_gps_position();
+		update_gnss_position();
 		update_vehicle_local_position();
 		update_vehicle_attitude();
 	}
 }
 
-void AttitudeEstimatorQ::update_gps_position()
+void AttitudeEstimatorQ::update_gnss_position()
 {
-	if (_vehicle_gps_position_sub.updated()) {
-		sensor_gps_s gps;
+	if (_vehicle_gnss_sub.updated()) {
+		vehicle_gnss_s gnss;
 
-		if (_vehicle_gps_position_sub.update(&gps)) {
-			if (_param_att_mag_decl_a.get() && (gps.eph < 20.0f)) {
+		if (_vehicle_gnss_sub.update(&gnss)) {
+			if (_param_att_mag_decl_a.get() && (gnss.receiver.eph < 20.0f)) {
 				// set magnetic declination automatically
-				float mag_decl_deg = get_mag_declination_degrees(gps.latitude_deg, gps.longitude_deg);
+				float mag_decl_deg = get_mag_declination_degrees(gnss.receiver.latitude, gnss.receiver.longitude);
 				update_mag_declination(math::radians(mag_decl_deg));
 			}
 		}
@@ -594,8 +598,8 @@ int AttitudeEstimatorQ::task_spawn(int argc, char *argv[])
 	AttitudeEstimatorQ *instance = new AttitudeEstimatorQ();
 
 	if (instance) {
-		_object.store(instance);
-		_task_id = task_id_is_work_queue;
+		desc.object.store(instance);
+		desc.task_id = task_id_is_work_queue;
 
 		if (instance->init()) {
 			return PX4_OK;
@@ -606,8 +610,8 @@ int AttitudeEstimatorQ::task_spawn(int argc, char *argv[])
 	}
 
 	delete instance;
-	_object.store(nullptr);
-	_task_id = -1;
+	desc.object.store(nullptr);
+	desc.task_id = -1;
 
 	return PX4_ERROR;
 }
@@ -634,5 +638,5 @@ Attitude estimator q.
 
 extern "C" __EXPORT int attitude_estimator_q_main(int argc, char *argv[])
 {
-	return AttitudeEstimatorQ::main(argc, argv);
+	return ModuleBase::main(AttitudeEstimatorQ::desc, argc, argv);
 }

@@ -48,7 +48,7 @@ class UavcanRangefinderBridge : public UavcanSensorBridgeBase
 public:
 	static const char *const NAME;
 
-	UavcanRangefinderBridge(uavcan::INode &node);
+	UavcanRangefinderBridge(uavcan::INode &node, NodeInfoPublisher *node_info_publisher);
 
 	const char *get_name() const override { return NAME; }
 
@@ -70,6 +70,6 @@ private:
 	float _range_min_m{0.0f};
 	float _range_max_m{0.0f};
 
-	bool _inited{false};
+	bool _channel_initialized[DEFAULT_MAX_CHANNELS] {};
 
 };

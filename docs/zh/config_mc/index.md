@@ -11,8 +11,7 @@ This topic is the recommended entry point when performing first-time configurati
 ## 加载固件
 
 The first step is to [load PX4 firmware](../config/firmware.md) onto your [flight controller](../flight_controller/index.md).
-这一步最容易通过使用 QGroundControl 完成，它会自动选择适合您特定控制器硬件的固件。
-默认情况下，QGC 会安装最新的稳定版本的 PX4，但如果需要，您可以选择测试版或自定义版本。
+这一步最容易通过使用 QGroundControl 完成，它会自动选择适合您特定控制器硬件的固件。默认情况下，QGC 会安装最新的稳定版本的 PX4，但如果需要，您可以选择测试版或自定义版本。
 
 相关章节：
 
@@ -142,6 +141,11 @@ Tuning is the final step, carried out only after most other setup and configurat
 
 - [Multicopter Racer Setup](../config_mc/racer_setup.md)
 
+- [PID-Wise](https://www.altitude-rd.com/pid-wise) — a commercial web app for interactive multicopter tuning from a flight log.
+  Bugs and questions should be addressed to the maintainer: [Altitude R&D](https://www.altitude-rd.com/home) (not the PX4 forums).
+
+![Genius Tools](../../assets/config/mc/genius_tools.webp)
+
 <!--
 - Explain what you have to tune on PX4, what you can tune, and what each topic covers
 - I expect we should start with an exhaustive list of the tuning you could want to do - such as position tuning, etc. Do we have one?
@@ -161,7 +165,7 @@ My assumption is that the mixing system can cope with whatever geometry you thro
 Yes but it must be physically feasible. E.g. if you make a quadrotor where all motors turn the same way it will "deal" with it but that cannot work without very specific controllers. Same for a monocopter or a tricopter without swiveling one motor.
 -->
 
-## See Also
+## 另见
 
 - [QGroundControl > Setup](https://docs.qgroundcontrol.com/master/en/qgc-user-guide/setup_view/setup_view.html)
 - [飞控外设](../peripherals/index.md) - 设置特定传感器、可选传感器、执行器等。

@@ -40,7 +40,7 @@ To make sure the vehicle is stable enough for auto-tuning:
 
 1. Perform a normal preflight safety checklist to ensure the flight zone is clear and has enough space.
 
-2. Take off and <div style="display: inline;" v-if="$frontmatter.frame === 'Multicopter'">hover at 1m above ground in [Altitude mode](../flight_modes_mc/altitude.md) or [Stabilized mode](../flight_modes_mc/manual_stabilized.md)</div><div style="display: inline;" v-else-if="$frontmatter.frame === 'Plane'">fly at cruise speed in [Position mode](../flight_modes_fw/position.md) or [Altitude mode](../flight_modes_fw/altitude.md)</div>.
+2. Take off and <div style="display: inline;" v-if="$frontmatter.frame === 'Multicopter'">hover at 1m above ground in [Altitude mode](../flight_modes_mc/altitude.md) or [Stabilized mode](../flight_modes_mc/manual_stabilized.md)</div><div style="display: inline;" v-else-if="$frontmatter.frame === 'Plane'">fly at cruise speed in [Cruise mode](../flight_modes_fw/cruise.md) or [Altitude mode](../flight_modes_fw/altitude.md)</div>.
 
 3. Use the RC transmitter roll stick to perform the following maneuver, tilting the vehicle just a few degrees: _roll left > roll right > center_ (The whole maneuver should take about 3 seconds).
    The vehicle should stabilise itself within 2 oscillations.
@@ -82,14 +82,9 @@ The test steps are:
    If an [Enable/Disable Autotune Switch](#enable-disable-autotune-switch) is configured you can just toggle the switch to the "enabled" position.
 
    </div></div>
-
    1. In QGroundControl, open the menu **Vehicle setup > PID Tuning**:
 
-      ![Tuning Setup > Autotune Enabled](../../assets/qgc/setup/autotune/autotune.png)
-
-   2. Select either the _Rate Controller_ or _Attitude Controller_ tabs.
-   3. Ensure that the **Autotune enabled** button is enabled (this will display the **Autotune** button and remove the manual tuning selectors).
-   4. Read the warning popup and click on **OK** to start tuning.
+   ![Tuning Setup > Autotune Enabled](../../assets/qgc/setup/autotune/autotune.png) 2. Select either the _Rate Controller_ or _Attitude Controller_ tabs. 3. Ensure that the **Autotune enabled** button is enabled (this will display the **Autotune** button and remove the manual tuning selectors). 4. Read the warning popup and click on **OK** to start tuning.
 
 <div style="display: inline;" v-if="$frontmatter.frame === 'Multicopter'">
 
@@ -98,8 +93,7 @@ The test steps are:
 
 </div><div v-else-if="$frontmatter.frame === 'Plane'">
 
-4. The drone will first start to perform quick roll motions followed by pitch and yaw motions. When [`FW_AT_SYSID_TYPE`](../advanced_config/parameter_reference.md#FW_AT_SYSID_TYPE) is set to linear/logarithmic sine sweep (recommended), the max rates are approximately 45 deg/s for roll and 30 deg/s for pitch and yaw.
-   The progress is shown in the progress bar, next to the _Autotune_ button.
+4. The drone will first start to perform quick roll motions followed by pitch and yaw motions. When [`FW_AT_SYSID_TYPE`](../advanced_config/parameter_reference.md#FW_AT_SYSID_TYPE) is set to linear/logarithmic sine sweep (recommended), the max rates reached during the maneuvers are 75% of the maximum configured roll (`FW_R_RMAX`), pitch (`FW_P_RMAX_NEG`, `FW_P_RMAX_POS`) and yaw (`FW_Y_RMAX`) rates. The progress is shown in the progress bar, next to the _Autotune_ button.
 
 </div>
 <div style="display: inline;" v-if="$frontmatter.frame === 'Multicopter'">
@@ -130,12 +124,12 @@ Additional notes:
 <div v-if="$frontmatter.frame === 'Multicopter'">
 
 - The instructions above tune the vehicle in [Altitude mode](../flight_modes_mc/altitude.md).
-  You can instead takeoff in [Takeoff mode](../flight_modes_mc/takeoff.md) and tune in [Position mode](../flight_modes_mc/position.md) if the vehicle is is _known_ to be stable in these modes.
+  You can instead takeoff in [Takeoff mode](../flight_modes_mc/takeoff.md) and tune in [Position mode](../flight_modes_mc/position.md) if the vehicle is _known_ to be stable in these modes.
 
 </div>
 <div v-else-if="$frontmatter.frame === 'Plane'">
 
-- Autotuning can also be run in [Altitude mode](../flight_modes_fw/altitude.md) or [Position mode](../flight_modes_fw/position.md).
+- Autotuning can also be run in [Altitude mode](../flight_modes_fw/altitude.md) or [Cruise mode](../flight_modes_fw/cruise.md).
   However running the test while flying straight requires a larger safe area for tuning, and does not give a significantly better tuning result.
 
 </div>
@@ -194,14 +188,11 @@ Increase the [MC_AT_SYSID_AMP](../advanced_config/parameter_reference.md#MC_AT_S
 </div>
 <div v-else-if="$frontmatter.frame === 'Plane'">
 
-By default, the autotune maneuvers ensure that a sufficient angular rate is reached for system identification. The target rates are approximately 45 deg/s for roll and 30 deg/s for pitch and yaw.
+By default, the autotune maneuvers ensure that a sufficient angular rate is reached for system identification, corresponding to 75% of the configured maximum roll (`FW_R_RMAX`), pitch (`FW_P_RMAX_NEG`, `FW_P_RMAX_POS`) and yaw (`FW_Y_RMAX`) rates.
 
 If the signal-to-noise ratio of the vehicle is low, the system identification algorithm might have issues finding the correct coefficients. Ensure that there is no excessive noise and/or platform vibration.
 
-
-
 </div>
-
 
 ### The drone oscillates after auto-tuning
 
@@ -250,7 +241,7 @@ To map a switch:
 2. Set [RC_MAP_AUX1](../advanced_config/parameter_reference.md#RC_MAP_AUX1) to match the RC channel for your switch (you can use any of `RC_MAP_AUX1` to `RC_MAP_AUX6`).
 3. Set [FW_AT_MAN_AUX](../advanced_config/parameter_reference.md#FW_AT_MAN_AUX) to the selected channel (i.e. `1: Aux 1` if you mapped `RC_MAP_AUX1`).
 
-The auto tuner will be disabled when the switch is below `0.5` (on the manual control setpoint range of of `[-1, 1]`) and enabled when the switch channel is above `0.5`.
+The auto tuner will be disabled when the switch is below `0.5` (on the manual control setpoint range of `[-1, 1]`) and enabled when the switch channel is above `0.5`.
 
 If using an RC AUX switch to enable autotuning, make sure to [select the tuning axes](#select-tuning-axis) before flight.
 

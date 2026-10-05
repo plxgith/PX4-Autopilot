@@ -47,6 +47,8 @@
 #include <systemlib/err.h>
 #include <parameters/param.h>
 
+ModuleBase::Descriptor IridiumSBD::desc{task_spawn, custom_command, print_usage};
+
 static constexpr const char *satcom_state_string[4] = {"STANDBY", "SIGNAL CHECK", "SBD SESSION", "TEST"};
 
 #define VERBOSE_INFO(...) if (_verbose) { PX4_INFO(__VA_ARGS__); }
@@ -63,23 +65,30 @@ IridiumSBD::~IridiumSBD()
 	deinit();
 }
 
+int IridiumSBD::run_trampoline(int argc, char *argv[])
+{
+	return ModuleBase::run_trampoline_impl(desc, [](int ac, char *av[]) -> ModuleBase * {
+		return IridiumSBD::instantiate(ac, av);
+	}, argc, argv);
+}
+
 int IridiumSBD::task_spawn(int argc, char *argv[])
 {
-	_task_id = px4_task_spawn_cmd("iridiumsbd",
-				      SCHED_DEFAULT,
-				      SCHED_PRIORITY_SLOW_DRIVER,
-				      1350,
-				      (px4_main_t)&run_trampoline,
-				      (char *const *)argv);
+	desc.task_id = px4_task_spawn_cmd("iridiumsbd",
+					  SCHED_DEFAULT,
+					  SCHED_PRIORITY_SLOW_DRIVER,
+					  1350,
+					  (px4_main_t)&run_trampoline,
+					  (char *const *)argv);
 
-	if (_task_id < 0) {
-		_task_id = -1;
+	if (desc.task_id < 0) {
+		desc.task_id = -1;
 		return -errno;
 	}
 
 	// wait until task is up & running (max 6 seconds)
-	if (wait_until_running(6000) < 0) {
-		_task_id = -1;
+	if (wait_until_running(desc, 6000) < 0) {
+		desc.task_id = -1;
 		return -1;
 	}
 
@@ -657,14 +666,20 @@ ssize_t IridiumSBD::write(struct file *filp, const char *buffer, size_t buflen)
 		}
 	}
 
-	// check if there is enough space to write the message
-	if (SATCOM_TX_BUF_LEN - _tx_buf_write_idx - _packet_length < 0) {
+	// Check if there is enough space to write the message. _packet_length is the declared
+	// size of the message being assembled and decrements across calls, while the memcpy
+	// below copies buflen, so both have to fit or the copy runs past the buffer.
+	const int space_left = SATCOM_TX_BUF_LEN - _tx_buf_write_idx;
+
+	if (space_left < (int)_packet_length || space_left < (int)buflen) {
 		_tx_buf_write_idx = 0;
 		++_num_tx_buf_reset;
 	}
 
 	// keep track of the remaining packet length and if the full message is written
-	_packet_length -= buflen;
+	// (saturate rather than wrap: _packet_length is unsigned and buflen can exceed it if
+	// the declared length and the bytes actually written disagree)
+	_packet_length = (buflen >= _packet_length) ? 0 : _packet_length - buflen;
 
 	if (_packet_length == 0) {
 		_writing_mavlink_packet = false;
@@ -1080,13 +1095,13 @@ Creates a virtual serial port that another module can use for communication (e.g
 
 int IridiumSBD::custom_command(int argc, char *argv[])
 {
-	if (!is_running()) {
+	if (!is_running(desc)) {
 		print_usage("not running");
 		return 1;
 	}
 
 	if (!strcmp(argv[0], "test")) {
-		get_instance()->test(argc, argv);
+		get_instance<IridiumSBD>(desc)->test(argc, argv);
 		return 0;
 	}
 
@@ -1095,12 +1110,12 @@ int IridiumSBD::custom_command(int argc, char *argv[])
 
 extern "C" __EXPORT int iridiumsbd_main(int argc, char *argv[])
 {
-	if (argc >= 2 && !strcmp(argv[1], "stop") && IridiumSBD::is_running()) {
+	if (argc >= 2 && !strcmp(argv[1], "stop") && IridiumSBD::is_running(IridiumSBD::desc)) {
 		if (!IridiumSBD::can_stop()) {
 			PX4_ERR("Device is used. Stop all users first (mavlink stop-all)");
 			return -1;
 		}
 	}
 
-	return IridiumSBD::main(argc, argv);
+	return ModuleBase::main(IridiumSBD::desc, argc, argv);
 }

@@ -7,7 +7,7 @@ ROS 1 is now "discommended" as the last LTS version is approaching end of life.
 ROS 2 has much deeper integration with PX4, enabling lower-latency communication with access to PX4 internal messaging.
 :::
 
-[ROS (1)](http://www.ros.org/) is a general purpose robotics library that can be used with PX4 for drone application development.
+[ROS (1)](https://www.ros.org/) is a general purpose robotics library that can be used with PX4 for drone application development.
 
 This version of ROS uses the [MAVROS](../ros/mavros_installation.md) package to communicate with PX4 over [MAVLink](../middleware/mavlink.md) (MAVROS bridges ROS topics to MAVLink and PX4 conventions).
 
@@ -21,7 +21,7 @@ This version of ROS uses the [MAVROS](../ros/mavros_installation.md) package to 
 - [ROS Installation on RPi](../ros/raspberrypi_installation.md)
 - [External Position Estimation (Vision/Motion based)](../ros/external_position_estimation.md)
 
-## Further Infomration
+## Further Information
 
 - [XTDrone](https://github.com/robin-shaun/XTDrone/blob/master/README.en.md) - ROS + PX4 simulation environment for computer vision.
   The [XTDrone Manual](https://www.yuque.com/xtdrone/manual_en) has everything you need to get started!

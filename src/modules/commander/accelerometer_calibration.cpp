@@ -178,6 +178,10 @@ static calibrate_return read_accelerometer_avg(accel_worker_data_s *worker_data,
 
 	/* use the first sensor to pace the readout, but do per-sensor counts */
 	while (counts[0] < samples_num) {
+		// Yield CPU — updatedBlocking() returns immediately when data is
+		// already available, so with high-rate sensors the loop never blocks.
+		px4_usleep(1000);
+
 		if (accel_sub[0].updatedBlocking(100000)) {
 			for (unsigned accel_index = 0; accel_index < MAX_ACCEL_SENS; accel_index++) {
 				sensor_accel_s arp;
@@ -300,7 +304,7 @@ int do_accel_calibration(orb_advert_t *mavlink_log_pub)
 		uORB::SubscriptionData<sensor_accel_s> accel_sub{ORB_ID(sensor_accel), cur_accel};
 
 		if (accel_sub.advertised() && (accel_sub.get().device_id != 0) && (accel_sub.get().timestamp > 0)) {
-			worker_data.calibration[cur_accel].set_device_id(accel_sub.get().device_id);
+			worker_data.calibration[cur_accel].set_device_id(accel_sub.get().device_id, accel_sub.get().is_external);
 
 			// clear existing calibration
 			worker_data.calibration[cur_accel].Reset();

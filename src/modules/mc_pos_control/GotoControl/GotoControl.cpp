@@ -42,6 +42,7 @@
 #include <lib/mathlib/mathlib.h>
 
 using namespace time_literals;
+using namespace matrix;
 
 bool GotoControl::checkForSetpoint(const hrt_abstime &now, const bool enabled)
 {
@@ -64,10 +65,11 @@ bool GotoControl::checkForSetpoint(const hrt_abstime &now, const bool enabled)
 	return need_to_run;
 }
 
-void GotoControl::update(const float dt, const matrix::Vector3f &position, const float heading)
+void GotoControl::update(const float dt, const Vector3f &position, const Vector3f &velocity, const Vector3f &acceleration,
+			 const float heading)
 {
 	if (!_is_initialized) {
-		resetPositionSmoother(position);
+		resetPositionSmoother(position, velocity, acceleration);
 		resetHeadingSmoother(heading);
 		_is_initialized = true;
 	}
@@ -87,7 +89,7 @@ void GotoControl::update(const float dt, const matrix::Vector3f &position, const
 	}
 
 	if (_need_smoother_reset) {
-		resetPositionSmoother(position);
+		resetPositionSmoother(position, velocity, acceleration);
 	}
 
 	setPositionSmootherLimits(_goto_setpoint);
@@ -138,7 +140,7 @@ void GotoControl::update(const float dt, const matrix::Vector3f &position, const
 	_vehicle_constraints_pub.publish(vehicle_constraints);
 }
 
-void GotoControl::resetPositionSmoother(const matrix::Vector3f &position)
+void GotoControl::resetPositionSmoother(const Vector3f &position, const Vector3f &velocity, const Vector3f &acceleration)
 {
 	if (!position.isAllFinite()) {
 		// TODO: error messaging
@@ -146,9 +148,7 @@ void GotoControl::resetPositionSmoother(const matrix::Vector3f &position)
 		return;
 	}
 
-	const Vector3f initial_acceleration{};
-	const Vector3f initial_velocity{};
-	_position_smoothing.reset(initial_acceleration, initial_velocity, position);
+	_position_smoothing.reset(acceleration, velocity, position);
 
 	_need_smoother_reset = false;
 }
@@ -216,17 +216,17 @@ void GotoControl::setPositionSmootherLimits(const goto_setpoint_s &goto_setpoint
 
 void GotoControl::setHeadingSmootherLimits(const goto_setpoint_s &goto_setpoint)
 {
-	float max_heading_rate = _param_mpc_yawrauto_max;
-	float max_heading_accel = _param_mpc_yawrauto_acc;
+	float max_heading_rate = _yaw_rate_max;
+	float max_heading_accel = _yaw_acceleration_max;
 
 	if (goto_setpoint.flag_set_max_heading_rate && PX4_ISFINITE(goto_setpoint.max_heading_rate)) {
-		max_heading_rate = math::constrain(goto_setpoint.max_heading_rate, 0.f, _param_mpc_yawrauto_max);
+		max_heading_rate = math::constrain(goto_setpoint.max_heading_rate, 0.f, _yaw_rate_max);
 
 		// linearly scale heading acceleration limit with heading rate limit to maintain smoothing dynamic
 		// only limit acceleration once within velocity constraints
 		if (fabsf(_heading_smoothing.getSmoothedHeadingRate()) <= max_heading_rate) {
-			const float rate_scale = max_heading_rate / _param_mpc_yawrauto_max;
-			max_heading_accel = math::constrain(_param_mpc_yawrauto_acc * rate_scale, 0.f, _param_mpc_yawrauto_acc);
+			const float rate_scale = max_heading_rate / _yaw_rate_max;
+			max_heading_accel = math::constrain(_yaw_acceleration_max * rate_scale, 0.f, _yaw_acceleration_max);
 		}
 	}
 

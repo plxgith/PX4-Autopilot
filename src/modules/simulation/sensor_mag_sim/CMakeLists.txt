@@ -38,8 +38,11 @@ px4_add_module(
 	SRCS
 		SensorMagSim.cpp
 		SensorMagSim.hpp
+	MODULE_CONFIG
+		parameters.yaml
 	DEPENDS
 		drivers_magnetometer
+		failure_injection
 		geo
 		px4_work_queue
 	)

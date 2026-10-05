@@ -78,7 +78,7 @@ public:
 	/**
 	 * Set reset interval during runtime. This won't reset the integrator.
 	 *
-	 * @param reset_interval	New reset time interval for the integrator in microseconds.
+	 * @param reset_interval_us	New reset time interval for the integrator in microseconds.
 	 */
 	void set_reset_interval(uint32_t reset_interval_us) { _reset_interval_min = reset_interval_us * 1e-6f; }
 
@@ -132,7 +132,7 @@ protected:
 		// Use trapezoidal integration to calculate the delta integral
 		_integrated_samples++;
 		_integral_dt += dt;
-		const matrix::Vector3f delta_alpha{(val + _last_val) *dt * 0.5f};
+		matrix::Vector3f delta_alpha{(val + _last_val) *dt * 0.5f};
 		_last_val = val;
 
 		return delta_alpha;

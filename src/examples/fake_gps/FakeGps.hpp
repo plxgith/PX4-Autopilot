@@ -40,12 +40,14 @@
 #include <px4_platform_common/px4_work_queue/ScheduledWorkItem.hpp>
 #include <uORB/PublicationMulti.hpp>
 #include <uORB/Subscription.hpp>
-#include <uORB/topics/sensor_gps.h>
+#include <uORB/topics/sensor_gnss.h>
 #include <uORB/topics/sensor_gnss_status.h>
 
-class FakeGps : public ModuleBase<FakeGps>, public ModuleParams, public px4::ScheduledWorkItem
+class FakeGps : public ModuleBase, public ModuleParams, public px4::ScheduledWorkItem
 {
 public:
+	static Descriptor desc;
+
 	FakeGps(double latitude_deg = 29.6603018, double longitude_deg = -82.3160500, double altitude_m = 30.1);
 
 	~FakeGps() override = default;
@@ -66,7 +68,7 @@ private:
 
 	void Run() override;
 
-	uORB::PublicationMulti<sensor_gps_s> _sensor_gps_pub{ORB_ID(sensor_gps)};
+	uORB::PublicationMulti<sensor_gnss_s> _sensor_gnss_pub{ORB_ID(sensor_gnss)};
 	uORB::PublicationMulti<sensor_gnss_status_s> _sensor_gnss_status_pub{ORB_ID(sensor_gnss_status)};
 
 	double _latitude{29.6603018};   // Latitude in degrees

@@ -37,12 +37,9 @@
 
 #include <fcntl.h>
 
-#include <uORB/topics/battery_status.h>
-#include <uORB/topics/vehicle_attitude.h>
-#include <uORB/topics/sensor_gps.h>
-#include <uORB/topics/vehicle_status.h>
-
 using namespace time_literals;
+
+ModuleBase::Descriptor CrsfRc::desc{task_spawn, custom_command, print_usage};
 
 #define CRSF_BAUDRATE 420000
 
@@ -109,12 +106,37 @@ int CrsfRc::task_spawn(int argc, char *argv[])
 		return PX4_ERROR;
 	}
 
-	_object.store(instance);
-	_task_id = task_id_is_work_queue;
+	desc.object.store(instance);
+	desc.task_id = task_id_is_work_queue;
 
 	instance->ScheduleNow();
 
 	return PX4_OK;
+}
+
+/**
+ * pack an altitude for the barometric altitude frame: decimeters + 10000 offset,
+ * or meters with the MSB set when above the decimeter range
+ */
+static uint16_t pack_baro_altitude(const float altitude_m)
+{
+	int32_t altitude_dm = lroundf(altitude_m * 10.f) + 10000;
+
+	if (altitude_dm < 0) {
+		return 0;
+	}
+
+	if (altitude_dm < 0x8000) {
+		return (uint16_t)altitude_dm;
+	}
+
+	int32_t altitude_full_m = lroundf(altitude_m);
+
+	if (altitude_full_m > 0x7FFF) {
+		altitude_full_m = 0x7FFF;
+	}
+
+	return (uint16_t)altitude_full_m | 0x8000;
 }
 
 void CrsfRc::Run()
@@ -128,7 +150,7 @@ void CrsfRc::Run()
 			_uart = nullptr;
 		}
 
-		exit_and_cleanup();
+		exit_and_cleanup(desc);
 		return;
 	}
 
@@ -178,14 +200,54 @@ void CrsfRc::Run()
 
 		Crc8Init(0xd5);
 
+		_input_rc.rssi = -1;
 		_input_rc.rssi_dbm = NAN;
 		_input_rc.link_quality = -1;
+		_input_rc.rc_frame_rate = 0;
+		_input_rc.link_snr = -1;
 
 		CrsfParser_Init();
 	}
 
 	const hrt_abstime time_now_us = hrt_absolute_time();
 	perf_count_interval(_cycle_interval_perf, time_now_us);
+
+	if (_vehicle_status_sub.updated()) {
+		vehicle_status_s vehicle_status;
+
+		if (_vehicle_status_sub.copy(&vehicle_status)) {
+			_armed = (vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED);
+		}
+	}
+
+	vehicle_command_s vcmd{};
+
+	if (_vehicle_cmd_sub.update(&vcmd)) {
+		if (vcmd.command == vehicle_command_s::VEHICLE_CMD_START_RX_PAIR) {
+			uint8_t cmd_ret = vehicle_command_ack_s::VEHICLE_CMD_RESULT_UNSUPPORTED;
+
+			if (!_is_singlewire && !_armed) {
+				if ((int)vcmd.param1 == vehicle_command_s::RC_TYPE_CRSF) {
+					if (BindCRSF()) {
+						cmd_ret = vehicle_command_ack_s::VEHICLE_CMD_RESULT_ACCEPTED;
+					}
+				}
+
+			} else {
+				cmd_ret = vehicle_command_ack_s::VEHICLE_CMD_RESULT_TEMPORARILY_REJECTED;
+			}
+
+			// publish acknowledgement
+			vehicle_command_ack_s command_ack{};
+			command_ack.command = vcmd.command;
+			command_ack.result = cmd_ret;
+			command_ack.target_system = vcmd.source_system;
+			command_ack.target_component = vcmd.source_component;
+			command_ack.timestamp = hrt_absolute_time();
+			uORB::Publication<vehicle_command_ack_s> vehicle_command_ack_pub{ORB_ID(vehicle_command_ack)};
+			vehicle_command_ack_pub.publish(command_ack);
+		}
+	}
 
 	// Read all available data from the serial RC input UART
 	int new_bytes = _uart->readAtLeast(&_rcs_buf[0], RC_MAX_BUFFER_SIZE, 1, 100);
@@ -213,8 +275,30 @@ void CrsfRc::Run()
 
 			case CRSF_MESSAGE_TYPE_LINK_STATISTICS:
 				_last_packet_seen = time_now_us;
-				_input_rc.rssi_dbm = -(float)new_crsf_packet.link_statistics.uplink_rssi_1;
+				_input_rc.rssi_dbm = -(float)(new_crsf_packet.link_statistics.active_antenna ?
+							      new_crsf_packet.link_statistics.uplink_rssi_2 :
+							      new_crsf_packet.link_statistics.uplink_rssi_1);
+
+				if (time_now_us - _last_stats_tx_seen > 500_ms) {
+					// We haven't received link statistics tx in a while, use an approximation
+					_input_rc.rssi = (1.f - _input_rc.rssi_dbm / -130.f) * _input_rc.RSSI_MAX;
+				}
+
 				_input_rc.link_quality = new_crsf_packet.link_statistics.uplink_link_quality;
+				_input_rc.rc_frame_rate = new_crsf_packet.link_statistics.rf_mode;
+				_input_rc.link_snr = new_crsf_packet.link_statistics.uplink_snr;
+				break;
+
+			case CRSF_MESSAGE_TYPE_LINK_STATISTICS_TX:
+				_last_packet_seen = time_now_us;
+				_last_stats_tx_seen = time_now_us;
+				_input_rc.rssi = new_crsf_packet.link_statistics_tx.uplink_rssi_pct;
+				break;
+
+			case CRSF_MESSAGE_TYPE_ELRS_STATUS:
+				_last_packet_seen = time_now_us;
+				_input_rc.rc_lost_frame_count = new_crsf_packet.elrs_status.packets_bad;
+				_input_rc.rc_total_frame_count = new_crsf_packet.elrs_status.packets_good;
 				break;
 
 			default:
@@ -239,15 +323,15 @@ void CrsfRc::Run()
 				break;
 
 			case 1:
-				sensor_gps_s sensor_gps;
+				vehicle_gnss_s vehicle_gnss;
 
-				if (_vehicle_gps_position_sub.update(&sensor_gps)) {
-					int32_t latitude = static_cast<int32_t>(round(sensor_gps.latitude_deg * 1e7));
-					int32_t longitude = static_cast<int32_t>(round(sensor_gps.longitude_deg * 1e7));
-					uint16_t groundspeed = sensor_gps.vel_d_m_s / 3.6f * 10.f;
-					uint16_t gps_heading = math::degrees(sensor_gps.cog_rad) * 100.f;
-					uint16_t altitude = static_cast<int16_t>(sensor_gps.altitude_msl_m) + 1000;
-					uint8_t num_satellites = sensor_gps.satellites_used;
+				if (_vehicle_gnss_sub.update(&vehicle_gnss)) {
+					int32_t latitude = static_cast<int32_t>(round(vehicle_gnss.receiver.latitude * 1e7));
+					int32_t longitude = static_cast<int32_t>(round(vehicle_gnss.receiver.longitude * 1e7));
+					uint16_t groundspeed = vehicle_gnss.receiver.ground_speed * 3.6f * 10.f;   // 0.1 km/h
+					uint16_t gps_heading = math::degrees(matrix::wrap_2pi(vehicle_gnss.receiver.course)) * 100.f;
+					uint16_t altitude = static_cast<int16_t>(vehicle_gnss.receiver.altitude_msl) + 1000;   // meters + 1000 offset
+					uint8_t num_satellites = vehicle_gnss.receiver.satellites_used;
 					this->SendTelemetryGps(latitude, longitude, groundspeed, gps_heading, altitude, num_satellites);
 				}
 
@@ -285,8 +369,12 @@ void CrsfRc::Run()
 						flight_mode = "Altitude Cruise";
 						break;
 
+					case vehicle_status_s::NAVIGATION_STATE_MANUAL_PARKING:
+						flight_mode = "Manual Parking";
+						break;
+
 					case vehicle_status_s::NAVIGATION_STATE_POSCTL:
-						flight_mode = "Position";
+						flight_mode = (vehicle_status.vehicle_type == vehicle_status_s::VEHICLE_TYPE_FIXED_WING) ? "Cruise" : "Position";
 						break;
 
 					case vehicle_status_s::NAVIGATION_STATE_AUTO_RTL:
@@ -334,6 +422,24 @@ void CrsfRc::Run()
 				}
 
 				break;
+
+			case 4:
+				// Reuse the CRSF baro-altitude frame to carry the fused local altitude
+				// (above the EKF origin), not a raw barometer reading. EdgeTX shows it as "Alt".
+				vehicle_local_position_s local_position;
+
+				if (_vehicle_local_position_sub.update(&local_position) && local_position.z_valid) {
+					uint16_t altitude = pack_baro_altitude(-local_position.z);
+					int16_t vertical_speed = 0;
+
+					if (local_position.v_z_valid) {
+						vertical_speed = lroundf(math::constrain(-local_position.vz * 100.f, (float)INT16_MIN, (float)INT16_MAX));
+					}
+
+					this->SendTelemetryBaroAltitude(altitude, vertical_speed);
+				}
+
+				break;
 			}
 
 			_telemetry_update_last = _input_rc.timestamp;
@@ -342,14 +448,17 @@ void CrsfRc::Run()
 	}
 
 	// If no communication
-	if (time_now_us - _last_packet_seen > 100_ms) {
+	if (time_now_us - _last_packet_seen > 500_ms) {
 		// Invalidate link statistics
+		_input_rc.rssi = -1;
 		_input_rc.rssi_dbm = NAN;
 		_input_rc.link_quality = -1;
+		_input_rc.rc_frame_rate = 0;
+		_input_rc.link_snr = -1;
 	}
 
 	// If we have not gotten RC updates specifically
-	if (time_now_us - _input_rc.timestamp_last_signal > 50_ms) {
+	if (time_now_us - _input_rc.timestamp_last_signal > 500_ms) {
 		_input_rc.rc_lost = 1;
 		_input_rc.rc_failsafe = 1;
 
@@ -359,7 +468,6 @@ void CrsfRc::Run()
 	}
 
 	_input_rc.channel_count = CRSF_CHANNEL_COUNT;
-	_input_rc.rssi = -1;
 	_input_rc.rc_ppm_frame_length = 0;
 	_input_rc.input_source = input_rc_s::RC_INPUT_SOURCE_PX4FMU_CRSF;
 	_input_rc.timestamp = hrt_absolute_time();
@@ -470,6 +578,17 @@ bool CrsfRc::SendTelemetryAttitude(const int16_t pitch, const int16_t roll, cons
 	return _uart->write((void *) buf, (size_t) offset);
 }
 
+bool CrsfRc::SendTelemetryBaroAltitude(const uint16_t altitude, const int16_t vertical_speed)
+{
+	uint8_t buf[(uint8_t)crsf_payload_size_t::baro_altitude + 4];
+	int offset = 0;
+	WriteFrameHeader(buf, offset, crsf_frame_type_t::baro_altitude, (uint8_t)crsf_payload_size_t::baro_altitude);
+	write_uint16_t(buf, offset, altitude);
+	write_uint16_t(buf, offset, (uint16_t)vertical_speed);
+	WriteFrameCrc(buf, offset, sizeof(buf));
+	return _uart->write((void *) buf, (size_t) offset);
+}
+
 bool CrsfRc::SendTelemetryFlightMode(const char *flight_mode)
 {
 	const int max_length = 16;
@@ -487,6 +606,23 @@ bool CrsfRc::SendTelemetryFlightMode(const char *flight_mode)
 	buf[offset - 1] = 0; // ensure null-terminated string
 	WriteFrameCrc(buf, offset, length + 4);
 	return _uart->write((void *) buf, (size_t) offset);
+}
+
+bool CrsfRc::BindCRSF()
+{
+	uint8_t bind_frame[] = {
+		0xC8,  // sync
+		0x07,  // frame length
+		(uint8_t)crsf_frame_type_t::command,
+		(uint8_t)crsf_address_t::crsf_receiver,
+		(uint8_t)crsf_address_t::flight_controller,
+		(uint8_t)crsf_sub_command_t::subcmd_rx,
+		(uint8_t)crsf_sub_command_t::subcmd_rx_bind,
+		0x9E,  // command CRC8
+		0xE8,  // packet CRC8
+	};
+
+	return _uart->write((void *)bind_frame, sizeof(bind_frame)) == sizeof(bind_frame);
 }
 
 int CrsfRc::print_status()
@@ -518,6 +654,53 @@ int CrsfRc::print_status()
 
 int CrsfRc::custom_command(int argc, char *argv[])
 {
+	if (!strcmp(argv[0], "bind")) {
+		uORB::Publication<vehicle_command_s> vehicle_command_pub{ORB_ID(vehicle_command)};
+		vehicle_command_s vcmd{};
+		vcmd.command = vehicle_command_s::VEHICLE_CMD_START_RX_PAIR;
+		vcmd.param1 = vehicle_command_s::RC_TYPE_CRSF;
+		vcmd.timestamp = hrt_absolute_time();
+		vehicle_command_pub.publish(vcmd);
+		return 0;
+	}
+
+#ifdef CONFIG_RC_CRSF_INJECT
+
+	if (!strcmp(argv[0], "start")) {
+		if (is_running(desc)) {
+			return print_usage("already running");
+		}
+
+		int ret = CrsfRc::task_spawn(argc, argv);
+
+		if (ret) {
+			return ret;
+		}
+	}
+
+	if (!is_running(desc)) {
+		return print_usage("not running");
+	}
+
+	// crsf_rc inject 0x7C 0xC8 0xEA 0x30 0x02 0x59 0x31 0x00 0x6A
+	if (!strcmp(argv[0], "inject")) {
+		const uint8_t length = argc;
+		uint8_t buf[100];
+		buf[0] = 0xC8; // sync byte
+		buf[1] = length;
+		uint8_t i = 0;
+
+		for (; i < length - 1; i++) {
+			buf[i + 2] = (uint8_t) strtol(argv[i + 1], nullptr, 16);
+		}
+
+		buf[i + 2] = Crc8Calc(buf + 2, length - 1); // CRC
+		CrsfParser_InjectBuffer(buf, length + 2);
+		return PX4_OK;
+	}
+
+#endif
+
 	return print_usage("unknown command");
 }
 
@@ -538,7 +721,10 @@ This module parses the CRSF RC uplink protocol and generates CRSF downlink telem
 	PRINT_MODULE_USAGE_SUBCATEGORY("radio_control");
 	PRINT_MODULE_USAGE_COMMAND("start");
 	PRINT_MODULE_USAGE_PARAM_STRING('d', "/dev/ttyS3", "<file:dev>", "RC device", true);
-
+	PRINT_MODULE_USAGE_COMMAND_DESCR("bind", "Send a CRSF bind command (not available on singlewire)");
+#ifdef CONFIG_RC_CRSF_INJECT
+	PRINT_MODULE_USAGE_COMMAND_DESCR("inject", "Inject frame data bytes (for testing)");
+#endif
 	PRINT_MODULE_USAGE_DEFAULT_COMMANDS();
 
 	return 0;
@@ -546,5 +732,5 @@ This module parses the CRSF RC uplink protocol and generates CRSF downlink telem
 
 extern "C" __EXPORT int crsf_rc_main(int argc, char *argv[])
 {
-	return CrsfRc::main(argc, argv);
+	return ModuleBase::main(CrsfRc::desc, argc, argv);
 }

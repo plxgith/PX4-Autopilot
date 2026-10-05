@@ -10,6 +10,7 @@
 #include <uORB/topics/vehicle_command_ack.h>
 #include <uORB/topics/gimbal_controls.h>
 #include <uORB/topics/parameter_update.h>
+#include <uORB/topics/vehicle_attitude.h>
 #include <uORB/Publication.hpp>
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionCallback.hpp>
@@ -41,6 +42,7 @@ private:
 
 	uORB::Subscription _gimbal_device_set_attitude_sub{ORB_ID(gimbal_device_set_attitude)};
 	uORB::Subscription _gimbal_controls_sub{ORB_ID(gimbal_controls)};
+	uORB::Subscription _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
 	uORB::SubscriptionCallbackWorkItem _vehicle_command_sub{this, ORB_ID(vehicle_command)};
 
 	uORB::Publication<gimbal_device_attitude_status_s> _gimbal_device_attitude_status_pub{ORB_ID(gimbal_device_attitude_status)};
@@ -66,17 +68,24 @@ private:
 	hrt_abstime _last_time_update;
 
 	// Mount parameters
-	param_t _mnt_range_pitch_handle = PARAM_INVALID;
+	param_t _mnt_max_pitch_handle = PARAM_INVALID;
+	param_t _mnt_min_pitch_handle = PARAM_INVALID;
 	param_t _mnt_range_roll_handle = PARAM_INVALID;
 	param_t _mnt_range_yaw_handle = PARAM_INVALID;
 	param_t _mnt_mode_out_handle = PARAM_INVALID;
-	float _mnt_range_pitch = 0.0f;
+	float _mnt_max_pitch = 0.0f;
+	float _mnt_min_pitch = 0.0f;
 	float _mnt_range_roll = 0.0f;
 	float _mnt_range_yaw = 0.0f;
 	int32_t _mnt_mode_out = 0;
 
 	matrix::Quatf _q_gimbal = matrix::Quatf(1.0f, 0.0f, 0.0f, 0.0f);
 	float _gimbal_rate[3] = {NAN};
+
+	// Set once we receive gimbal IMU data from Gazebo, i.e. the model actually has a
+	// gimbal. Until then we don't present a MAVLink gimbal device, so that a model
+	// without a gimbal lets PX4 act as a manager for an external MAVLink gimbal instead.
+	bool _gimbal_present = false;
 
 	// Device information attributes
 	const char _vendor_name[32] = "PX4";
@@ -109,8 +118,6 @@ private:
 	// its mechanical limits. So the values below have to match the characteristics of the simulated gimbal
 	const float _roll_min = -0.785398f;
 	const float _roll_max = 0.785398f;
-	const float _pitch_min = -2.35619f;
-	const float _pitch_max = 0.785398f;
 	const float _yaw_min = NAN; 		// infinite yaw
 	const float _yaw_max = NAN;		// infinite yaw
 

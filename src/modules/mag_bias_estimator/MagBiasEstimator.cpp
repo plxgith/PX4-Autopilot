@@ -39,6 +39,8 @@ using matrix::Vector3f;
 namespace mag_bias_estimator
 {
 
+ModuleBase::Descriptor MagBiasEstimator::desc{task_spawn, custom_command, print_usage};
+
 MagBiasEstimator::MagBiasEstimator() :
 	ModuleParams(nullptr),
 	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::lp_default)
@@ -60,8 +62,8 @@ int MagBiasEstimator::task_spawn(int argc, char *argv[])
 		return -1;
 	}
 
-	_object.store(obj);
-	_task_id = task_id_is_work_queue;
+	desc.object.store(obj);
+	desc.task_id = task_id_is_work_queue;
 
 	/* Schedule a cycle to start things. */
 	obj->start();
@@ -78,7 +80,7 @@ void MagBiasEstimator::Run()
 {
 	if (should_exit()) {
 		ScheduleClear();
-		exit_and_cleanup();
+		exit_and_cleanup(desc);
 	}
 
 	if (_vehicle_status_sub.updated()) {
@@ -165,7 +167,7 @@ void MagBiasEstimator::Run()
 				updated = true;
 
 				// apply existing mag calibration
-				_calibration[mag_index].set_device_id(sensor_mag.device_id);
+				_calibration[mag_index].set_device_id(sensor_mag.device_id, sensor_mag.is_external);
 
 				const Vector3f mag_calibrated = _calibration[mag_index].Correct(Vector3f{sensor_mag.x, sensor_mag.y, sensor_mag.z});
 
@@ -293,7 +295,7 @@ Online magnetometer bias estimator.
 
 extern "C" __EXPORT int mag_bias_estimator_main(int argc, char *argv[])
 {
-	return MagBiasEstimator::main(argc, argv);
+	return ModuleBase::main(MagBiasEstimator::desc, argc, argv);
 }
 
 } // namespace load_mon

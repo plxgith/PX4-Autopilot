@@ -58,13 +58,17 @@ void LoggedTopics::add_default_topics()
 	add_topic("commander_state");
 	add_topic("config_overrides");
 	add_topic("cpuload");
+#if defined(CONFIG_NAVIGATOR_ADSB)
+	add_topic("detect_and_avoid");
+	add_topic("detect_and_avoid_most_urgent");
+#endif // CONFIG_NAVIGATOR_ADSB
 	add_topic("distance_sensor_mode_change_request");
+	add_topic("device_information", 900);
 	add_topic_multi("dronecan_node_status", 250);
 	add_optional_topic("external_ins_attitude");
 	add_optional_topic("external_ins_global_position");
 	add_optional_topic("external_ins_local_position");
-	// add_optional_topic("esc_status", 250);
-	add_topic("esc_status");
+	add_topic("esc_status", 100);
 	add_topic("failure_detector_status", 100);
 	add_topic("failsafe_flags");
 	add_optional_topic("follow_target", 500);
@@ -72,13 +76,13 @@ void LoggedTopics::add_default_topics()
 	add_optional_topic("follow_target_status", 400);
 	add_optional_topic("flaps_setpoint", 1000);
 	add_optional_topic("flight_phase_estimation", 1000);
-	add_optional_topic("fuel_tank_status", 10);
+	add_optional_topic("gain_compression", 100);
 	add_topic("gimbal_manager_set_attitude", 500);
 	add_optional_topic("generator_status");
-	add_optional_topic("gps_dump");
+	add_topic("gps_dump");
 	add_optional_topic("gimbal_controls", 200);
 	add_optional_topic("gripper");
-	add_optional_topic("heater_status");
+	add_optional_topic_multi("heater_status", 1000);
 	add_topic("home_position");
 	add_topic("hover_thrust_estimate", 100);
 	add_topic("input_rc", 500);
@@ -90,6 +94,7 @@ void LoggedTopics::add_default_topics()
 	add_optional_topic("landing_gear_wheel", 100);
 	add_optional_topic("landing_target_pose", 1000);
 	add_optional_topic("launch_detection_status", 200);
+	add_topic("logger_status", 200);
 	add_optional_topic("magnetometer_bias_estimate", 200);
 	add_topic("manual_control_setpoint", 200);
 	add_topic("manual_control_switches");
@@ -122,6 +127,7 @@ void LoggedTopics::add_default_topics()
 	add_optional_topic("sensor_correction");
 	add_optional_topic("sensor_gyro_fft", 50);
 	add_topic("sensor_selection");
+	add_topic("sensors_status_gnss", 200);
 	add_topic("sensors_status_imu", 200);
 	add_optional_topic("spoilers_setpoint", 1000);
 	add_topic("system_power", 500);
@@ -140,7 +146,8 @@ void LoggedTopics::add_default_topics()
 	add_topic("vehicle_constraints", 1000);
 	add_topic("vehicle_control_mode");
 	add_topic("vehicle_global_position", 200);
-	add_topic("vehicle_gps_position", 100);
+	add_topic("vehicle_gnss_heading", 100);
+	add_topic("vehicle_gnss", 100);
 	add_topic("vehicle_land_detected");
 	add_topic("vehicle_local_position", 100);
 	add_topic("vehicle_local_position_setpoint", 100);
@@ -148,6 +155,7 @@ void LoggedTopics::add_default_topics()
 	add_topic("vehicle_rates_setpoint", 20);
 	add_topic("vehicle_roi", 1000);
 	add_topic("vehicle_status");
+	add_topic("vtx");
 	add_optional_topic("vtol_vehicle_status", 200);
 	add_topic("wind", 1000);
 	add_topic("fixed_wing_lateral_setpoint");
@@ -157,16 +165,35 @@ void LoggedTopics::add_default_topics()
 	add_optional_topic("fixed_wing_lateral_guidance_status", 100);
 	add_optional_topic("fixed_wing_lateral_status", 100);
 	add_optional_topic("fixed_wing_runway_control", 100);
+	add_optional_topic("fixed_wing_takeoff_status", 100);
+	add_optional_topic("ranging_beacon", 100);
 
 	// multi topics
 	add_optional_topic_multi("actuator_outputs", 100, 3);
 	add_optional_topic_multi("airspeed_wind", 1000, 4);
 	add_optional_topic_multi("control_allocator_status", 200, 2);
+	add_topic_multi("fuel_tank_status", 200, 3);
 	add_optional_topic_multi("rate_ctrl_status", 200, 2);
 	add_optional_topic_multi("sensor_hygrometer", 500, 4);
+	add_optional_topic_multi("sensor_temp", 100, 4);
 	add_optional_topic_multi("rpm", 200);
+	add_topic_multi("sensor_gnss_rf_block0", 5000, 2);
+	add_topic_multi("sensor_gnss_rf_block1", 5000, 2);
+	add_topic_multi("sensor_gnss_rf_block2", 5000, 2);
 	add_topic_multi("timesync_status", 1000, 3);
-	add_optional_topic_multi("telemetry_status", 1000, 4);
+	add_topic_multi("telemetry_status", 1000, 4);
+
+#if defined(CONFIG_GPS_UBX_SPAN)
+	int32_t gps_ubx_spectrum = 0;
+	param_get(param_find("GPS_UBX_SPECTRUM"), &gps_ubx_spectrum);
+
+	if (gps_ubx_spectrum > 0) {
+		add_topic_multi("sensor_gnss_spectrum_block0", 5000, 2);
+		add_topic_multi("sensor_gnss_spectrum_block1", 5000, 2);
+		add_topic_multi("sensor_gnss_spectrum_block2", 5000, 2);
+	}
+
+#endif
 
 	// EKF multi topics
 	{
@@ -185,18 +212,37 @@ void LoggedTopics::add_default_topics()
 	add_optional_topic("estimator_selector_status", 10);
 	add_optional_topic_multi("estimator_event_flags", 10);
 	add_optional_topic_multi("estimator_optical_flow_vel", 200);
+	add_optional_topic_multi("estimator_fusion_control", 1000);
 	add_optional_topic_multi("estimator_sensor_bias", 1000);
 	add_optional_topic_multi("estimator_status", 200);
 	add_optional_topic_multi("estimator_status_flags", 10);
 	add_optional_topic_multi("yaw_estimator_status", 1000);
+
+	// Vision target estimator topics
+#if defined(CONFIG_MODULES_VISION_TARGET_ESTIMATOR) && CONFIG_MODULES_VISION_TARGET_ESTIMATOR
+	add_optional_topic("prec_takeoff_status");
+	add_topic("vte_input", 50);
+	add_topic("vte_position", 100);
+	add_topic("vte_orientation", 100);
+	add_topic("vte_bias_init_status", 10); // High rate because rarely published and only for a short period of time
+	add_topic("vte_aid_gps_pos_target", 100);
+	add_topic("vte_aid_gps_pos_mission", 100);
+	add_topic("vte_aid_gps_vel_uav", 100);
+	add_topic("vte_aid_gps_vel_target", 100);
+	add_topic("vte_aid_fiducial_marker", 100);
+	add_topic("vte_aid_ev_yaw", 100);
+	add_topic("fiducial_marker_pos_report", 100);
+	add_topic("fiducial_marker_yaw_report", 100);
+	add_topic("target_gnss", 100);
+#endif // CONFIG_MODULES_VISION_TARGET_ESTIMATOR
 
 	// log all raw sensors at minimal rate (at least 1 Hz)
 	add_topic_multi("battery_status", 200, 3);
 	add_topic_multi("differential_pressure", 1000, 2);
 	add_topic_multi("distance_sensor", 1000, 2);
 	add_optional_topic_multi("sensor_accel", 1000, 4);
-	add_optional_topic_multi("sensor_baro", 1000, 4);
-	add_topic_multi("sensor_gps", 1000, 2);
+	add_topic_multi("sensor_baro", 1000, 4);
+	add_topic_multi("sensor_gnss", 1000, 2);
 	add_topic_multi("sensor_gnss_relative", 1000, 1);
 	add_optional_topic_multi("sensor_gyro", 1000, 4);
 	add_topic_multi("sensor_mag", 1000, 4);
@@ -206,8 +252,7 @@ void LoggedTopics::add_default_topics()
 	add_topic_multi("vehicle_imu_status", 1000, 4);
 	add_optional_topic_multi("vehicle_magnetometer", 500, 4);
 	add_topic("vehicle_optical_flow", 500);
-	add_topic("aux_global_position", 500);
-	//add_optional_topic("vehicle_optical_flow_vel", 100);
+	add_topic_multi("aux_global_position", 500);
 	add_optional_topic("pps_capture");
 
 	// additional control allocation logging
@@ -297,6 +342,7 @@ void LoggedTopics::add_debug_topics()
 	add_topic("sensor_preflight_mag", 500);
 	add_topic("actuator_test", 500);
 	add_topic("neural_control", 50);
+	add_topic("task_stack_info");
 }
 
 void LoggedTopics::add_estimator_replay_topics()
@@ -311,13 +357,16 @@ void LoggedTopics::add_estimator_replay_topics()
 	add_topic("sensor_combined");
 	add_topic("sensor_selection");
 	add_topic("vehicle_air_data");
-	add_topic("vehicle_gps_position");
+	add_topic("vehicle_gnss_heading");
+	add_topic("vehicle_gnss");
 	add_topic("vehicle_land_detected");
 	add_topic("vehicle_magnetometer");
 	add_topic("vehicle_status");
 	add_topic("vehicle_visual_odometry");
-	add_topic("aux_global_position");
+	add_topic("ranging_beacon");
+	add_topic_multi("aux_global_position");
 	add_topic_multi("distance_sensor");
+	add_topic("estimator_fusion_control", 200);
 }
 
 void LoggedTopics::add_thermal_calibration_topics()
@@ -368,10 +417,16 @@ void LoggedTopics::add_system_identification_topics()
 
 void LoggedTopics::add_high_rate_sensors_topics()
 {
-	add_topic_multi("distance_sensor", 0, 4);
-	add_topic_multi("sensor_optical_flow", 0, 2);
-	add_topic_multi("sensor_gps", 0, 4);
-	add_topic_multi("sensor_mag", 0, 4);
+	add_topic_multi("distance_sensor", 10, 4);
+	add_topic_multi("sensor_baro", 10, 4);
+	add_topic_multi("sensor_optical_flow", 10, 2);
+	add_topic_multi("sensor_gnss", 10, 4);
+	add_topic_multi("sensor_gnss_relative", 10, 1);
+	add_topic_multi("sensor_mag", 10, 4);
+	add_topic("estimator_aid_src_baro_hgt", 10);
+	add_topic("vehicle_air_data", 10);
+	add_topic("vehicle_magnetometer", 10);
+	add_topic("vehicle_thrust_setpoint", 10);
 }
 
 void LoggedTopics::add_mavlink_tunnel()
@@ -530,20 +585,6 @@ bool LoggedTopics::add_topic_multi(const char *name, uint16_t interval_ms, uint8
 
 bool LoggedTopics::initialize_logged_topics(SDLogProfileMask profile)
 {
-	int ntopics = add_topics_from_file(PX4_STORAGEDIR "/etc/logging/logger_topics.txt");
-
-	if (ntopics > 0) {
-		PX4_INFO("logging %d topics from logger_topics.txt", ntopics);
-
-	} else {
-		initialize_configured_topics(profile);
-	}
-
-	return _subscriptions.count > 0;
-}
-
-void LoggedTopics::initialize_configured_topics(SDLogProfileMask profile)
-{
 	// load appropriate topics for profile
 	// the order matters: if several profiles add the same topic, the logging rate of the last one will be used
 	if (profile & SDLogProfileMask::DEFAULT) {
@@ -593,4 +634,16 @@ void LoggedTopics::initialize_configured_topics(SDLogProfileMask profile)
 	if (profile & SDLogProfileMask::HIGH_RATE_SENSORS) {
 		add_high_rate_sensors_topics();
 	}
+
+	int ntopics = add_topics_from_file(PX4_STORAGEDIR "/etc/logging/logger_topics.txt");
+
+	if (ntopics > 0) {
+		PX4_INFO("logging %d topics from logger_topics.txt", ntopics);
+
+	} else if ((int32_t)profile == 0) {
+		PX4_WARN("No logging topics added. Using default set");
+		add_default_topics();
+	}
+
+	return _subscriptions.count > 0;
 }

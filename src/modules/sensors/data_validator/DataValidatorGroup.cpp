@@ -54,6 +54,11 @@ DataValidatorGroup::DataValidatorGroup(unsigned siblings)
 	for (unsigned i = 0; i < siblings; i++) {
 		next = new DataValidator();
 
+		if (next == nullptr) {
+			PX4_ERR("alloc failed");
+			break;
+		}
+
 		if (i == 0) {
 			_first = next;
 
@@ -64,7 +69,7 @@ DataValidatorGroup::DataValidatorGroup(unsigned siblings)
 		prev = next;
 	}
 
-	_last = next;
+	_last = prev;
 
 	if (_first) {
 		_timeout_interval_us = _first->get_timeout();
@@ -89,9 +94,16 @@ DataValidator *DataValidatorGroup::add_new_validator()
 		return nullptr;
 	}
 
-	_last->setSibling(validator);
-	_last = validator;
+	if (_last) {
+		_last->setSibling(validator);
+		_last = validator;
+
+	} else {
+		_first = _last = validator;
+	}
+
 	_last->set_timeout(_timeout_interval_us);
+	_last->set_equal_value_threshold(_equal_value_threshold);
 	return _last;
 }
 
@@ -117,6 +129,8 @@ void DataValidatorGroup::set_equal_value_threshold(uint32_t threshold)
 		next->set_equal_value_threshold(threshold);
 		next = next->sibling();
 	}
+
+	_equal_value_threshold = threshold;
 }
 
 void DataValidatorGroup::put(unsigned index, uint64_t timestamp, const float val[3], uint32_t error_count,
@@ -162,10 +176,15 @@ float *DataValidatorGroup::get_best(uint64_t timestamp, int *index)
 			pre_check_prio = prio;
 			pre_check_confidence = confidence;
 
-			max_index = i;
-			max_confidence = confidence;
-			max_priority = prio;
-			best = next;
+			// a sensor that was disabled while selected must not seed the search, but is still
+			// recorded above so that switching away from it does not count as a failover
+			if (prio > 0) {
+				max_index = i;
+				max_confidence = confidence;
+				max_priority = prio;
+				best = next;
+			}
+
 			break;
 		}
 
@@ -177,7 +196,16 @@ float *DataValidatorGroup::get_best(uint64_t timestamp, int *index)
 	next = _first;
 
 	while (next != nullptr) {
+		// evaluated even when excluded below: confidence() is what maintains the error state
+		// reported for every sensor, disabled ones included
 		float confidence = next->confidence(timestamp);
+
+		// priority 0 excludes a sensor from selection entirely, failover included
+		if (next->priority() == 0) {
+			next = next->sibling();
+			i++;
+			continue;
+		}
 
 		/*
 		 * Switch if:
@@ -203,9 +231,11 @@ float *DataValidatorGroup::get_best(uint64_t timestamp, int *index)
 	if (max_index != _curr_best || ((max_confidence < FLT_EPSILON) && (_curr_best >= 0))) {
 		bool true_failsafe = true;
 
-		/* check whether the switch was a failsafe or preferring a higher priority sensor */
-		if (pre_check_prio != -1 && pre_check_prio < max_priority &&
-		    fabsf(pre_check_confidence - max_confidence) < 0.1f) {
+		/* check whether the switch was a failsafe or preferring a higher priority sensor.
+		 * a sensor that was disabled while selected did not fail, so leaving it is not a failover */
+		if (pre_check_prio == 0 ||
+		    (pre_check_prio != -1 && pre_check_prio < max_priority &&
+		     fabsf(pre_check_confidence - max_confidence) < 0.1f)) {
 			/* this is not a failover */
 			true_failsafe = false;
 

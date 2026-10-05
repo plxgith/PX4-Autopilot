@@ -8,7 +8,7 @@ Adding a feature to PX4 follows a defined workflow. In order to share your contr
 
 - [Sign up](https://github.com/signup) for github if you haven't already
 
-- Fork the PX4-Autopilot repo (see [here](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo))
+- Fork the PX4-Autopilot repo (see [here](https://docs.github.com/en/pull-requests/how-tos/work-with-forks/fork-a-repo))
 
 - 将分支克隆到本地计算机
 
@@ -22,7 +22,7 @@ Adding a feature to PX4 follows a defined workflow. In order to share your contr
   ```sh
   cd PX4-Autopilot
   git submodule update --init --recursive
-  git remote add upstream https://github.com/PX4/PX4-Autopilot.git
+  git remote add upstream https://github.com/PX4/PX4-Autopilot
   ```
 
 - You should have now two remote repositories: One repository is called `upstream` that points to PX4/PX4-Autopilot, and one repository `origin` that points to your forked copy of the PX4 repository.
@@ -49,17 +49,17 @@ Adding a feature to PX4 follows a defined workflow. In order to share your contr
   git add <file name>
   ```
 
-  If you prefer having a GUI to add your files see [Gitk](https://git-scm.com/book/en/v2/Git-in-Other-Environments-Graphical-Interfaces) or [`git add -p`](https://nuclearsquid.com/writings/git-add/).
+  If you prefer having a GUI to add your files see [Gitk](https://git-scm.com/book/en/v2/Appendix-A:-Git-in-Other-Environments-Graphical-Interfaces) or [`git add -p`](https://nuclearsquid.com/writings/git-add/).
 
 - 提交添加的文件, 并顺便记录一条有意义的消息, 解释您的更改
 
   ```sh
-  git commit -m "<your commit message>"
+  git commit -s -m "feat(ekf2): add height fusion timeout"
   ```
 
-  For a good commit message, please refer to the [Source Code Management](../contribute/code.md#commits-and-commit-messages) section.
+  Use [conventional commits](https://www.conventionalcommits.org/) format: `type(scope): description`. For details on types and scopes, see the [Source Code Management](../contribute/code.md#commits-and-commit-messages) section.
 
-- Some time might have passed and the [upstream main](https://github.com/PX4/PX4-Autopilot.git) has changed.
+- Some time might have passed and the [upstream main](https://github.com/PX4/PX4-Autopilot) has changed.
   PX4 prefers a linear commit history and uses [git rebase](https://git-scm.com/book/en/v2/Git-Branching-Rebasing).
   To include the newest changes from upstream in your local branch, switch to your main branch
 
@@ -139,7 +139,7 @@ To get the source code for a _specific older release_ (tag):
 1. Clone the PX4-Autopilot repo and navigate into _PX4-Autopilot_ directory:
 
    ```sh
-   git clone https://github.com/PX4/PX4-Autopilot.git
+   git clone https://github.com/PX4/PX4-Autopilot
    cd PX4-Autopilot
    ```
 
@@ -179,7 +179,7 @@ To get a release branch:
 - Clone the PX4-Autopilot repo and navigate into _PX4-Autopilot_ directory:
 
   ```sh
-  git clone https://github.com/PX4/PX4-Autopilot.git
+  git clone https://github.com/PX4/PX4-Autopilot
   cd PX4-Autopilot
   ```
 
@@ -280,7 +280,7 @@ git checkout <branch name>
 
 ### 强制推送到分叉存储库
 
-做完第一个 PR 后, 来自 PX4 社区的人将回顾你的更改。 在大多数情况下, 这意味着您必须根据评审来修复本地分支。 After changing the files locally, the feature branch needs to be rebased again with the most recent upstream/main. 但是, 在重新建立基础后, 不再可能将特征分支直接推送到分叉存储库, 而是需要使用强制推送:
+做完第一个 PR 后, 来自 PX4 社区的人将回顾你的更改。在大多数情况下, 这意味着您必须根据评审来修复本地分支。 After changing the files locally, the feature branch needs to be rebased again with the most recent upstream/main. 但是, 在重新建立基础后, 不再可能将特征分支直接推送到分叉存储库, 而是需要使用强制推送:
 
 ```sh
 git push --force-with-lease origin <your feature branch name>
@@ -292,7 +292,7 @@ If a conflict occurs during a `git rebase`, please refer to [this guide](https:/
 
 ### 拉取合并冲突
 
-If a conflict occurs during a `git pull`, please refer to [this guide](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/addressing-merge-conflicts/resolving-a-merge-conflict-using-the-command-line#competing-line-change-merge-conflicts).
+If a conflict occurs during a `git pull`, please refer to [this guide](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/resolving-a-merge-conflict-using-the-command-line#competing-line-change-merge-conflicts).
 
 ### Build error due to git tags out of date
 

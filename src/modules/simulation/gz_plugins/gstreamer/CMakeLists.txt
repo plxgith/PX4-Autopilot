@@ -45,6 +45,11 @@ else()
         GstCameraSystem.cpp
     )
 
+    target_link_directories(${PROJECT_NAME}
+        PUBLIC ${GSTREAMER_LIBRARY_DIRS}
+        PUBLIC ${GSTREAMER_APP_LIBRARY_DIRS}
+    )
+
     target_link_libraries(${PROJECT_NAME}
         PUBLIC px4_gz_msgs
         PUBLIC ${GZ_SENSORS_TARGET}
@@ -67,4 +72,8 @@ else()
         PRIVATE ${GSTREAMER_CFLAGS}
         PRIVATE ${GSTREAMER_APP_CFLAGS}
     )
+
+    if (NOT CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+        install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib/px4_gz_plugins)
+    endif()
 endif()

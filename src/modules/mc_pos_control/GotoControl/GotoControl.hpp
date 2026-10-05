@@ -64,9 +64,11 @@ public:
 	/**
 	 * @brief resets the position smoother at the current position with zero velocity and acceleration.
 	 *
-	 * @param position [m] (NED) local vehicle position
+	 * @param position [m] vehicle position state NED local frame
+	 * @param velocity [m/s] vehicle velocity state
+	 * @param acceleration [m/s^2] vehicle acceleration state
 	 */
-	void resetPositionSmoother(const matrix::Vector3f &position);
+	void resetPositionSmoother(const matrix::Vector3f &position, const matrix::Vector3f &velocity, const matrix::Vector3f &acceleration);
 
 	/**
 	 * @brief resets the heading smoother at the current heading with zero heading rate and acceleration.
@@ -80,12 +82,19 @@ public:
 	 * loops to track.
 	 *
 	 * @param[in] dt [s] time since last control update
-	 * @param[in] position [m] (NED) local vehicle position
+	 * @param[in] position [m] vehicle position state NED local frame
+	 * @param[in] velocity [m/s] vehicle velocity state
+	 * @param[in] acceleration [m/s^2] vehicle acceleration state
 	 * @param[in] heading [rad] (from North) vehicle heading
 	 * @param[in] goto_setpoint struct containing current go-to setpoints
 	 * @param[out] trajectory_setpoint struct containing trajectory (tracking) setpoints
 	 */
-	void update(const float dt, const matrix::Vector3f &position, const float heading);
+	void update(const float dt, const matrix::Vector3f &position, const matrix::Vector3f &velocity, const matrix::Vector3f &acceleration,
+		    const float heading);
+
+	void ekfResetHandlerPosition(const matrix::Vector3f &position) { _position_smoothing.forceSetPosition(position); }
+	void ekfResetHandlerVelocity(const matrix::Vector3f &velocity) { _position_smoothing.forceSetVelocity(velocity); }
+	void ekfResetHandlerHeading(const float delta_heading) { _heading_smoothing.reset(_heading_smoothing.getSmoothedHeading() + delta_heading); }
 
 	// Setting all parameters from the outside saves 300bytes flash
 	void setParamMpcAccHor(const float param_mpc_acc_hor) { _param_mpc_acc_hor = param_mpc_acc_hor; }
@@ -95,8 +104,8 @@ public:
 	void setParamMpcXyCruise(const float param_mpc_xy_cruise) { _param_mpc_xy_cruise = param_mpc_xy_cruise; }
 	void setParamMpcXyErrMax(const float param_mpc_xy_err_max) { _position_smoothing.setMaxAllowedHorizontalError(param_mpc_xy_err_max); }
 	void setParamMpcXyVelMax(const float param_mpc_xy_vel_max) { _position_smoothing.setMaxVelocityXY(param_mpc_xy_vel_max); }
-	void setParamMpcYawrautoMax(const float param_mpc_yawrauto_max) { _param_mpc_yawrauto_max = param_mpc_yawrauto_max; }
-	void setParamMpcYawrautoAcc(const float param_mpc_yawrauto_acc) { _param_mpc_yawrauto_acc = param_mpc_yawrauto_acc; }
+	void setParamMpcYawrautoMax(const float param_mpc_yawrauto_max) { _yaw_rate_max = math::radians(param_mpc_yawrauto_max); }
+	void setParamMpcYawrautoAcc(const float param_mpc_yawrauto_acc) { _yaw_acceleration_max = math::radians(param_mpc_yawrauto_acc); }
 	void setParamMpcZVAutoDn(const float param_mpc_z_v_auto_dn) { _param_mpc_z_v_auto_dn = param_mpc_z_v_auto_dn; }
 	void setParamMpcZVAutoUp(const float param_mpc_z_v_auto_up) { _param_mpc_z_v_auto_up = param_mpc_z_v_auto_up; }
 
@@ -135,8 +144,8 @@ private:
 	float _param_mpc_acc_down_max{0.f};
 	float _param_mpc_acc_up_max{0.f};
 	float _param_mpc_xy_cruise{0.f};
-	float _param_mpc_yawrauto_max{0.f};
-	float _param_mpc_yawrauto_acc{0.f};
+	float _yaw_rate_max{0.f}; ///< [rad/s]
+	float _yaw_acceleration_max{0.f}; ///< [rad/s^2]
 	float _param_mpc_z_v_auto_dn{0.f};
 	float _param_mpc_z_v_auto_up{0.f};
 };

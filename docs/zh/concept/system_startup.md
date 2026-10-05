@@ -1,7 +1,7 @@
 # 系统启动
 
 PX4 系统的启动由 shell 脚本文件控制。
-On NuttX they reside in the [ROMFS/px4fmu_common/init.d](https://github.com/PX4/PX4-Autopilot/tree/main/ROMFS/px4fmu_common/init.d) folder - some of these are also used on Posix (Linux/MacOS).
+On NuttX they reside in the [ROMFS/px4fmu_common/init.d](https://github.com/PX4/PX4-Autopilot/tree/main/ROMFS/px4fmu_common/init.d) folder - some of these are also used on Posix (Linux/macOS).
 The scripts that are only used on Posix are located in [ROMFS/px4fmu_common/init.d-posix](https://github.com/PX4/PX4-Autopilot/tree/main/ROMFS/px4fmu_common/init.d-posix).
 
 All files starting with a number and underscore (e.g. `10000_airplane`) are predefined airframe configurations.
@@ -13,15 +13,14 @@ The first executed file is the [init.d/rcS](https://github.com/PX4/PX4-Autopilot
 
 根据 PX4 运行的操作系统将本文后续内容分成了如下各小节。
 
-## POSIX (Linux/MacOS)
+## POSIX (Linux/macOS)
 
 On POSIX, the system shell is used as script interpreter (e.g. /bin/sh, being symlinked to dash on Ubuntu).
 为了使 PX4 可以在 Posix 中正常运行，需要做到以下几点：
 
-- PX4 的各个模块需要看起来像系统的单个可执行文件。
-  这一点可以通过创建符号链接做到。
+- PX4 的各个模块需要看起来像系统的单个可执行文件。这一点可以通过创建符号链接做到。
   For each module a symbolic link `px4-<module> -> px4` is created in the `bin` directory of the build folder.
-  When executed, the binary path is checked (`argv[0]`), and if it is a module (starts with `px4-`), it sends the command to the main px4 instance (see below).
+  When executed, the binary path is checked (`argv[0]`), and if it is a module (starts with `px4-`), it sends the command to the main PX4 instance (see below).
 
   :::tip
   The `px4-` prefix is used to avoid conflicts with system commands (e.g. `shutdown`), and it also allows for simple tab completion by typing `px4-<TAB>`.
@@ -32,23 +31,21 @@ On POSIX, the system shell is used as script interpreter (e.g. /bin/sh, being sy
   For that the `bin` directory with the symbolic links is added to the `PATH` variable right before executing the startup scripts.
 
 - Shell 将每个模块作为一个新的 (客户端) 进程进行启动，
-  每个客户端进程都需要与 PX4 主实例（服务器）进行通讯，实际的模块以线程的形式运行。
+  Each client process needs to communicate with the main instance of PX4 (the server), where the actual modules are running as threads.
   This is done through a [UNIX socket](https://man7.org/linux/man-pages/man7/unix.7.html).
-  服务器侦听一个 socket，然后客户端将连接该 socket 并通过它发送指令。
-  服务器收到客户端的指令后将指令运行的输出结果及返回代码重新发送给客户端。
+  服务器侦听一个 socket，然后客户端将连接该 socket 并通过它发送指令。服务器收到客户端的指令后将指令运行的输出结果及返回代码重新发送给客户端。
 
 - The startup scripts call the module directly, e.g. `commander start`, rather than using the `px4-` prefix.
   This works via aliases: for each module an alias in the form of `alias <module>=px4-<module>` is created in the file `bin/px4-alias.sh`.
 
-- The `rcS` script is executed from the main px4 instance.
+- The `rcS` script is executed from the main PX4 instance.
   It does not start any modules, but first updates the `PATH` variable and then simply runs a shell with the `rcS` file as argument.
 
 - 除此之外，在进行多飞行器仿真时还可以启动多个服务器实例。
   A client selects the instance via `--instance`.
   The instance is available in the script via `$px4_instance` variable.
 
-当 PX4 在操作系统上处于运行状态时可以从任意终端直接运行各个模块。
-例如：
+当 PX4 在操作系统上处于运行状态时可以从任意终端直接运行各个模块。例如：
 
 ```sh
 cd <PX4-Autopilot>/build/px4_sitl_default/bin
@@ -87,8 +84,7 @@ The boot sequence can be debugged by connecting the [system console](../debug/sy
 
 The whole boot can be replaced by creating a file `/etc/rc.txt` on the microSD card with a new configuration (nothing in the old configuration will be auto-started, and if the file is empty, nothing at all will be started).
 
-根据默认启动程序来进行定制化是一个比较好地开始。
-文档如下。
+根据默认启动程序来进行定制化是一个比较好地开始。文档如下。
 
 ### 自定义系统的启动文件
 

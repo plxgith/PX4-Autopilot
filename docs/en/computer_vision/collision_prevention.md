@@ -41,6 +41,15 @@ At time of writing PX4 allows you to use the [Lanbao PSK-CM8JL65-CC5](../sensor/
 
 PX4 v1.14 (and later) supports the [LightWare LiDAR SF45](../sensor/sf45_rotating_lidar.md) rotating lidar which provides 320 degree sensing.
 
+### Sony AS-DT1 LiDAR
+
+PX4 supports the [Sony AS-DT1](../sensor/sony_asdt1.md) multipoint LiDAR as a directly connected UART sensor for collision prevention.
+The driver publishes measurements to `obstacle_distance` with 5 degree bins, using the configured sensor yaw offset.
+
+The AS-DT1 covers a forward horizontal field of view of about 35 degrees.
+Only the covered sectors are populated; other directions remain no-data unless covered by another sensor.
+Configure the sensor as described in the [Sony AS-DT1](../sensor/sony_asdt1.md) guide, then enable collision prevention with [CP_DIST](#CP_DIST).
+
 ### Other Rangefinders
 
 Other sensors may be enabled, but this requires modification of driver code to set the sensor orientation and field of view.
@@ -60,7 +69,7 @@ Configure collision prevention by [setting the following parameters](../advanced
 | <a id="CP_DELAY"></a>[CP_DELAY](../advanced_config/parameter_reference.md#CP_DELAY)                | Set the sensor and velocity setpoint tracking delay. See [Delay Tuning](#delay_tuning) below.                                                                                                                                                                                                   |
 | <a id="CP_GUIDE_ANG"></a>[CP_GUIDE_ANG](../advanced_config/parameter_reference.md#CP_GUIDE_ANG)    | Set the angle (to both sides of the commanded direction) within which the vehicle may deviate if it finds fewer obstacles in that direction. See [Guidance Tuning](#angle_change_tuning) below.                                                                                                 |
 | <a id="CP_GO_NO_DATA"></a>[CP_GO_NO_DATA](../advanced_config/parameter_reference.md#CP_GO_NO_DATA) | Set to 1 to allow the vehicle to move in directions where there is no sensor coverage (default is 0/`False`).                                                                                                                                                                                   |
-| <a id="MPC_POS_MODE"></a>[MPC_POS_MODE](../advanced_config/parameter_reference.md#MPC_POS_MODE)    | Must be set to `Acceleration based`.                                                                                                                                                                                                                                                           |
+| <a id="MPC_POS_MODE"></a>[MPC_POS_MODE](../advanced_config/parameter_reference.md#MPC_POS_MODE)    | Must be set to `Acceleration based`.                                                                                                                                                                                                                                                            |
 
 ## Algorithm Description
 
@@ -143,7 +152,7 @@ If you wish to move freely into directions without sensor coverage, this can be 
 
 ### Acceleration Constraining
 
-For this we split out the acceleration setpoint into two components, one parallel to the closest distance to the obstacle and one normal to it. Then we scale each of these components according the the figure below.
+For this we split out the acceleration setpoint into two components, one parallel to the closest distance to the obstacle and one normal to it. Then we scale each of these components according to the figure below.
 
 ![Scalefactor](../../assets/computer_vision/collision_prevention/scalefactor.png)
 
@@ -213,7 +222,6 @@ The steps are:
 
 3. Open PlotJuggler and navigate to the **Tools > Reactive Script Editor** section.
    In the **Script Editor** tab, add following scripts in the appropriate sections:
-
    - **Global code, executed once:**
 
      ```lua
@@ -313,7 +321,7 @@ the quaternion `q` is only used if the `orientation` is set to `ROTATION_CUSTOM`
 
 #### Companion Computers
 
-Companion computers update the `obstacle_distance` topic using ROS2 or the [OBSTACLE_DISTANCE](https://mavlink.io/en/messages/common.html#OBSTACLE_DISTANCE) MAVLink message.
+Companion computers update the `obstacle_distance` topic using ROS 2 or the [OBSTACLE_DISTANCE](https://mavlink.io/en/messages/common.html#OBSTACLE_DISTANCE) MAVLink message.
 
 <!-- to edit the image, open it in inkscape -->
 <!-- Code to generate the scalefactor plot

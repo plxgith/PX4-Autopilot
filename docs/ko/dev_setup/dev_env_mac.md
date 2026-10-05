@@ -1,116 +1,127 @@
-# MacOS 개발 환경
+# macOS Development Environment
 
-아래에서 macOS용 PX4 개발 환경 설정 방법을 설명합니다.
+The following instructions set up a PX4 development environment on macOS.
 PX4 빌드에 사용되어 집니다.
 
 - Pixhawk와 기타 NuttX 기반 하드웨어
-- [Gazebo Classic Simulation](../sim_gazebo_classic/index.md)
+- [Gazebo Simulation](../sim_gazebo_gz/index.md) (Gazebo Harmonic)
+
+It works on both Intel and Apple Silicon Macs.
+PX4 CI exercises this setup on Apple Silicon runners only; Intel is not covered by CI.
 
 :::tip
 This setup is supported by the PX4 dev team.
-To build other targets you will need to use a [different OS](../dev_setup/dev_env.md#supported-targets) (or an [unsupported development environment](../advanced/community_supported_dev_env.md)).
+To build for [other targets](../dev_setup/dev_env.md#supported-targets) you will need to use a [different OS](../dev_setup/dev_env.md#supported-targets) or an [unsupported development environment](../advanced/community_supported_dev_env.md).
 :::
 
-## 영상 가이드
+## Development Environment Setup
 
-<lite-youtube videoid="tMbMGiMs1cQ" title="Setting up your PX4 development environment on macOS"/>
+### 준비 사항
 
-## Base Setup
+1. **Install Xcode Command Line Tools**, which provide `git`, `make`, and the Apple `clang` compiler:
 
-The "base" macOS setup installs the tools needed for building firmware, and includes the common tools that will be needed for installing/using the simulators.
+   ```sh
+   xcode-select --install
+   ```
 
-### Environment Setup
+2. **Install Homebrew** by following the [installation instructions](https://brew.sh).
+   The setup script below also installs Homebrew if it is missing.
 
-:::details
-Apple Silicon Macbook users!
-If you have an Apple M1, M2 etc. Macbook, make sure to run the terminal as x86 by setting up an x86 terminal:
+3. **Increase the open-file limit.** The PX4 build opens many files simultaneously and the macOS default limit (256) is too low. You may see `"LD: too many open files"` errors without this.
 
-1. Locate the Terminal application within the Utilities folder (**Finder > Go menu > Utilities**)
-2. Select _Terminal.app_ and right-click on it, then choose **Duplicate**.
-3. Rename the duplicated Terminal app, e.g. to _x86 Terminal_
-4. Now select the renamed _x86 Terminal_ app and right-click and choose \*_Get Info_
-5. Check the box for **Open using Rosetta**, then close the window
-6. Run the _x86 Terminal_ as usual, which will fully support the current PX4 toolchain
+   Add the following line to your shell startup file so it applies to every new terminal session.
+   macOS defaults to **zsh** since Catalina, so add it to `~/.zshrc` (use `~/.bashrc` if you use bash):
 
-:::
+   ```sh
+   echo "ulimit -S -n 2048" >> ~/.zshrc
+   ```
 
-First set up the environment
+   Then **open a new terminal** (or run `source ~/.zshrc`) for the change to take effect.
 
-1. Enable more open files by appending the following line to the `~/.zshenv` file (creating it if necessary):
+### Install Development Tools
 
-  ```sh
-  echo ulimit -S -n 2048 >> ~/.zshenv
-  ```
+1. **Download PX4 Source Code:**
 
-  ::: info
-  If you don't do this, the build toolchain may report the error: `"LD: too many open files"`
+   ```sh
+   git clone https://github.com/PX4/PX4-Autopilot.git
+   cd PX4-Autopilot
+   git submodule update --init --recursive --force
+   ```
 
-:::
+2. **Install development environment libraries** from the [macos.sh](https://github.com/PX4/PX4-Autopilot/blob/main/Tools/setup/macos.sh) helper script:
 
-2. Enforce Python 3 by appending the following lines to `~/.zshenv`
+   ```sh
+   ./Tools/setup/macos.sh --sim-tools
+   ```
 
-  ```sh
-  # Point pip3 to MacOS system python 3 pip
-  alias pip3=/usr/bin/pip3
-  ```
+   ::: info
+   The setup script creates a Python virtual environment at `.venv` in the repo root and installs all Python dependencies into it. This keeps PX4's Python requirements isolated from your system Python and avoids conflicts with Homebrew's externally-managed Python.
 
-### 공통 도구
+   Activate it before building:
 
-To setup the environment to be able to build for Pixhawk/NuttX hardware (and install the common tools for using simulators):
+   ```sh
+   source .venv/bin/activate
+   ```
 
-1. Install Homebrew by following these [installation instructions](https://brew.sh).
-
-2. Run these commands in your shell to install the common tools:
-
-  ```sh
-  brew tap PX4/px4
-  brew install px4-dev
-  ```
-
-3. Install the required Python packages:
-
-  ```sh
-  # install required packages using pip3
-  python3 -m pip install --user pyserial empty toml numpy pandas jinja2 pyyaml pyros-genmsg packaging kconfiglib future jsonschema
-  # if this fails with a permissions error, your Python install is in a system path - use this command instead:
-  sudo -H python3 -m pip install --user pyserial empty toml numpy pandas jinja2 pyyaml pyros-genmsg packaging kconfiglib future jsonschema
-  ```
-
-## Gazebo Classic Simulation
-
-To setup the environment for [Gazebo Classic](../sim_gazebo_classic/index.md) simulation:
-
-1. Run the following commands in your shell:
-
-  ```sh
-  brew unlink tbb
-  sed -i.bak '/disable! date:/s/^/  /; /disable! date:/s/./#/3' $(brew --prefix)/Library/Taps/homebrew/homebrew-core/Formula/tbb@2020.rb
-  brew install tbb@2020
-  brew link tbb@2020
-  ```
-
-  ::: info
-  September 2021: The commands above are a workaround to this bug: [PX4-Autopilot#17644](https://github.com/PX4/PX4-Autopilot/issues/17644).
-  They can be removed once it is fixed (along with this note).
+   You'll need to re-run this command in each new terminal session. To activate it automatically when you `cd` into the repo, consider a tool like [direnv](https://direnv.net/) or add the activation to your `~/.zshrc`.
 
 :::
 
-2. To install SITL simulation with Gazebo Classic:
+   The script installs the NuttX cross-compiler and build tools, the Python dependencies (into the `.venv` described above), and with `--sim-tools` the Gazebo simulation stack.
+   It is the source of truth for what gets installed; read [macos.sh](https://github.com/PX4/PX4-Autopilot/blob/main/Tools/setup/macos.sh) for the details.
 
-  ```sh
-  brew install --cask temurin
-  brew install --cask xquartz
-  brew install px4-sim-gazebo
-  ```
+   ::: info
+   Omit `--sim-tools` if you only need to build for NuttX hardware and don't need simulation.
+   All Gazebo dependencies are optional at build time, so `make px4_sitl` still works without them.
 
-3. Run the macOS setup script: `PX4-Autopilot/Tools/setup/macos.sh`
-  The easiest way to do this is to clone the PX4 source, and then run the script from the directory, as shown:
+   Use `--reinstall` to force reinstallation of the Homebrew formulas (useful if something is broken).
 
-  ```sh
-  git clone https://github.com/PX4/PX4-Autopilot.git --recursive
-  cd PX4-Autopilot/Tools/setup
-  sh macos.sh
-  ```
+:::
+
+   ::: info
+   The script installs from third-party Homebrew taps and marks them as trusted (`brew trust`) on Homebrew 6.0 and later, which refuses to load formulae from untrusted taps.
+   With `--sim-tools` it will prompt for your password, since the XQuartz installer and the JDK link into `/Library/Java/JavaVirtualMachines` need `sudo`.
+
+:::
+
+### Gazebo Simulation
+
+The `--sim-tools` flag installs Gazebo and the libraries PX4's simulation modules build against.
+
+If you skipped `--sim-tools` during initial setup and want to add simulation later, re-run the setup script with the flag (it is safe to run repeatedly):
+
+```sh
+./Tools/setup/macos.sh --sim-tools
+```
+
+:::info
+The script also installs **XQuartz**.
+macOS may require you to log out and back in after XQuartz is first installed.
+:::
+
+### Verify Installation
+
+After installation, verify the key tools are available:
+
+```sh
+# NuttX cross-compiler
+arm-none-eabi-gcc --version
+
+# Build tools
+cmake --version
+ninja --version
+
+# Gazebo (if --sim-tools was used)
+gz sim --versions
+```
+
+As a quick smoke test, build and run a simulation target:
+
+```sh
+make px4_sitl gz_x500
+```
+
+If everything is set up correctly, this will build PX4 SITL and launch a Gazebo simulation with the x500 quadcopter.
 
 ## 다음 단계
 
@@ -120,7 +131,7 @@ To setup the environment for [Gazebo Classic](../sim_gazebo_classic/index.md) si
 
 - Install the [QGroundControl Daily Build](../dev_setup/qgc_daily_build.md)
 
-  :::tip
+  ::: tip
   The _daily build_ includes development tools that are hidden in release builds.
   또한, 릴리스 빌드에서 아직 지원되지 않는 새로운 PX4 기능에 대한 액세스를 제공할 수도 있습니다.
 

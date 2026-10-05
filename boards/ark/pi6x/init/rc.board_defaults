@@ -21,17 +21,24 @@ param set-default SENS_EN_INA226 1
 
 # TODO: Tune the following parameters
 param set-default SENS_EN_THERMAL 1
-param set-default SENS_IMU_TEMP 10.0
-#param set-default SENS_IMU_TEMP_FF 0.0
-#param set-default SENS_IMU_TEMP_I 0.025
-#param set-default SENS_IMU_TEMP_P 1.0
+param set-default HEATER1_TEMP 10.0
+#param set-default HEATER1_TEMP_FF 0.0
+#param set-default HEATER1_TEMP_I 0.025
+#param set-default HEATER1_TEMP_P 1.0
 
 param set-default UAVCAN_ESC_IFACE 1
 
 if ver hwtypecmp ARKPI6X000
 then
-	# TODO: Add the correct sensor ID
-	param set-default SENS_TEMP_ID 2490378
+	# ICM-42688-P on SPI1 is the primary IMU: seed its calibration slot with a
+	# higher voter priority so selection is deterministic rather than a boot
+	# race between the two equal-priority IMUs, falling back to the SPI2
+	# ICM-42688-P only if it degrades. The heater regulates on it too.
+	param set-default CAL_ACC0_ID 2490378
+	param set-default CAL_GYRO0_ID 2490378
+	param set-default CAL_ACC0_PRIO 100
+	param set-default CAL_GYRO0_PRIO 100
+	param set-default HEATER1_SENS_ID 2490378
 fi
 
 param set-default EKF2_MULTI_IMU 0

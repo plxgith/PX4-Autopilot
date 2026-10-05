@@ -55,15 +55,20 @@ namespace px4
  * to replay. This is necessary because data messages from different subscriptions don't need to be in
  * monotonic increasing order.
  */
-class Replay : public ModuleBase<Replay>
+class Replay : public ModuleBase
 {
 public:
+	static Descriptor desc;
+
 	Replay() = default;
 
 	virtual ~Replay();
 
 	/** @see ModuleBase */
 	static int task_spawn(int argc, char *argv[]);
+
+	/** @see ModuleBase */
+	static int run_trampoline(int argc, char *argv[]);
 
 	/** @see ModuleBase */
 	static Replay *instantiate(int argc, char *argv[]);
@@ -142,8 +147,6 @@ protected:
 		// statistics
 		int approx_timestamp_counter = 0;
 		int publication_counter = 0;
-
-		bool published = false;
 	};
 
 	/**
@@ -181,7 +184,7 @@ protected:
 
 	/**
 	 * handle delay until topic can be published.
-	 * @param next_file_timestamp timestamp of next message to publish
+	 * @param next_file_time timestamp of next message to publish
 	 * @param timestamp_offset offset between file start time and replay start time
 	 * @return timestamp that the message to publish should have
 	 */

@@ -783,7 +783,7 @@ sudo apt install build-essential cmake git genromfs kconfig-frontends libncurses
 ## Building/Flashing the Pixhawk
 
 The recommended way to update PX4 is on the Pixhawk part of the board is to use your development computer.
-You can either install install prebuilt binaries with QGroundControl, or first build and then upload custom firmware.
+You can either install prebuilt binaries with QGroundControl, or first build and then upload custom firmware.
 
 Alternatively, you can build and deploy PX4 firmware to the Pixhawk part from the Jetson.
 
@@ -1172,7 +1172,7 @@ INFO  [uxrce_dds_client] init serial /dev/ttyS4 @ 921600 baud
 
 ### XRCE-DDS Agent & ROS 2 Setup
 
-Follow the instruction in the ROS2 User guide to [Install ROS 2](../ros2/user_guide.md#install-ros-2) on the Jetson.
+Follow the instruction in the ROS 2 User guide to [Install ROS 2](../ros2/user_guide.md#install-ros-2) on the Jetson.
 You don't have to install PX4 on the Jetson because we're not using the simulator, but you may wish to install the full desktop so you can use additional ROS 2 packages for further development:
 
 ```sh
@@ -1293,11 +1293,11 @@ Jul 30 01:37:52 ubuntu MicroXRCEAgent[1616]: [1722317872.098168] info    | Proxy
 Jul 30 01:37:52 ubuntu MicroXRCEAgent[1616]: [1722317872.098486] info    | ProxyClient.cpp   | create_datawriter       | datawriter created   | client_key: 0x00000001, datawriter_id: 0x10A(5), publisher_id: 0x10A(3)
 ```
 
-You can now start your ROS2 nodes and continue the development.
+You can now start your ROS 2 nodes and continue the development.
 
 ### ROS 2 Sensor Combined Tests
 
-You can test the Client and agent by using the `sensor_combined` example in [Build ROS 2 Workspace](../ros2/user_guide.md#build-ros-2-workspace) (ROS2 User Guide).
+You can test the Client and agent by using the `sensor_combined` example in [Running an example (optional)](../ros2/user_guide.md#running-an-example-optional) (ROS 2 User Guide).
 
 ::: tip
 [VSCode over SSH](https://code.visualstudio.com/docs/remote/ssh) enables faster development and application of changes to your ROS 2 code!

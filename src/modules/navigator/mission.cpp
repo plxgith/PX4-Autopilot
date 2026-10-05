@@ -46,6 +46,7 @@
  */
 
 #include "mission.h"
+#include "mission_item_utils.h"
 #include "navigator.h"
 
 #include <string.h>
@@ -57,7 +58,6 @@
 #include <uORB/uORB.h>
 #include <uORB/topics/mission.h>
 #include <uORB/topics/mission_result.h>
-#include <drivers/drv_hrt.h>
 #include <px4_platform_common/events.h>
 
 using namespace time_literals;
@@ -93,45 +93,67 @@ Mission::on_activation()
 
 
 bool
-Mission::set_current_mission_index(uint16_t index)
+Mission::set_current_mission_index(int32_t index, bool reset_jump_counters)
 {
-	if (index == _mission.current_seq) {
-		return true;
+	if (!_navigator->get_mission_result()->valid || (_mission.count == 0)) {
+		return false;
 	}
 
-	if (_navigator->get_mission_result()->valid && (index < _mission.count)) {
-		if (goToItem(index, true) != PX4_OK) {
-			// Keep the old mission index (it was not updated by the interface) and report back.
-			return false;
+	if ((index != -1) && ((index < 0) || (index >= _mission.count))) {
+		return false;
+	}
+
+	if ((index == -1) || (index == _mission.current_seq)) {
+		// Keep the current mission item unchanged.
+		if (reset_jump_counters) {
+			resetMissionJumpCounter();
+
+			// A reset can bring a finished mission back to a resumable state (mirrors
+			// checkMissionRestart()'s use of the same assignment).
+			_is_current_planned_mission_item_valid = isMissionValid();
+
+			if (isActive()) {
+				update_mission();
+				set_mission_items();
+			}
 		}
-
-		_is_current_planned_mission_item_valid = true;
-
-		// we start from the first item so can reset the cache
-		if (_mission.current_seq == 0) {
-			resetItemCache();
-		}
-
-		// update mission items if already in active mission
-		if (isActive()) {
-			// prevent following "previous - current" line
-			_navigator->reset_triplets();
-			update_mission();
-			set_mission_items();
-		}
-
-		// User has actively set new index, reset.
-		_inactivation_index = -1;
 
 		return true;
 	}
 
-	return false;
+	if (goToItem(index, MissionTraversalType::FollowMissionControlFlow) != PX4_OK) {
+		// Keep the old mission index (it was not updated by the interface) and report back.
+		return false;
+	}
+
+	if (reset_jump_counters) {
+		resetMissionJumpCounter();
+	}
+
+	_is_current_planned_mission_item_valid = true;
+
+	// we start from the first item so can reset the cache
+	if (_mission.current_seq == 0) {
+		resetItemCache();
+	}
+
+	// update mission items if already in active mission
+	if (isActive()) {
+		// prevent following "previous - current" line
+		_navigator->reset_triplets();
+		update_mission();
+		set_mission_items();
+	}
+
+	// User has actively set new index, reset.
+	_inactivation_index = -1;
+
+	return true;
 }
 
 bool Mission::setNextMissionItem()
 {
-	return (goToNextItem(true) == PX4_OK);
+	return (goToNextItem() == PX4_OK);
 }
 
 bool
@@ -198,7 +220,7 @@ void Mission::setActiveMissionItems()
 		}
 	}
 
-	if (item_contains_position(_mission_item)) {
+	if (mission_item_contains_position(_mission_item)) {
 
 		handleTakeoff(new_work_item_type, next_mission_items, num_found_items);
 
@@ -262,6 +284,10 @@ void Mission::setActiveMissionItems()
 		} else {
 			pos_sp_triplet->next.valid = false;
 		}
+
+	} else if (_mission_item.nav_cmd == NAV_CMD_DELAY) {
+		// Invalidate next waypoint to ensure vehicle holds position and doesn't try to track ahead
+		pos_sp_triplet->next.valid = false;
 
 	} else {
 		handleVtolTransition(new_work_item_type, next_mission_items, num_found_items);

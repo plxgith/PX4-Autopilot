@@ -38,6 +38,8 @@
 using namespace matrix;
 using namespace time_literals;
 
+ModuleBase::Descriptor FakeMagnetometer::desc{task_spawn, custom_command, print_usage};
+
 FakeMagnetometer::FakeMagnetometer() :
 	ModuleParams(nullptr),
 	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::hp_default),
@@ -56,20 +58,20 @@ void FakeMagnetometer::Run()
 {
 	if (should_exit()) {
 		ScheduleClear();
-		exit_and_cleanup();
+		exit_and_cleanup(desc);
 		return;
 	}
 
-	if (_vehicle_gps_position_sub.updated()) {
-		sensor_gps_s gps;
+	if (_vehicle_gnss_sub.updated()) {
+		vehicle_gnss_s gnss;
 
-		if (_vehicle_gps_position_sub.copy(&gps)) {
-			if (gps.eph < 1000) {
+		if (_vehicle_gnss_sub.copy(&gnss)) {
+			if (gnss.receiver.eph < 1000) {
 
 				// magnetic field data returned by the geo library using the current GPS position
-				const float declination_rad = math::radians(get_mag_declination_degrees(gps.latitude_deg, gps.longitude_deg));
-				const float inclination_rad = math::radians(get_mag_inclination_degrees(gps.latitude_deg, gps.longitude_deg));
-				const float field_strength_gauss = get_mag_strength_gauss(gps.latitude_deg, gps.longitude_deg);
+				const float declination_rad = math::radians(get_mag_declination_degrees(gnss.receiver.latitude, gnss.receiver.longitude));
+				const float inclination_rad = math::radians(get_mag_inclination_degrees(gnss.receiver.latitude, gnss.receiver.longitude));
+				const float field_strength_gauss = get_mag_strength_gauss(gnss.receiver.latitude, gnss.receiver.longitude);
 
 				_mag_earth_pred = Dcmf(Eulerf(0, -inclination_rad, declination_rad)) * Vector3f(field_strength_gauss, 0, 0);
 
@@ -94,8 +96,8 @@ int FakeMagnetometer::task_spawn(int argc, char *argv[])
 	FakeMagnetometer *instance = new FakeMagnetometer();
 
 	if (instance) {
-		_object.store(instance);
-		_task_id = task_id_is_work_queue;
+		desc.object.store(instance);
+		desc.task_id = task_id_is_work_queue;
 
 		if (instance->init()) {
 			return PX4_OK;
@@ -106,8 +108,8 @@ int FakeMagnetometer::task_spawn(int argc, char *argv[])
 	}
 
 	delete instance;
-	_object.store(nullptr);
-	_task_id = -1;
+	desc.object.store(nullptr);
+	desc.task_id = -1;
 
 	return PX4_ERROR;
 }
@@ -127,7 +129,7 @@ int FakeMagnetometer::print_usage(const char *reason)
 		R"DESCR_STR(
 ### Description
 Publish the earth magnetic field as a fake magnetometer (sensor_mag).
-Requires vehicle_attitude and vehicle_gps_position.
+Requires vehicle_attitude and vehicle_gnss.
 )DESCR_STR");
 
 	PRINT_MODULE_USAGE_NAME("fake_magnetometer", "driver");
@@ -138,5 +140,5 @@ Requires vehicle_attitude and vehicle_gps_position.
 
 extern "C" __EXPORT int fake_magnetometer_main(int argc, char *argv[])
 {
-	return FakeMagnetometer::main(argc, argv);
+	return ModuleBase::main(FakeMagnetometer::desc, argc, argv);
 }

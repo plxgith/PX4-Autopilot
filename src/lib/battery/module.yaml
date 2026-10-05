@@ -28,7 +28,6 @@ parameters:
                 short: Full cell voltage
                 long: |
                     Defines the voltage where a single cell of the battery is considered full.
-                    For a more accurate estimate set this below the nominal voltage of e.g. 4.2V
 
             type: float
             unit: V
@@ -37,7 +36,7 @@ parameters:
             reboot_required: true
             num_instances: *max_num_config_instances
             instance_start: 1
-            default: [4.05, 4.05, 4.05]
+            default: [4.2, 4.2, 4.2]
 
         BAT${i}_R_INTERNAL:
             description:
@@ -104,22 +103,30 @@ parameters:
         BAT${i}_SOURCE:
             description:
                 short: Battery ${i} monitoring source.
-                long: |
-                    This parameter controls the source of battery data. The value 'Power Module'
-                    means that measurements are expected to come from a power module. If the value is set to
-                    'External' then the system expects to receive mavlink battery status messages.
-                    If the value is set to 'ESCs', the battery information are taken from the esc_status message.
-                    This requires the ESC to provide both voltage as well as current.
+                long: |-
+                    Power Module / Analog: board ADC inputs (onboard or external analog power module) or an I2C power monitor (e.g. INA226).
+                    External: MAVLink or CAN battery status messages, or an external driver.
+                    ESCs: esc_status from ESC telemetry; requires voltage and current.
             type: enum
             values:
                 -1: Disabled
-                0: Power Module
+                0: Power Module / Analog
                 1: External
                 2: ESCs
             reboot_required: true
             num_instances: *max_num_config_instances
             instance_start: 1
             default: [0, -1, -1]
+
+        BAT${i}_I_OVERWRITE:
+            description:
+                short: Battery ${i} idle current overwrite
+                long: While disarmed, replaces the measured current with this value in amps, for ESCs that measure current inaccurately at no load. Set to 0 or less to disable.
+            type: float
+            decimal: 2
+            num_instances: *max_num_config_instances
+            instance_start: 1
+            default: [0, 0, 0]
 
         BAT_LOW_THR:
             description:
@@ -141,7 +148,7 @@ parameters:
                 long: |
                     Sets the threshold when the battery will be reported as critically low.
                     This has to be lower than the low threshold. This threshold commonly
-                    will trigger RTL.
+                    will trigger Return.
             type: float
             unit: norm
             min: 0.05
@@ -170,7 +177,7 @@ parameters:
                 short: Expected battery current in flight.
                 long: |
                     This value is used to initialize the in-flight average current estimation,
-                    which in turn is used for estimating remaining flight time and RTL triggering.
+                    which in turn is used for estimating remaining flight time and Return triggering.
             type: float
             unit: A
             min: 0

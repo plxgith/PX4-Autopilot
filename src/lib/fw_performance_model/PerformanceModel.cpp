@@ -58,12 +58,42 @@ PerformanceModel::PerformanceModel(): ModuleParams(nullptr)
 {
 	updateParams();
 }
+void PerformanceModel::setFuelFractionRemaining(float fuel_fraction_remaining)
+{
+	if (PX4_ISFINITE(fuel_fraction_remaining)) {
+		_fuel_fraction_remaining = math::constrain(fuel_fraction_remaining, 0.f, 1.f);
+	}
+}
+
+float PerformanceModel::getFuelFractionRemaining(const fuel_tank_status_s &fuel_tank_status)
+{
+	float fraction = NAN;
+
+	if (fuel_tank_status.percent_remaining <= 100) {
+		fraction = fuel_tank_status.percent_remaining * 0.01f;
+
+	} else if (PX4_ISFINITE(fuel_tank_status.remaining_fuel) && fuel_tank_status.maximum_fuel_capacity > FLT_EPSILON) {
+		fraction = fuel_tank_status.remaining_fuel / fuel_tank_status.maximum_fuel_capacity;
+
+	} else if (PX4_ISFINITE(fuel_tank_status.consumed_fuel) && fuel_tank_status.maximum_fuel_capacity > FLT_EPSILON) {
+		fraction = 1.f - fuel_tank_status.consumed_fuel / fuel_tank_status.maximum_fuel_capacity;
+	}
+
+	return PX4_ISFINITE(fraction) ? math::constrain(fraction, 0.f, 1.f) : NAN;
+}
+
 float PerformanceModel::getWeightRatio() const
 {
 	float weight_factor = 1.0f;
 
 	if (_param_weight_base.get() > FLT_EPSILON && _param_weight_gross.get() > FLT_EPSILON) {
-		weight_factor = math::constrain(_param_weight_gross.get() / _param_weight_base.get(), kMinWeightRatio,
+		float weight = _param_weight_gross.get();
+
+		if (_param_weight_fuel.get() > FLT_EPSILON && PX4_ISFINITE(_fuel_fraction_remaining)) {
+			weight -= (1.f - _fuel_fraction_remaining) * _param_weight_fuel.get();
+		}
+
+		weight_factor = math::constrain(weight / _param_weight_base.get(), kMinWeightRatio,
 						kMaxWeightRatio);
 	}
 
@@ -215,6 +245,31 @@ bool PerformanceModel::runSanityChecks() const
 		events::send<float, float>(events::ID("fixedwing_position_control_conf_invalid_stall"), events::Log::Error,
 					   "Invalid configuration: FW_AIRSPD_STALL higher FW_AIRSPD_MIN",
 					   _param_fw_airspd_min.get(), _param_fw_airspd_stall.get());
+		ret = false;
+	}
+
+	const float max_bank_loadfactor = 1 / cosf(math::radians(_param_fw_r_lim.get()));
+	const float min_airspd_at_max_bank = getMinimumCalibratedAirspeed(max_bank_loadfactor, /*flaps_setpoint = */0.0f);
+
+	if (min_airspd_at_max_bank > _param_fw_airspd_max.get()) {
+
+		// Flying the maximum bank angle requires an airspeed above FW_AIRSPD_MAX.
+		// To mitigate, choose between these (or a combination):
+		//  - Allow higher airspeeds (formula from getMinimumCalibratedAirspeed):
+		//      FW_AIRSPD_MAX >= FW_AIRSPD_MIN * sqrt(WEIGHT_GROSS/WEIGHT_BASE) * sqrt(1/cos(FW_R_LIM))
+		//  - Decrease max bank angle (same inequality, solved for FW_R_LIM):
+		//      FW_R_LIM <= acos((FW_AIRSPD_MIN/FW_AIRSPD_MAX)**2 * (WEIGHT_GROSS/WEIGHT_BASE))
+		// If flying with a range of weight ratios, take the worst case (heaviest) for both these formulas.
+
+		/* EVENT
+		 * @description
+		 * - <param>FW_AIRSPD_MIN</param>: {1:.1}
+		 * - <param>FW_AIRSPD_MAX</param>: {2:.1}
+		 * - <param>FW_R_LIM</param>: {3:.1}
+		 */
+		events::send<float, float, float>(events::ID("fixedwing_position_control_conf_invalid_maxbank_infeasible"), events::Log::Error,
+						  "Invalid configuration: FW_AIRSPD_MAX too low to sustain max bank angle",
+						  _param_fw_airspd_min.get(), _param_fw_airspd_max.get(), _param_fw_r_lim.get());
 		ret = false;
 	}
 

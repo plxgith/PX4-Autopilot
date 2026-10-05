@@ -103,7 +103,7 @@ protected:
 	 */
 	virtual int	probe() { return PX4_OK; }
 
-	virtual void set_device_address(int address);
+	virtual void set_device_address(int address, bool log = true);
 
 	/**
 	 * Perform an I2C transaction to the device.
@@ -118,8 +118,6 @@ protected:
 	 *			otherwise.
 	 */
 	int		transfer(const uint8_t *send, const unsigned send_len, uint8_t *recv, const unsigned recv_len);
-
-	virtual bool	external() const override { return px4_i2c_bus_external(_device_id.devid_s.bus); }
 
 private:
 	uint32_t		               _frequency{0};

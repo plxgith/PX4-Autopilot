@@ -45,22 +45,12 @@ set(UAVCAN_PLATFORM "generic")
 if(CONFIG_ARCH_CHIP)
 	if(${CONFIG_NET_CAN} MATCHES "y")
 		set(UAVCAN_DRIVER "socketcan")
-		set(UAVCAN_TIMER 1)
 	elseif(${CONFIG_ARCH_CHIP} MATCHES "kinetis")
 		set(UAVCAN_DRIVER "kinetis")
-		set(UAVCAN_TIMER 1)
 	elseif(${CONFIG_ARCH_CHIP} MATCHES "stm32h7")
 		set(UAVCAN_DRIVER "stm32h7")
-		set(UAVCAN_TIMER 5) # The default timer is TIM5
-		if (DEFINED config_uavcan_timer_override)
-			set (UAVCAN_TIMER  ${config_uavcan_timer_override})
-		endif()
 	elseif(${CONFIG_ARCH_CHIP} MATCHES "stm32")
 		set(UAVCAN_DRIVER "stm32")
-		set(UAVCAN_TIMER 5) # The default timer is TIM5
-		if (DEFINED config_uavcan_timer_override)
-			set (UAVCAN_TIMER  ${config_uavcan_timer_override})
-		endif()
 	endif()
 endif()
 
@@ -77,7 +67,6 @@ string(TOUPPER "${UAVCAN_DRIVER}" UAVCAN_DRIVER_UPPER)
 add_definitions(
 	-DUAVCAN_${UAVCAN_DRIVER_UPPER}_${OS_UPPER}=1
 	-DUAVCAN_${UAVCAN_DRIVER_UPPER}_NUM_IFACES=${config_uavcan_num_ifaces}
-	-DUAVCAN_${UAVCAN_DRIVER_UPPER}_TIMER_NUMBER=${UAVCAN_TIMER}
 	-DUAVCAN_CPP_VERSION=UAVCAN_CPP03
 	-DUAVCAN_DRIVER=uavcan_${UAVCAN_DRIVER}
 	-DUAVCAN_IMPLEMENT_PLACEMENT_NEW=1
@@ -129,6 +118,14 @@ add_custom_command(OUTPUT px4_uavcan_dsdlc_run.stamp
 )
 add_custom_target(px4_uavcan_dsdlc DEPENDS px4_uavcan_dsdlc_run.stamp)
 
+set(UAVCANNODE_SHELL_SRCS)
+if(CONFIG_UAVCANNODE_COMMAND_SHELL)
+	list(APPEND UAVCANNODE_SHELL_SRCS
+		UavcanNodeShell.hpp
+		UavcanNodeShell.cpp
+	)
+endif()
+
 px4_add_module(
 	MODULE drivers__uavcannode
 	MAIN uavcannode
@@ -148,6 +145,9 @@ px4_add_module(
 		UavcanNode.hpp
 		UavcanNodeParamManager.hpp
 		UavcanNodeParamManager.cpp
+		${UAVCANNODE_SHELL_SRCS}
+	MODULE_CONFIG
+		uavcannode_params.yaml
 	DEPENDS
 		arch_watchdog_iwdg
 		px4_uavcan_dsdlc

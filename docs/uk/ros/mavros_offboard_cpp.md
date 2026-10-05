@@ -10,7 +10,7 @@ _Offboard_ control is dangerous.
 
 :::tip
 This example uses C++.
-A very similar example for Python can be found in [ROS/MAVROS Offboard Example (Python)](../ros/mavros_offboard_python.md) (also see the examples in [integrationtests/python_src/px4_it/mavros](https://github.com/PX4/PX4-Autopilot/tree/main/integrationtests/python_src/px4_it/mavros)).
+A very similar example for Python can be found in [ROS/MAVROS Offboard Example (Python)](../ros/mavros_offboard_python.md).
 :::
 
 <video width="100%" autoplay="true" controls="true">
@@ -24,7 +24,7 @@ Create the `offb_node.cpp` file in your ROS package (by also adding it to your `
 ```cpp
 /**
  * @file offb_node.cpp
- * @brief Offboard control example node, written with MAVROS version 0.19.x, PX4 Pro Flight
+ * @brief Offboard control example node, written with MAVROS version 0.19.x, PX4 Flight
  * Stack and tested in Gazebo Classic SITL
  */
 
@@ -173,7 +173,7 @@ pose.pose.position.y = 0;
 pose.pose.position.z = 2;
 ```
 
-Попри те, що PX4 Pro Flight Stack працює в координатній площині NED, MAVROS переводить ці координати до ENU стандарту та навпаки.
+Even though the PX4 Flight Stack operates in the aerospace NED coordinate frame, MAVROS translates these coordinates to the standard ENU frame and vice-versa.
 This is why we set `z` to positive 2.
 
 ```cpp

@@ -1,4 +1,4 @@
-# Прості камери MAVLink (Протокол камери v1)
+# Simple MAVLink Cameras (Camera Protocol v1)
 
 Ця тема пояснює, як використовувати PX4 з MAVLink [камерою](../camera/index.md), що реалізує [Протокол Камери v1 (Простий Протокол Тригера)](https://mavlink.io/en/services/camera_v1.html) з PX4 та Наземною Станцією.
 
@@ -18,7 +18,7 @@
 PX4 підтримує цей набір команд для спрацьовування камер з вбудованою підтримкою протоколу (як описано в цій темі), а також для [камер, підключених до виходів контролера польоту](../camera/fc_connected_camera.md).
 
 Наземні станції та SDK MAVLink, як правило, надсилають команди камери автопілоту, який потім передає їх на підключений канал MAVLink типу `onboard`.
-PX4 також повторно відправляє будь-які елементи місії камери, з якими він зустрічається у місії як команди камери: команди, які не приймаються, реєструються.
+PX4 also re-emits any camera mission items it encounters in a mission as camera commands: commands that aren't accepted are logged.
 У всіх випадках команди надсилаються з системним ідентифікатором автопілота та ідентифікатором компоненту 0 (тобто адресовані всім компонентам, включаючи камери).
 
 PX4 також буде випускати [CAMERA_TRIGGER](https://mavlink.io/en/messages/common.html#CAMERA_TRIGGER) кожного разу, коли спрацьовує захоплення зображення (сама камера також може випускати це повідомлення при спрацьовуванні).
@@ -113,3 +113,11 @@ You can also [set the parameters directly](../advanced_config/parameters.md):
 - [TRIG_INTERFACE](../advanced_config/parameter_reference.md#TRIG_INTERFACE) — `3`: MAVLink
 
 :::
+
+### Capture Reporting
+
+Some MAVLink cameras emit [CAMERA_IMAGE_CAPTURED](https://mavlink.io/en/messages/common.html#CAMERA_IMAGE_CAPTURED) themselves each time an image is captured.
+By default PX4 emits this message for every capture as well, so a ground station would see each capture reported twice.
+
+Set [CAM_CAP_REPORT](../advanced_config/parameter_reference.md#CAM_CAP_REPORT) to `0` to stop PX4 reporting captures, leaving the camera as the only source of the message.
+Captures are still logged for geotagging when reporting is disabled.

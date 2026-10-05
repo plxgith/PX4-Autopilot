@@ -43,6 +43,8 @@
 
 #include "sensors.hpp"
 
+ModuleBase::Descriptor Sensors::desc{task_spawn, custom_command, print_usage};
+
 Sensors::Sensors(bool hil_enabled) :
 	ModuleParams(nullptr),
 	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers),
@@ -181,13 +183,16 @@ int Sensors::parameters_update()
 	//    this preserves the calibration in the event of a parameter export while the sensor is missing
 	// 2. ensure calibration slots are active for the number of sensors currently available
 	//    this to done to eliminate differences in the active set of parameters before and after sensor calibration
+	//
+	// a missing sensor's internal/external class is unknowable from the device id alone, so pass internal:
+	// only the external branch of ParametersLoad() rewrites CAL_*_ROT, and this pass must stay read-only
 	for (uint8_t i = 0; i < MAX_SENSOR_COUNT; i++) {
 		// sensor_accel
 		{
 			const uint32_t device_id_accel = calibration::GetCalibrationParamInt32("ACC",  "ID", i);
 
 			if (device_id_accel != 0) {
-				calibration::Accelerometer accel_cal(device_id_accel);
+				calibration::Accelerometer accel_cal(device_id_accel, false);
 			}
 
 			uORB::SubscriptionData<sensor_accel_s> sensor_accel_sub{ORB_ID(sensor_accel), i};
@@ -205,7 +210,7 @@ int Sensors::parameters_update()
 			const uint32_t device_id_gyro = calibration::GetCalibrationParamInt32("GYRO", "ID", i);
 
 			if (device_id_gyro != 0) {
-				calibration::Gyroscope gyro_cal(device_id_gyro);
+				calibration::Gyroscope gyro_cal(device_id_gyro, false);
 			}
 
 			uORB::SubscriptionData<sensor_gyro_s> sensor_gyro_sub{ORB_ID(sensor_gyro), i};
@@ -224,7 +229,7 @@ int Sensors::parameters_update()
 			uint32_t device_id_mag = calibration::GetCalibrationParamInt32("MAG",  "ID", i);
 
 			if (device_id_mag != 0) {
-				calibration::Magnetometer mag_cal(device_id_mag);
+				calibration::Magnetometer mag_cal(device_id_mag, false);
 			}
 
 			uORB::SubscriptionData<sensor_mag_s> sensor_mag_sub{ORB_ID(sensor_mag), i};
@@ -502,7 +507,7 @@ void Sensors::Run()
 			sub.unregisterCallback();
 		}
 
-		exit_and_cleanup();
+		exit_and_cleanup(desc);
 		return;
 	}
 
@@ -534,10 +539,10 @@ void Sensors::Run()
 #endif // CONFIG_SENSORS_VEHICLE_AIR_DATA
 
 #if defined(CONFIG_SENSORS_VEHICLE_GPS_POSITION)
-		const int n_gps = orb_group_count(ORB_ID(sensor_gps));
+		const int n_gnss = orb_group_count(ORB_ID(sensor_gnss));
 
-		if (n_gps != _n_gps) {
-			_n_gps = n_gps;
+		if (n_gnss != _n_gnss) {
+			_n_gnss = n_gnss;
 			updated = true;
 		}
 
@@ -647,8 +652,8 @@ int Sensors::task_spawn(int argc, char *argv[])
 	Sensors *instance = new Sensors(hil_enabled);
 
 	if (instance) {
-		_object.store(instance);
-		_task_id = task_id_is_work_queue;
+		desc.object.store(instance);
+		desc.task_id = task_id_is_work_queue;
 
 		if (instance->init()) {
 			return PX4_OK;
@@ -659,8 +664,8 @@ int Sensors::task_spawn(int argc, char *argv[])
 	}
 
 	delete instance;
-	_object.store(nullptr);
-	_task_id = -1;
+	desc.object.store(nullptr);
+	desc.task_id = -1;
 
 	return PX4_ERROR;
 }
@@ -775,5 +780,5 @@ It runs in its own thread and polls on the currently selected gyro topic.
 
 extern "C" __EXPORT int sensors_main(int argc, char *argv[])
 {
-	return Sensors::main(argc, argv);
+	return ModuleBase::main(Sensors::desc, argc, argv);
 }

@@ -43,6 +43,8 @@
 #include "launchdetection/LaunchDetector.h"
 #include "runway_takeoff/RunwayTakeoff.h"
 #include "ControllerConfigurationHandler.hpp"
+#include "FirstOrderHoldAltitude.hpp"
+#include "ParachuteRelease.hpp"
 
 #include <float.h>
 #include <drivers/drv_hrt.h>
@@ -70,12 +72,12 @@
 #include <uORB/topics/fixed_wing_lateral_guidance_status.h>
 #include <uORB/topics/fixed_wing_longitudinal_setpoint.h>
 #include <uORB/topics/fixed_wing_runway_control.h>
+#include <uORB/topics/fixed_wing_takeoff_status.h>
 #include <uORB/topics/landing_gear.h>
 #include <uORB/topics/launch_detection_status.h>
 #include <uORB/topics/normalized_unsigned_setpoint.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/position_controller_landing_status.h>
-#include <uORB/topics/position_controller_status.h>
 #include <uORB/topics/position_setpoint_triplet.h>
 #include <uORB/topics/trajectory_setpoint.h>
 #include <uORB/topics/vehicle_angular_velocity.h>
@@ -151,10 +153,12 @@ static constexpr float POST_TOUCHDOWN_CLAMP_TIME = 0.5f;
 // [] Stick deadzon
 static constexpr float kStickDeadBand = 0.06f;
 
-class FixedWingModeManager final : public ModuleBase<FixedWingModeManager>, public ModuleParams,
+class FixedWingModeManager final : public ModuleBase, public ModuleParams,
 	public px4::WorkItem
 {
 public:
+	static Descriptor desc;
+
 	FixedWingModeManager();
 	~FixedWingModeManager() override;
 
@@ -184,6 +188,7 @@ private:
 	uORB::Subscription _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)};
 	uORB::Subscription _vehicle_angular_velocity_sub{ORB_ID(vehicle_angular_velocity)};
 	uORB::Subscription _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
+	uORB::Subscription _vehicle_attitude_setpoint_sub{ORB_ID(vehicle_attitude_setpoint)};
 	uORB::Subscription _vehicle_command_sub{ORB_ID(vehicle_command)};
 	uORB::Subscription _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
@@ -195,10 +200,12 @@ private:
 	uORB::Publication<landing_gear_s> _landing_gear_pub {ORB_ID(landing_gear)};
 	uORB::Publication<normalized_unsigned_setpoint_s> _flaps_setpoint_pub{ORB_ID(flaps_setpoint)};
 	uORB::Publication<normalized_unsigned_setpoint_s> _spoilers_setpoint_pub{ORB_ID(spoilers_setpoint)};
+	uORB::Publication<vehicle_command_s> _vehicle_command_pub{ORB_ID(vehicle_command)};
 	uORB::PublicationData<fixed_wing_lateral_setpoint_s> _lateral_ctrl_sp_pub{ORB_ID(fixed_wing_lateral_setpoint)};
 	uORB::PublicationData<fixed_wing_longitudinal_setpoint_s> _longitudinal_ctrl_sp_pub{ORB_ID(fixed_wing_longitudinal_setpoint)};
 	uORB::Publication<fixed_wing_lateral_guidance_status_s> _fixed_wing_lateral_guidance_status_pub{ORB_ID(fixed_wing_lateral_guidance_status)};
 	uORB::Publication<fixed_wing_runway_control_s> _fixed_wing_runway_control_pub{ORB_ID(fixed_wing_runway_control)};
+	uORB::Publication<fixed_wing_takeoff_status_s> _fixed_wing_takeoff_status_pub{ORB_ID(fixed_wing_takeoff_status)};
 
 	position_setpoint_triplet_s _pos_sp_triplet{};
 	vehicle_control_mode_s _control_mode{};
@@ -252,8 +259,10 @@ private:
 
 	float _yaw{0.0f};
 	float _yawrate{0.0f};
+	float _pitch{0.0f}; // [rad] current pitch angle from attitude
+	float _throttle{0.0f}; // [0-1] last set throttle
 
-	float _body_acceleration_x{0.f};
+	float _body_acceleration_norm{0.f};
 	float _body_velocity_x{0.f};
 
 	MapProjection _global_local_proj_ref{};
@@ -261,6 +270,9 @@ private:
 	float _reference_altitude{NAN}; // [m AMSL] altitude of the local projection reference point
 
 	bool _landed{true};
+
+	// [.] true once this module has commanded the parachute release during a parachute landing
+	bool _parachute_release_commanded{false};
 
 	// MANUAL MODES
 
@@ -295,6 +307,12 @@ private:
 	// true if a launch, specifically using the launch detector, has been detected
 	bool _launch_detected{false};
 
+	// [us] time stamp of (runway/catapult) launch detection
+	hrt_abstime _time_launch_detected{0};
+
+	// [us] time stamp of the start of the climbout, 0 while the takeoff has not started climbing yet
+	hrt_abstime _time_climbout_started{0};
+
 	// [deg] global position of the vehicle at the time launch is detected (using launch detector) or takeoff is started (runway)
 	Vector2d _takeoff_init_position{0, 0};
 
@@ -319,6 +337,7 @@ private:
 	// orbit to altitude only when the aircraft has entered the final *straight approach.
 	hrt_abstime _time_started_landing{0};
 
+	Vector2f _local_landing_orbit_center{NAN, NAN};
 	// [m] lateral touchdown position offset manually commanded during landing
 	float _lateral_touchdown_position_offset{0.0f};
 
@@ -335,6 +354,8 @@ private:
 		bool flaring{false};
 		hrt_abstime start_time{0}; // [us]
 		float initial_height_rate_setpoint{0.0f}; // [m/s]
+		float initial_pitch{0.0f}; // [rad]
+		float initial_throttle{0.0f}; // [0-1] throttle value when flare started
 	} _flare_states;
 
 	// [m] last terrain estimate which was valid
@@ -375,6 +396,7 @@ private:
 	uint64_t _time_last_xy_reset{0};
 
 	// LATERAL-DIRECTIONAL GUIDANCE
+	bool _go_direct_to_destination{false};
 
 	// CLosest point on path to track
 	matrix::Vector2f _closest_point_on_path;
@@ -390,7 +412,8 @@ private:
 	float _spoilers_setpoint{0.f};
 
 	hrt_abstime _time_in_fixed_bank_loiter{0}; // [us]
-	float _min_current_sp_distance_xy{FLT_MAX};
+	FirstOrderHoldAltitudeState _foh_altitude_state{};
+	bool _foh_altitude_active{false}; ///< whether the altitude FOH ran on the current cycle (else its state is reset)
 
 #ifdef CONFIG_FIGURE_OF_EIGHT
 	/* Loitering */
@@ -407,7 +430,7 @@ private:
 	void controlAutoFigureEight(const float control_interval, const Vector2d &curr_pos, const Vector2f &ground_speed,
 				    const position_setpoint_s &pos_sp_curr);
 
-	void publishFigureEightStatus(const position_setpoint_s pos_sp);
+	void publishFigureEightStatus(const position_setpoint_s &pos_sp);
 #endif // CONFIG_FIGURE_OF_EIGHT
 
 	// Update our local parameter cache.
@@ -418,6 +441,7 @@ private:
 
 	void manual_control_setpoint_poll();
 	void vehicle_attitude_poll();
+	void vehicle_attitude_setpoint_poll();
 	void vehicle_command_poll();
 	void vehicle_control_mode_poll();
 
@@ -532,7 +556,8 @@ private:
 	 * @param pos_sp_next next position setpoint
 	 */
 	void control_auto_loiter(const float control_interval, const Vector2d &curr_pos, const Vector2f &ground_speed,
-				 const position_setpoint_s &pos_sp_curr, const position_setpoint_s &pos_sp_next);
+				 const position_setpoint_s &pos_sp_curr,
+				 const position_setpoint_s &pos_sp_next);
 
 
 	/**
@@ -651,6 +676,15 @@ private:
 	void reset_takeoff_state();
 	void reset_landing_state();
 
+	void publishTakeoffStatus(const bool waiting_for_launch, const float clearance_altitude_amsl);
+
+	/**
+	 * @brief Releases the parachute by triggering flight termination.
+	 *
+	 * @param now Current system time [us]
+	 */
+	void terminateForParachuteLanding(const hrt_abstime &now);
+
 	/**
 	 * @brief Decides which control mode to execute.
 	 *
@@ -660,7 +694,7 @@ private:
 	 */
 	void set_control_mode_current(const hrt_abstime &now);
 
-	void publishOrbitStatus(const position_setpoint_s pos_sp);
+	void publishOrbitStatus(const position_setpoint_s &pos_sp);
 
 	float getMaxRollAngleNearGround(const float altitude, const float terrain_altitude) const;
 
@@ -835,6 +869,8 @@ private:
 		(ParamFloat<px4::params::NPFG_SW_DST_MLT>) _param_npfg_switch_distance_multiplier,
 		(ParamFloat<px4::params::NPFG_PERIOD_SF>) _param_npfg_period_safety_factor,
 
+		(ParamFloat<px4::params::FW_WP_RST_DIST>) _param_fw_wp_rst_dist,
+
 		(ParamFloat<px4::params::FW_LND_AIRSPD>) _param_fw_lnd_airspd,
 		(ParamFloat<px4::params::FW_LND_ANG>) _param_fw_lnd_ang,
 		(ParamFloat<px4::params::FW_LND_FL_PMAX>) _param_fw_lnd_fl_pmax,
@@ -842,6 +878,9 @@ private:
 		(ParamFloat<px4::params::FW_LND_FLALT>) _param_fw_lnd_flalt,
 		(ParamBool<px4::params::FW_LND_EARLYCFG>) _param_fw_lnd_earlycfg,
 		(ParamInt<px4::params::FW_LND_USETER>) _param_fw_lnd_useter,
+		(ParamBool<px4::params::FW_LND_PARA_EN>) _param_fw_lnd_para_en,
+		(ParamFloat<px4::params::FW_LND_PARA_ALT>) _param_fw_lnd_para_alt,
+		(ParamFloat<px4::params::FW_LND_PARA_SINK>) _param_fw_lnd_para_sink,
 
 		(ParamFloat<px4::params::FW_P_LIM_MAX>) _param_fw_p_lim_max,
 		(ParamFloat<px4::params::FW_P_LIM_MIN>) _param_fw_p_lim_min,
@@ -858,6 +897,11 @@ private:
 		(ParamFloat<px4::params::FW_GPSF_R>) _param_nav_gpsf_r,
 		(ParamFloat<px4::params::FW_T_SPDWEIGHT>) _param_t_spdweight,
 
+		// Launch detection parameters
+		(ParamBool<px4::params::FW_LAUN_DETCN_ON>) _param_fw_laun_detcn_on,
+		(ParamFloat<px4::params::FW_LAUN_CS_LK_DY>) _param_fw_laun_cs_lk_dy,
+		(ParamFloat<px4::params::FW_LAUN_CLR_ALT>) _param_fw_laun_clr_alt,
+
 		// external parameters
 		(ParamBool<px4::params::FW_USE_AIRSPD>) _param_fw_use_airspd,
 		(ParamFloat<px4::params::NAV_LOITER_RAD>) _param_nav_loiter_rad,
@@ -873,8 +917,8 @@ private:
 		(ParamInt<px4::params::FW_LND_NUDGE>) _param_fw_lnd_nudge,
 		(ParamInt<px4::params::FW_LND_ABORT>) _param_fw_lnd_abort,
 		(ParamFloat<px4::params::FW_TKO_AIRSPD>) _param_fw_tko_airspd,
+		(ParamFloat<px4::params::FW_TKO_CLMB_T>) _param_fw_tko_clmb_t,
 		(ParamFloat<px4::params::RWTO_PSP>) _param_rwto_psp,
-		(ParamBool<px4::params::FW_LAUN_DETCN_ON>) _param_fw_laun_detcn_on,
 		(ParamFloat<px4::params::FW_AIRSPD_MAX>) _param_fw_airspd_max,
 		(ParamFloat<px4::params::FW_AIRSPD_MIN>) _param_fw_airspd_min,
 		(ParamFloat<px4::params::FW_AIRSPD_TRIM>) _param_fw_airspd_trim,

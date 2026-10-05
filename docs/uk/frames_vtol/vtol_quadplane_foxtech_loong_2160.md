@@ -43,14 +43,14 @@ Foxtech Loong 2160 VTOL - це легкий у монтажі майже гот�
 - [Модуль живлення Holybro PM08D (альтернатива Auterion PM)](https://holybro.com/collections/power-modules-pdbs/products/pm08d-digital-power-module-14s-200a)
 - [GPS F9P (включено в Skynode оціночний. комплект)](../gps_compass/rtk_gps_holybro_h-rtk-f9p.md)
 - [GPS M9N (дешевша альтернатива F9P)](../gps_compass/rtk_gps_holybro_h-rtk-m8p.md)
-- [Датчик швидкості (включено в Skynode eval. kit)](https://www.dualrc.com/parts/airspeed-sensor-sdp33) — рекомендований для покращення безпеки та продуктивності
+- [Датчик швидкості (включено в Skynode eval. kit)](https://www.dualrc.com/parts/p/airspeed-sensor-sdp33) — recommended for improved safety and performance
 - [Airspeed sensor (cheaper alternative)](https://holybro.com/products/digital-air-speed-sensor-ms4525do)
 - [Lidar Lightware lw20-c (включено в Skynode eval. kit)](../sensor/sfxx_lidar.md) (Необов'язково)
 - [Інфрачервоний сенсор вимірювання відстані Seeed Studio PSK-CM8JL65-CC5 (дешевший аналог)](https://www.seeedstudio.com/PSK-CM8JL65-CC5-Infrared-Distance-Measuring-Sensor-p-4028.html) (Опціонально)
 - [Радіо (RC) система](../getting_started/rc_transmitter_receiver.md) на ваш вибір
-- [Наземна станція та радіо зв'язок](https://holybro.com/collections/rc-radio-transmitter-receiver/products/skydroid-h12?variant=42940989931709)
+- [Groundstation and Radio link](https://holybro.com/products/skydroid-h12)
 - [Розширення кабеля USB-C](https://www.digitec.ch/en/s1/product/powerguard-usb-c-usb-c-025-m-usb-cables-22529949?dbq=1&gclid=Cj0KCQjw2cWgBhDYARIsALggUhrh-z-7DSU0wKfLBVa8filkXLQaxUpi7pC0ffQyRzLng8Ph01h2R1gaAp0mEALw_wcB&gclsrc=aw.ds)
-- [Розгалужувач I2C](https://www.3dxr.co.uk/autopilots-c2/the-cube-aka-pixhawk-2-1-c9/cube-cables-accessories-sensors-c15/cubepilot-i2c-can-splitter-jst-gh-4pin-p2840)
+- [I2C Splitter](https://www.3dxr.co.uk/products/cubepilot-i2c-can-splitter-jst-gh-4pin-hx4-06152)
 - [3D-Printed mounts](https://github.com/PX4/PX4-Autopilot/raw/main/docs/assets/airframes/vtol/foxtech_loong_2160/loong-3d-prints.zip)
   - 1x Базова плита
   - 1x Stack-fixture
@@ -305,7 +305,7 @@ Next we load a [parameter file](https://github.com/PX4/PX4-Autopilot/raw/main/do
 
 - Якщо [Lidar Lightware lw20-c (включено в Skynode eval. kit)](../sensor/sfxx_lidar.md) використовується, потрібно встановити [SENS_EN_SF1XX](../advanced_config/parameter_reference.md#SENS_EN_SF1XX) на 6 (SF/LW/20c).
 - Впевніться, що обраний правильний датчик швидкості.
-  Якщо ви використовуєте рекомендований [датчик швидкості SDP33](https://www.dualrc.com/parts/airspeed-sensor-sdp33), зміни не будуть потрібні, оскільки [SENS_EN_SDP3X](../advanced_config/parameter_reference.md#SENS_EN_SDP3X) увімкнено (встановлено на `1`) в файлі параметрів.
+  If you use the recommended [SDP33 airspeed sensor](https://www.dualrc.com/parts/p/airspeed-sensor-sdp33) no changes will be needed as [SENS_EN_SDP3X](../advanced_config/parameter_reference.md#SENS_EN_SDP3X) is enabled (set to `1`) in the parameter file.
 
 ### Калібрування сенсорів
 
@@ -324,7 +324,7 @@ Next we load a [parameter file](https://github.com/PX4/PX4-Autopilot/raw/main/do
 [Відкалібруйте ваш RC Controller](../config/radio.md) та налаштуйте [перемикач режиму польоту](../config/flight_mode.md).
 
 Ми рекомендуємо вам призначити RC перемикачі для набору режимів, визначених у [Flight Mode Configuration > What Flight Modes and Switches Should I Set?](../config/flight_mode.md#what-flight-modes-and-switches-should-i-set).
-Зокрема, ви повинні призначити _VTOL Transition Switch_, _Kill Switch_ та перемикач для вибору [Режиму стабілізації](../flight_modes_fw/stabilized.md) та [Режиму позиціювання](../flight_modes_fw/position.md).
+In particular you should assign a _VTOL Transition Switch_, _Kill Switch_, and a switch to select [Stabilized mode](../flight_modes_fw/stabilized.md) and [Cruise mode](../flight_modes_fw/cruise.md).
 
 ### Налаштування приводу та калібрування ESC
 
@@ -397,5 +397,5 @@ Next we load a [parameter file](https://github.com/PX4/PX4-Autopilot/raw/main/do
 - Якщо використовується [kill-switch](../config/safety.md#kill-switch), переконайтеся, що він працює належним чином і не буде активований випадково в повітрі!
 - Включіть [режим стабілізації](../flight_modes_fw/stabilized.md) та перевірте, чи відповідають двигуни на команди, наприклад, перевалюємося вліво, збільшувати оберти на правому двигуні
 - Злетайте у режимі [стабілізованого положення](../flight_modes_fw/stabilized.md) і виконайте деякі базові маневри
-- Якщо все пройшло без проблем, злітайте у [Position mode](../flight_modes_fw/position.md) та зробіть перехід приблизно на висоті 50м.
+- If everything went without any issue, takeoff in [Cruise mode](../flight_modes_fw/cruise.md) and do a transition at around 50m.
   Якщо щось пішло не так, якнайшвидше перейдіть в режим мультикоптера (використовуючи перемикач переходу).

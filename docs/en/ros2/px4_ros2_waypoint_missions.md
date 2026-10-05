@@ -11,7 +11,7 @@ They completely bypass the existing PX4 mission mode and waypoint logic, and can
 :::
 
 ROS 2 waypoint missions are effectively special PX4 ROS 2 custom modes that are run based on the content of a [JSON mission definition](#mission-definition).
-Mission definitions can contain actions that reference existing PX4 modes, such as Takeoff mode or RTL, and can also be extended with arbitrary custom actions written in ROS.
+Mission definitions can contain actions that reference existing PX4 modes, such as Takeoff or Return mode, and can also be extended with arbitrary custom actions written in ROS.
 A [mode executor](px4_ros2_control_interface.md#mode-executor) is used to schedule the modes.
 
 Mission definitions can be hard coded in the custom mission mode (either in code or statically loaded from a JSON string), or directly generated within the application.
@@ -36,7 +36,7 @@ There are some benefits and drawbacks to using ROS-based missions, which are pro
 
 - QGroundControl currently does not display the mission or progress during execution, and cannot upload or download a mission.
   Therefore you will need another mechanism to provide a mission, such as from a web server, a custom GCS, or by generating it directly inside the application.
-- The current implementation only supports multicopters (it uses the [GotoSetpointType](../ros2/px4_ros2_control_interface.md#go-to-setpoint-gotosetpointtype), which only works for multicopters, and VTOL in MC mode).
+- The current implementation only supports multicopters (it uses the [GotoSetpointType](../ros2/px4_ros2_control_interface.md#go-to-setpoint-multicoptergotosetpointtype), which only works for multicopters, and VTOL in MC mode).
   It is designed to be extendable to any other vehicle type.
 
 ## Overview
@@ -69,13 +69,13 @@ They are identified by a name, and any number of these can be registered with th
 A custom action is then run whenever a mission item with matching name is executed, and any extra arguments from the JSON definition are passed as arguments (for example an altitude for a takeoff action).
 Actions can call other actions, run any mode (PX4 or external by its ID), run a trajectory, or run any other external action before deciding when to continue the mission.
 
-There is a set of default actions, for example for RTL, Land, etc.
+There is a set of default actions, for example for Return, Land, etc.
 These simply trigger the corresponding PX4 mode.
 They can be disabled or replaced with custom implementations.
 There are also some special actions (which can be replaced as well):
 
 - `OnFailure`: this is called in case of a failure, e.g. a mode switch failed, a non-existing action is called (by another action) or by an explicit call to `MissionExecutor::abort()`.
-  The default is to run RTL, with fallback to Land.
+  The default is to run Return, with fallback to Land.
 - `OnResume`: this is called when resuming a mission (either from the ground or in-air).
   It handles a number of cases:
   - when called with an argument `action="storeState"`: this can be used to store the current position when the mission is deactivated, so it can be resumed from the same position.

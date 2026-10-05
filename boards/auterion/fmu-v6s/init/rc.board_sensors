@@ -20,8 +20,11 @@ else
 	bmm350 -I -R 8 start
 fi
 
-# BARO on I2C4
-bmp388 -I -b 4 -a 0x77 start
+# BARO on I2C4.
+# Depending on market availability one of the two sensors may be populated.
+# Try to start both sensors and one will probe successfully.
+bmp388 -I -b 4 -a 0x77 -q start
+bmp581 -I -b 4 -a 0x47 -q start
 
 
 # External sensors on I2C1
@@ -36,7 +39,6 @@ then
 
 	set INA_CONFIGURED yes
 fi
-
 
 if param compare SENS_EN_INA228 1
 then
@@ -60,6 +62,9 @@ then
 	set INA_CONFIGURED yes
 fi
 
+# Auterion auto starter
+auterion_autostarter start
+
 if param compare BAT1_V_CHANNEL -2
 then
 	if [ "$INA_CONFIGURED" != "yes" ]
@@ -74,5 +79,5 @@ ist8310 -X -b 1 -R 10 start
 # Start an external PWM generator
 if param greater PCA9685_EN_BUS 0
 then
-	pca9685_pwm_out start -b 1
+	pca9685_pwm_out start -X
 fi

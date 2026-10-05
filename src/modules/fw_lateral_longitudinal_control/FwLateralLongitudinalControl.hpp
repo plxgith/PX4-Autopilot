@@ -48,6 +48,7 @@
 #include <lib/npfg/AirspeedDirectionController.hpp>
 #include <lib/tecs/TECS.hpp>
 #include <lib/mathlib/mathlib.h>
+#include <lib/mathlib/math/filter/AlphaFilter.hpp>
 #include <lib/perf/perf_counter.h>
 #include <px4_platform_common/px4_config.h>
 #include <px4_platform_common/defines.h>
@@ -62,10 +63,12 @@
 #include <uORB/PublicationMulti.hpp>
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionCallback.hpp>
+#include <uORB/SubscriptionMultiArray.hpp>
 #include <uORB/topics/airspeed_validated.h>
 #include <uORB/topics/fixed_wing_lateral_setpoint.h>
 #include <uORB/topics/fixed_wing_lateral_status.h>
 #include <uORB/topics/fixed_wing_longitudinal_setpoint.h>
+#include <uORB/topics/fuel_tank_status.h>
 #include <uORB/topics/normalized_unsigned_setpoint.h>
 #include <uORB/topics/flight_phase_estimation.h>
 #include <uORB/topics/lateral_control_configuration.h>
@@ -84,10 +87,12 @@
 static constexpr fixed_wing_lateral_setpoint_s empty_lateral_control_setpoint = {.timestamp = 0, .course = NAN, .airspeed_direction = NAN, .lateral_acceleration = NAN};
 static constexpr fixed_wing_longitudinal_setpoint_s empty_longitudinal_control_setpoint = {.timestamp = 0, .altitude = NAN, .height_rate = NAN, .equivalent_airspeed = NAN, .pitch_direct = NAN, .throttle_direct = NAN};
 
-class FwLateralLongitudinalControl final : public ModuleBase<FwLateralLongitudinalControl>, public ModuleParams,
+class FwLateralLongitudinalControl final : public ModuleBase, public ModuleParams,
 	public px4::WorkItem
 {
 public:
+	static Descriptor desc;
+
 	FwLateralLongitudinalControl(bool is_vtol);
 
 	~FwLateralLongitudinalControl() override;
@@ -112,6 +117,7 @@ private:
 
 	uORB::Subscription _airspeed_validated_sub{ORB_ID(airspeed_validated)};
 	uORB::Subscription _flaps_setpoint_sub{ORB_ID(flaps_setpoint)};
+	uORB::SubscriptionMultiArray<fuel_tank_status_s> _fuel_tank_status_subs{ORB_ID::fuel_tank_status};
 	uORB::Subscription _wind_sub{ORB_ID(wind)};
 	uORB::SubscriptionData<vehicle_control_mode_s> _control_mode_sub{ORB_ID(vehicle_control_mode)};
 	uORB::SubscriptionData<vehicle_air_data_s> _vehicle_air_data_sub{ORB_ID(vehicle_air_data)};
@@ -157,9 +163,7 @@ private:
 		(ParamFloat<px4::params::FW_T_VERT_ACC>) _param_fw_t_vert_acc,
 		(ParamFloat<px4::params::FW_T_STE_R_TC>) _param_ste_rate_time_const,
 		(ParamFloat<px4::params::FW_T_SEB_R_FF>) _param_seb_rate_ff,
-		(ParamFloat<px4::params::FW_T_SPD_STD>) _param_speed_standard_dev,
-		(ParamFloat<px4::params::FW_T_SPD_DEV_STD>) _param_speed_rate_standard_dev,
-		(ParamFloat<px4::params::FW_T_SPD_PRC_STD>) _param_process_noise_standard_dev,
+		(ParamFloat<px4::params::FW_T_SPDWEIGHT>) _param_t_spdweight,
 		(ParamFloat<px4::params::FW_T_CLMB_R_SP>) _param_climbrate_target,
 		(ParamFloat<px4::params::FW_T_SINK_R_SP>) _param_sinkrate_target,
 		(ParamFloat<px4::params::FW_THR_MAX>) _param_fw_thr_max,
@@ -168,7 +172,9 @@ private:
 		(ParamFloat<px4::params::FW_LND_THRTC_SC>) _param_fw_thrtc_sc,
 		(ParamFloat<px4::params::FW_T_THR_LOW_HGT>) _param_fw_t_thr_low_hgt,
 		(ParamFloat<px4::params::FW_WIND_ARSP_SC>) _param_fw_wind_arsp_sc,
-		(ParamFloat<px4::params::FW_GND_SPD_MIN>) _param_fw_gnd_spd_min
+		(ParamFloat<px4::params::FW_GND_SPD_MIN>) _param_fw_gnd_spd_min,
+		(ParamFloat<px4::params::NPFG_DAMPING>) _param_npfg_damping,
+		(ParamFloat<px4::params::NPFG_PERIOD>) _param_npfg_period
 	)
 
 	hrt_abstime _last_time_loop_ran{};
@@ -194,12 +200,17 @@ private:
 		matrix::Vector2f wind_speed;
 	} _lateral_control_state{};
 	bool _need_report_npfg_uncertain_condition{false}; ///< boolean if reporting of uncertain npfg output condition is needed
-	hrt_abstime _time_since_first_reduced_roll{0U}; ///< absolute time since start when entering reduced roll angle for the first time
-	hrt_abstime _time_since_last_npfg_call{0U}; 	///< absolute time since start when the npfg reduced roll angle calculations was last performed
+	hrt_abstime _time_of_first_reduced_roll{0U};       ///< absolute time when entering reduced roll angle for the first time
+	hrt_abstime _time_of_last_npfg_call{0U};           ///< absolute time when the npfg reduced roll angle calculations was last performed
 	vehicle_attitude_setpoint_s _att_sp{};
 	bool _landed{false};
 	float _can_run_factor{0.f};
+	float _load_factor_from_bank_angle{1.f};
 	SlewRate<float> _airspeed_slew_rate_controller;
+
+	AlphaFilter<float> _fuel_fraction_filter;
+	hrt_abstime _time_last_fuel_fraction_update{0};
+	bool _ignored_fuel_tank_reported{false}; ///< true if the warning about an ignored fuel tank id was already sent
 
 	perf_counter_t _loop_perf; // loop performance counter
 
@@ -211,15 +222,16 @@ private:
 	float _min_airspeed_from_guidance{0.f}; // need to store it bc we only update after running longitudinal controller
 
 	void parameters_update();
-	void update_control_state();
-	void tecs_update_pitch_throttle(const float control_interval, float alt_sp, float airspeed_sp,
-					float pitch_min_rad, float pitch_max_rad, float throttle_min,
-					float throttle_max, const float desired_max_sinkrate,
-					const float desired_max_climbrate,
-					bool disable_underspeed_detection, float hgt_rate_sp);
+	void update_control_state(hrt_abstime now);
+
+	uint8_t tecs_update_pitch_throttle(const float control_interval, float alt_sp, float airspeed_sp,
+					   float pitch_min_rad, float pitch_max_rad, float throttle_min,
+					   float throttle_max, const float desired_max_sinkrate,
+					   const float desired_max_climbrate,
+					   bool disable_underspeed_detection, float hgt_rate_sp, hrt_abstime now);
 
 	void tecs_status_publish(float alt_sp, float equivalent_airspeed_sp, float true_airspeed_derivative_raw,
-				 float throttle_trim);
+				 float throttle_trim, hrt_abstime now);
 
 	void updateAirspeed();
 
@@ -229,7 +241,9 @@ private:
 
 	float mapLateralAccelerationToRollAngle(float lateral_acceleration_sp) const;
 
-	void updateWind();
+	void updateWind(hrt_abstime now);
+
+	void updateFuelState();
 
 	void updateTECSAltitudeTimeConstant(const bool is_low_height, const float dt);
 
@@ -237,15 +251,13 @@ private:
 
 	float getGuidanceQualityFactor(const vehicle_local_position_s &local_pos, const bool is_wind_valid) const;
 
-	float getCorrectedLateralAccelSetpoint(float lateral_accel_sp);
+	float getCorrectedLateralAccelSetpoint(float lateral_accel_sp, hrt_abstime now);
 
-	void setDefaultLongitudinalControlConfiguration();
+	void setDefaultLongitudinalControlConfiguration(hrt_abstime now);
 
 	void updateLongitudinalControlConfiguration(const longitudinal_control_configuration_s &configuration_in);
 
-	void updateControllerConfiguration();
-
-	float getLoadFactor() const;
+	void updateControllerConfiguration(hrt_abstime now);
 
 	/**
 	 * @brief Returns an adapted calibrated airspeed setpoint

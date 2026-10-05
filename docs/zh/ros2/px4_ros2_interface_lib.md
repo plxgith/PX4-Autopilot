@@ -7,17 +7,17 @@ Experimental
 在撰写本文时，PX4 ROS 2 接口库的部分内容仍处于试验阶段，因此可能会发生变动。
 :::
 
-[PX4 ROS 2 接口库 ]（https://github.com/Auterion/px4-ros2-interface-lib）是一个 C++ 库，可简化从 ROS 2 对 PX4 进行控制和交互的操作。
+:::info
+When using `rmw_zenoh`, the PX4 ROS 2 Interface Library requires ROS 2 Jazzy or later, and is not compatible with ROS 2 Humble or earlier.
+:::
+
+The [PX4 ROS 2 Interface Library](https://github.com/Auterion/px4-ros2-interface-lib) is a C++ library (with Python bindings) that simplifies controlling and interacting with PX4 from ROS 2.
 
 该库为开发者提供了两个高级接口。
 
-1. [Control Interface](./px4_ros2_control_interface.md) 允许开发者创建并动态注册使用 ROS2 编写的模式。
-   它为发送不同类型的设置点提供了课程，涵盖范围从高级导航任务一直到直接执行器控制。
+1. [Control Interface](./px4_ros2_control_interface.md) 允许开发者创建并动态注册使用 ROS2 编写的模式。它为发送不同类型的设置点提供了课程，涵盖范围从高级导航任务一直到直接执行器控制。
 2. [导航界面](./px4_ros2_navigation_interface.md) 允许从ROS 2应用程序（如VIO系统）向PX4发送车辆位置估计数。
-
-<!--
-## Overview
--->
+3. [Waypoint Missions](./px4_ros2_waypoint_missions.md) 允许航点飞行任务完全在ROS2中运行。
 
 ## 在 ROS 2 工作区中安装
 
@@ -33,8 +33,7 @@ Experimental
    ```
 
    提示信息
-   为确保兼容性，请使用 PX4、px4_msgs（PX4 消息包）及该库的最新 main 分支。
-   另请参阅 [here]（https://github.com/Auterion/px4-ros2-interface-lib#compatibility-with-px4）
+   为确保兼容性，请使用 PX4、px4_msgs（PX4 消息包）及该库的最新 main 分支。另请参阅 [here]（https://github.com/Auterion/px4-ros2-interface-lib#compatibility-with-px4）
 
 :::
 
@@ -52,7 +51,6 @@ Experimental
 
 ## ROS集成测试
 
-向 PX4 提交拉取请求（pull request）时，持续集成（CI）会运行该库的集成测试
-这些测试用于验证模式注册、故障保护（failsafes）和模式替换功能是否按预期工作。
+向 PX4 提交拉取请求（pull request）时，持续集成（CI）会运行该库的集成测试这些测试用于验证模式注册、故障保护（failsafes）和模式替换功能是否按预期工作。
 
-欲了解更多信息，请访问[PX4 ROS2 接口库集成测试](../test_and_ci/integration_testing_px4_ros2_interface.md)。
+For more information see [PX4 ROS 2 Interface Library Integration Testing](../test_and_ci/integration_testing_px4_ros2_interface.md).

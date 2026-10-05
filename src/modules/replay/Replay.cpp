@@ -74,6 +74,8 @@ using namespace time_literals;
 namespace px4
 {
 
+ModuleBase::Descriptor Replay::desc{task_spawn, custom_command, print_usage};
+
 char *Replay::_replay_file = nullptr;
 
 Replay::CompatSensorCombinedDtType::CompatSensorCombinedDtType(int gyro_integral_dt_offset_log,
@@ -525,6 +527,12 @@ Replay::readAndAddSubscription(std::ifstream &file, uint16_t msg_size)
 	}
 
 	Subscription *subscription = new Subscription();
+
+	if (subscription == nullptr) {
+		delete compat;
+		return ReadAndAndAddSubResult::kFailure;
+	}
+
 	subscription->orb_meta = orb_meta;
 	subscription->multi_id = multi_id;
 	subscription->compat = compat;
@@ -730,7 +738,6 @@ Replay::nextDataMessage(std::ifstream &file, Subscription &subscription, int msg
 						subscription.next_read_pos = cur_pos;
 						file.seekg(subscription.timestamp_offset, ios::cur);
 						file.read((char *)&subscription.next_timestamp, sizeof(subscription.next_timestamp));
-						subscription.published = false;
 						done = true;
 
 					} else { //sanity check failed!
@@ -1128,7 +1135,6 @@ Replay::publishTopic(Subscription &sub, void *data)
 
 	if (published) {
 		++sub.publication_counter;
-		sub.published = true;
 	}
 
 	return published;
@@ -1149,6 +1155,14 @@ Replay::custom_command(int argc, char *argv[])
 }
 
 int
+Replay::run_trampoline(int argc, char *argv[])
+{
+	return ModuleBase::run_trampoline_impl(desc, [](int ac, char *av[]) -> ModuleBase * {
+		return Replay::instantiate(ac, av);
+	}, argc, argv);
+}
+
+int
 Replay::task_spawn(int argc, char *argv[])
 {
 	// check if a log file was found
@@ -1161,15 +1175,15 @@ Replay::task_spawn(int argc, char *argv[])
 		return -1;
 	}
 
-	_task_id = px4_task_spawn_cmd("replay",
-				      SCHED_DEFAULT,
-				      SCHED_PRIORITY_MAX - 5,
-				      4000,
-				      (px4_main_t)&run_trampoline,
-				      (char *const *)argv);
+	desc.task_id = px4_task_spawn_cmd("replay",
+					  SCHED_DEFAULT,
+					  SCHED_PRIORITY_MAX - 5,
+					  4000,
+					  (px4_main_t)&run_trampoline,
+					  (char *const *)argv);
 
-	if (_task_id < 0) {
-		_task_id = -1;
+	if (desc.task_id < 0) {
+		desc.task_id = -1;
 		return -errno;
 	}
 
@@ -1249,7 +1263,7 @@ The module is typically used together with uORB publisher rules, to specify whic
 The replay module will just publish all messages that are found in the log. It also applies the parameters from
 the log.
 
-The replay procedure is documented on the [System-wide Replay](https://docs.px4.io/main/en/debug/system_wide_replay.html)
+The replay procedure is documented on the [System-wide Replay](../debug/system_wide_replay.md)
 page.
 )DESCR_STR");
 

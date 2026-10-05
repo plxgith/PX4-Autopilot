@@ -1,6 +1,6 @@
 # Raspberry Pi Companion with Pixhawk
 
-This topic describes how to setup a Raspberry Pi ("RPi") companion companion running [ROS 2](../ros2/user_guide.md) on Linux Ubuntu OS, connecting to a [Pixhawk](../flight_controller/autopilot_pixhawk_standard.md) flight controller using a serial connection between the Pixhawk `TELEM2` port and the RPi's TX/RX pins.
+This topic describes how to setup a Raspberry Pi ("RPi") companion running [ROS 2](../ros2/user_guide.md) on Linux Ubuntu OS, connecting to a [Pixhawk](../flight_controller/autopilot_pixhawk_standard.md) flight controller using a serial connection between the Pixhawk `TELEM2` port and the RPi's TX/RX pins.
 
 These instructions should be readily extensible to other RPi and flight controller configurations.
 
@@ -91,7 +91,7 @@ During PX4 setup and configuration the USB connection with your ground station l
 
 These instructions work on PX4 v1.14 and later.
 
-If you need to update the firmware then connect the Pixhawk to your laptop/desktop via the `USB` port and use QGroundControl to update the firmware as described [Firmware > Install Stable PX4](../config/firmware.md#install-stable-px4). 
+If you need to update the firmware then connect the Pixhawk to your laptop/desktop via the `USB` port and use QGroundControl to update the firmware as described [Firmware > Install Stable PX4](../config/firmware.md#install-stable-px4).
 If you want the latest developer version then update the firmware to the "main" as described in [Firmware > Installing PX4 Master, Beta or Custom Firmware](../config/firmware.md#installing-px4-main-beta-or-custom-firmware).
 
 ::: info
@@ -143,7 +143,6 @@ Enter the following commands (in sequence) a terminal to configure Ubuntu for RP
    ```
 
 1. Go to the **Interface Option** and then click **Serial Port**.
-
    - Select **No** to disable serial login shell.
    - Select **Yes** to enable the serial interface.
    - Click **Finish** and restart the RPi.
@@ -162,7 +161,6 @@ Enter the following commands (in sequence) a terminal to configure Ubuntu for RP
    ```
 
 1. Then save the file and restart the RPi.
-
    - In `nano` you can save the file using the following sequence of keyboard shortcuts: **ctrl+x**, **ctrl+y**, **Enter**.
 
 1. Check that the serial port is available.
@@ -237,7 +235,7 @@ MAVProxy on RPi should now connect to the Pixhawk, via RX/TX pins.
 You should be able to see this in the RPi terminal.
 
 We have now verified that our connection is wired up properly.
-In the next section we'll set up the both Pixhawk and RPi to use uXRCE-DDS and ROS2 instead of MAVLink.
+In the next section we'll set up the both Pixhawk and RPi to use uXRCE-DDS and ROS 2 instead of MAVLink.
 
 ## ROS 2 and uXRCE-DDS
 
@@ -262,7 +260,7 @@ The configuration steps are:
    ```
 
    [MAV_1_CONFIG=0](../advanced_config/parameter_reference.md#MAV_1_CONFIG) and [UXRCE_DDS_CFG=102](../advanced_config/parameter_reference.md#UXRCE_DDS_CFG) disable MAVLink on TELEM2 and enable the uXRCE-DDS client on TELEM2, respectively.
-   The `SER_TEL2_BAUD` rate sets the comms link data rate.  
+   The `SER_TEL2_BAUD` rate sets the comms link data rate.
    You could similarly configure a connection to `TELEM1` using either `MAV_1_CONFIG` or `MAV_0_CONFIG`.
 
    ::: info

@@ -10,8 +10,9 @@ Source: [drivers/imu/analog_devices/adis16448](https://github.com/PX4/PX4-Autopi
 adis16448 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -36,8 +37,9 @@ Source: [drivers/imu/analog_devices/adis16470](https://github.com/PX4/PX4-Autopi
 adis16470 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -62,8 +64,9 @@ Source: [drivers/imu/analog_devices/adis16477](https://github.com/PX4/PX4-Autopi
 adis16477 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -88,8 +91,9 @@ Source: [drivers/imu/analog_devices/adis16497](https://github.com/PX4/PX4-Autopi
 adis16497 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -114,8 +118,102 @@ Source: [drivers/imu/analog_devices/adis16507](https://github.com/PX4/PX4-Autopi
 adis16507 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
+     [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
+                 (default=1))
+     [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
+     [-m <val>]  SPI mode
+     [-f <val>]  bus frequency in kHz
+     [-q]        quiet startup (no message if no device found)
+     [-R <val>]  Rotation
+                 default: 0
+
+   stop
+
+   status        print status info
+```
+
+## adis1650x
+
+Source: [drivers/imu/analog_devices/adis1650x](https://github.com/PX4/PX4-Autopilot/tree/main/src/drivers/imu/analog_devices/adis1650x)
+
+### Usage {#adis1650x_usage}
+
+```
+adis1650x <command> [arguments...]
+ Commands:
+   start
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
+     [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
+                 (default=1))
+     [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
+     [-m <val>]  SPI mode
+     [-f <val>]  bus frequency in kHz
+     [-q]        quiet startup (no message if no device found)
+     [-R <val>]  Rotation
+                 default: 0
+     [-r <val>]  Decimation rate: sample_rate = 2000/(dec_rate+1). 0=2000Hz
+                 1=1000Hz 3=500Hz
+                 default: 1
+     [-F <val>]  Hardware Bartlett FIR filter tap size: 0=bypass 1-6=increasing
+                 strength
+                 default: 0
+
+   stop
+
+   status        print status info
+```
+
+## adis1657x
+
+Source: [drivers/imu/analog_devices/adis1657x](https://github.com/PX4/PX4-Autopilot/tree/main/src/drivers/imu/analog_devices/adis1657x)
+
+### Usage {#adis1657x_usage}
+
+```
+adis1657x <command> [arguments...]
+ Commands:
+   start
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
+     [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
+                 (default=1))
+     [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
+     [-m <val>]  SPI mode
+     [-f <val>]  bus frequency in kHz
+     [-q]        quiet startup (no message if no device found)
+     [-R <val>]  Rotation
+                 default: 0
+     [-r <val>]  Decimation rate: sample_rate = 2000/(dec_rate+1). 0=2000Hz
+                 1=1000Hz 3=500Hz 19=100Hz
+                 default: 0
+     [-F <val>]  Hardware Bartlett FIR filter tap size: 0=bypass 1-6=increasing
+                 filter strength
+                 default: 0
+
+   stop
+
+   status        print status info
+```
+
+## adis16607
+
+Source: [drivers/imu/analog_devices/adis16607](https://github.com/PX4/PX4-Autopilot/tree/main/src/drivers/imu/analog_devices/adis16607)
+
+### Usage {#adis16607_usage}
+
+```
+adis16607 <command> [arguments...]
+ Commands:
+   start
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -142,8 +240,9 @@ bmi055 <command> [arguments...]
    start
      [-A]        Accel
      [-G]        Gyro
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -170,8 +269,9 @@ bmi085 <command> [arguments...]
    start
      [-A]        Accel
      [-G]        Gyro
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -198,8 +298,9 @@ bmi088 <command> [arguments...]
    start
      [-A]        Accel
      [-G]        Gyro
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -226,8 +327,10 @@ bmi088_i2c <command> [arguments...]
    start
      [-A]        Accel
      [-G]        Gyro
-     [-I]        Internal I2C bus(es)
-     [-X]        External I2C bus(es)
+     [-I]        Internal I2C bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-X]        External I2C bus(es) (connector sensors, including shared
+                 buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-f <val>]  bus frequency in kHz
@@ -252,8 +355,9 @@ Source: [drivers/imu/bosch/bmi270](https://github.com/PX4/PX4-Autopilot/tree/mai
 bmi270 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -278,10 +382,13 @@ Source: [drivers/imu/nxp/fxas21002c](https://github.com/PX4/PX4-Autopilot/tree/m
 fxas21002c <command> [arguments...]
  Commands:
    start
-     [-I]        Internal I2C bus(es)
-     [-X]        External I2C bus(es)
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-I]        Internal I2C bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-X]        External I2C bus(es) (connector sensors, including shared
+                 buses)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -312,10 +419,13 @@ Source: [drivers/imu/nxp/fxos8701cq](https://github.com/PX4/PX4-Autopilot/tree/m
 fxos8701cq <command> [arguments...]
  Commands:
    start
-     [-I]        Internal I2C bus(es)
-     [-X]        External I2C bus(es)
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-I]        Internal I2C bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-X]        External I2C bus(es) (connector sensors, including shared
+                 buses)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -346,8 +456,9 @@ Source: [drivers/imu/invensense/iam20680hp](https://github.com/PX4/PX4-Autopilot
 iam20680hp <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -372,8 +483,9 @@ Source: [drivers/imu/invensense/icm20602](https://github.com/PX4/PX4-Autopilot/t
 icm20602 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -398,8 +510,9 @@ Source: [drivers/imu/invensense/icm20608g](https://github.com/PX4/PX4-Autopilot/
 icm20608g <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -424,8 +537,9 @@ Source: [drivers/imu/invensense/icm20649](https://github.com/PX4/PX4-Autopilot/t
 icm20649 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -450,8 +564,9 @@ Source: [drivers/imu/invensense/icm20689](https://github.com/PX4/PX4-Autopilot/t
 icm20689 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -476,8 +591,9 @@ Source: [drivers/imu/invensense/icm20948](https://github.com/PX4/PX4-Autopilot/t
 icm20948 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -503,8 +619,10 @@ Source: [drivers/imu/invensense/icm20948](https://github.com/PX4/PX4-Autopilot/t
 icm20948_i2c_passthrough <command> [arguments...]
  Commands:
    start
-     [-I]        Internal I2C bus(es)
-     [-X]        External I2C bus(es)
+     [-I]        Internal I2C bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-X]        External I2C bus(es) (connector sensors, including shared
+                 buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-f <val>]  bus frequency in kHz
@@ -527,8 +645,9 @@ Source: [drivers/imu/invensense/icm40609d](https://github.com/PX4/PX4-Autopilot/
 icm40609d <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -553,8 +672,9 @@ Source: [drivers/imu/invensense/icm42605](https://github.com/PX4/PX4-Autopilot/t
 icm42605 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -579,8 +699,9 @@ Source: [drivers/imu/invensense/icm42670p](https://github.com/PX4/PX4-Autopilot/
 icm42670p <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -605,8 +726,9 @@ Source: [drivers/imu/invensense/icm42688p](https://github.com/PX4/PX4-Autopilot/
 icm42688p <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -616,6 +738,9 @@ icm42688p <command> [arguments...]
      [-R <val>]  Rotation
                  default: 0
      [-C <val>]  Input clock frequency (Hz)
+                 default: 0
+     [-B <val>]  Anti-alias filter bandwidth: 126, 258 or 394 Hz (0: chip
+                 default 585 Hz)
                  default: 0
      [-6]        Drive ICM-42686
 
@@ -634,8 +759,9 @@ Source: [drivers/imu/invensense/icm45686](https://github.com/PX4/PX4-Autopilot/t
 icm45686 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -645,6 +771,33 @@ icm45686 <command> [arguments...]
      [-R <val>]  Rotation
                  default: 0
      [-C <val>]  Input clock frequency (Hz)
+                 default: 0
+
+   stop
+
+   status        print status info
+```
+
+## iim20670
+
+Source: [drivers/imu/invensense/iim20670](https://github.com/PX4/PX4-Autopilot/tree/main/src/drivers/imu/invensense/iim20670)
+
+### Usage {#iim20670_usage}
+
+```
+iim20670 <command> [arguments...]
+ Commands:
+   start
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
+     [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
+                 (default=1))
+     [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
+     [-m <val>]  SPI mode
+     [-f <val>]  bus frequency in kHz
+     [-q]        quiet startup (no message if no device found)
+     [-R <val>]  Rotation
                  default: 0
 
    stop
@@ -662,8 +815,9 @@ Source: [drivers/imu/invensense/iim42652](https://github.com/PX4/PX4-Autopilot/t
 iim42652 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -673,6 +827,9 @@ iim42652 <command> [arguments...]
      [-R <val>]  Rotation
                  default: 0
      [-C <val>]  Input clock frequency (Hz)
+                 default: 0
+     [-B <val>]  Anti-alias filter bandwidth: 126, 258 or 394 Hz (0: chip
+                 default 585 Hz)
                  default: 0
 
    stop
@@ -690,8 +847,9 @@ Source: [drivers/imu/invensense/iim42653](https://github.com/PX4/PX4-Autopilot/t
 iim42653 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -701,6 +859,9 @@ iim42653 <command> [arguments...]
      [-R <val>]  Rotation
                  default: 0
      [-C <val>]  Input clock frequency (Hz)
+                 default: 0
+     [-B <val>]  Anti-alias filter bandwidth: 126, 258 or 394 Hz (0: chip
+                 default 585 Hz)
                  default: 0
 
    stop
@@ -718,8 +879,9 @@ Source: [drivers/imu/st/l3gd20](https://github.com/PX4/PX4-Autopilot/tree/main/s
 l3gd20 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -748,8 +910,9 @@ Source: [drivers/imu/st/lsm303d](https://github.com/PX4/PX4-Autopilot/tree/main/
 lsm303d <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -757,6 +920,36 @@ lsm303d <command> [arguments...]
      [-f <val>]  bus frequency in kHz
      [-q]        quiet startup (no message if no device found)
      [-R <val>]  Rotation
+                 default: 0
+
+   stop
+
+   status        print status info
+```
+
+## lsm6dsv
+
+Source: [drivers/imu/st/lsm6dsv](https://github.com/PX4/PX4-Autopilot/tree/main/src/drivers/imu/st/lsm6dsv)
+
+### Usage {#lsm6dsv_usage}
+
+```
+lsm6dsv <command> [arguments...]
+ Commands:
+   start
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
+     [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
+                 (default=1))
+     [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
+     [-m <val>]  SPI mode
+     [-f <val>]  bus frequency in kHz
+     [-q]        quiet startup (no message if no device found)
+     [-R <val>]  Rotation
+                 default: 0
+     [-T <val>]  High-g variant for WHO_AM_I 0x73 (80 = LSM6DSV80X, 320 =
+                 LSM6DSV320X)
                  default: 0
 
    stop
@@ -774,8 +967,9 @@ Source: [drivers/imu/st/lsm9ds1](https://github.com/PX4/PX4-Autopilot/tree/main/
 lsm9ds1 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -800,8 +994,9 @@ Source: [drivers/imu/invensense/mpu6000](https://github.com/PX4/PX4-Autopilot/tr
 mpu6000 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -826,8 +1021,9 @@ Source: [drivers/imu/invensense/mpu9250](https://github.com/PX4/PX4-Autopilot/tr
 mpu9250 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -853,8 +1049,10 @@ Source: [drivers/imu/invensense/mpu9250](https://github.com/PX4/PX4-Autopilot/tr
 mpu9250_i2c <command> [arguments...]
  Commands:
    start
-     [-I]        Internal I2C bus(es)
-     [-X]        External I2C bus(es)
+     [-I]        Internal I2C bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-X]        External I2C bus(es) (connector sensors, including shared
+                 buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-f <val>]  bus frequency in kHz
@@ -879,8 +1077,9 @@ Source: [drivers/imu/invensense/mpu6500](https://github.com/PX4/PX4-Autopilot/tr
 mpu9520 <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)
@@ -905,8 +1104,9 @@ Source: [drivers/imu/murata/sch16t](https://github.com/PX4/PX4-Autopilot/tree/ma
 sch16t <command> [arguments...]
  Commands:
    start
-     [-s]        Internal SPI bus(es)
-     [-S]        External SPI bus(es)
+     [-s]        Internal SPI bus(es) (onboard sensors; shared bus only if -b is
+                 given)
+     [-S]        External SPI bus (connector sensors, including shared buses)
      [-b <val>]  board-specific bus (default=all) (external SPI: n-th bus
                  (default=1))
      [-c <val>]  chip-select pin (for internal SPI) or index (for external SPI)

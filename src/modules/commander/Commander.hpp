@@ -54,7 +54,6 @@
 #include <uORB/Publication.hpp>
 #include <uORB/topics/actuator_armed.h>
 #include <uORB/topics/actuator_test.h>
-#include <uORB/topics/failure_detector_status.h>
 #include <uORB/topics/vehicle_command_ack.h>
 #include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_status.h>
@@ -75,7 +74,7 @@
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/power_button_state.h>
 #include <uORB/topics/rtl_time_estimate.h>
-#include <uORB/topics/sensor_gps.h>
+#include <uORB/topics/sensor_gnss.h>
 #include <uORB/topics/system_power.h>
 #include <uORB/topics/telemetry_status.h>
 #include <uORB/topics/vehicle_command.h>
@@ -96,14 +95,19 @@ using arm_disarm_reason_t = events::px4::enums::arm_disarm_reason_t;
 
 using namespace time_literals;
 
-class Commander : public ModuleBase<Commander>, public ModuleParams
+class Commander : public ModuleBase, public ModuleParams
 {
 public:
+	static Descriptor desc;
+
 	Commander();
 	~Commander();
 
 	/** @see ModuleBase */
 	static int task_spawn(int argc, char *argv[]);
+
+	/** @see ModuleBase */
+	static int run_trampoline(int argc, char *argv[]);
 
 	/** @see ModuleBase */
 	static Commander *instantiate(int argc, char *argv[]);
@@ -124,6 +128,7 @@ public:
 
 private:
 	bool isArmed() const { return (_vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED); }
+	bool isTerminated() const { return (_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_TERMINATION); }
 	static ModeChangeSource getSourceFromCommand(const vehicle_command_s &cmd);
 
 	void answer_command(const vehicle_command_s &cmd, uint8_t result);
@@ -142,6 +147,12 @@ private:
 	void dataLinkCheck();
 
 	void manualControlCheck();
+
+	/**
+	 * When NAV_RCL_ACT is set to "Hold mode (no failsafe)", switch from an active manual flight mode to Hold
+	 * on manual control loss as a regular mode change, without triggering the failsafe or an alarming notification.
+	 */
+	void manualControlLossModeSwitch();
 
 	void offboardControlCheck();
 
@@ -208,11 +219,6 @@ private:
 		ALWAYS = 2
 	};
 
-	enum class RcOverrideBits : int32_t {
-		AUTO_MODE_BIT = (1 << 0),
-		OFFBOARD_MODE_BIT = (1 << 1),
-	};
-
 	/* Decouple update interval and hysteresis counters, all depends on intervals */
 	static constexpr uint64_t COMMANDER_MONITORING_INTERVAL{10_ms};
 
@@ -244,6 +250,7 @@ private:
 	hrt_abstime _datalink_last_heartbeat_gcs{0};
 	hrt_abstime _datalink_last_heartbeat_onboard_controller{0};
 	hrt_abstime _datalink_last_heartbeat_parachute_system{0};
+	hrt_abstime _datalink_last_heartbeat_traffic_avoidance_system{0};
 
 	hrt_abstime _last_print_mode_reject_time{0};	///< To remember when last notification was sent
 
@@ -253,6 +260,8 @@ private:
 
 	hrt_abstime _boot_timestamp{0};
 	hrt_abstime _last_disarmed_timestamp{0};
+	bool _arm_on_boot_done{false};    ///< true once arm-on-boot has been attempted
+	bool _arm_on_boot_requested{false};
 	hrt_abstime _overload_start{0};		///< time when CPU overload started
 
 #if !defined(CONFIG_ARCH_LEDS) && defined(BOARD_HAS_CONTROL_STATUS_LEDS)
@@ -269,12 +278,13 @@ private:
 	bool _open_drone_id_system_lost{true};
 	bool _onboard_controller_lost{false};
 	bool _parachute_system_lost{true};
+	bool _traffic_avoidance_system_lost{true};
 
 	bool _last_overload{false};
 	bool _mode_switch_mapped{false};
 
-	bool _is_throttle_above_center{false};
-	bool _is_throttle_low{false};
+	float _last_manual_throttle{-1.f};
+	bool _manual_control_lost_prev{false}; ///< previous manual_control_signal_lost state, for edge detection
 
 	bool _arm_tune_played{false};
 	bool _have_taken_off_since_arming{false};
@@ -313,7 +323,6 @@ private:
 	// Publications
 	uORB::Publication<actuator_armed_s>			_actuator_armed_pub{ORB_ID(actuator_armed)};
 	uORB::Publication<actuator_test_s>			_actuator_test_pub{ORB_ID(actuator_test)};
-	uORB::Publication<failure_detector_status_s>		_failure_detector_status_pub{ORB_ID(failure_detector_status)};
 	uORB::Publication<vehicle_command_ack_s>		_vehicle_command_ack_pub{ORB_ID(vehicle_command_ack)};
 	uORB::Publication<vehicle_command_s>			_vehicle_command_pub{ORB_ID(vehicle_command)};
 	uORB::Publication<vehicle_control_mode_s>		_vehicle_control_mode_pub{ORB_ID(vehicle_control_mode)};
@@ -331,22 +340,17 @@ private:
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::COM_DISARM_LAND>)  _param_com_disarm_land,
 		(ParamFloat<px4::params::COM_DISARM_PRFLT>) _param_com_disarm_prflt,
-		(ParamBool<px4::params::COM_DISARM_MAN>)    _param_com_disarm_man,
 		(ParamInt<px4::params::COM_DL_LOSS_T>)      _param_com_dl_loss_t,
 		(ParamInt<px4::params::COM_HLDL_LOSS_T>)    _param_com_hldl_loss_t,
-		(ParamInt<px4::params::COM_HLDL_REG_T>)     _param_com_hldl_reg_t,
 		(ParamBool<px4::params::COM_HOME_EN>)       _param_com_home_en,
 		(ParamBool<px4::params::COM_HOME_IN_AIR>)   _param_com_home_in_air,
-		(ParamInt<px4::params::COM_FLT_PROFILE>)    _param_com_flt_profile,
 		(ParamBool<px4::params::COM_FORCE_SAFETY>)  _param_com_force_safety,
-		(ParamFloat<px4::params::COM_KILL_DISARM>)  _param_com_kill_disarm,
-		(ParamBool<px4::params::COM_MOT_TEST_EN>)   _param_com_mot_test_en,
-		(ParamFloat<px4::params::COM_OBC_LOSS_T>)   _param_com_obc_loss_t,
 		(ParamInt<px4::params::COM_PREARM_MODE>)    _param_com_prearm_mode,
-		(ParamInt<px4::params::COM_RC_OVERRIDE>)    _param_com_rc_override,
 		(ParamFloat<px4::params::COM_SPOOLUP_TIME>) _param_com_spoolup_time,
 		(ParamInt<px4::params::COM_FLIGHT_UUID>)    _param_com_flight_uuid,
-		(ParamInt<px4::params::COM_TAKEOFF_ACT>)    _param_com_takeoff_act,
-		(ParamFloat<px4::params::COM_CPU_MAX>)      _param_com_cpu_max
+		(ParamFloat<px4::params::COM_CPU_MAX>)      _param_com_cpu_max,
+		(ParamBool<px4::params::COM_ARM_ON_BOOT>)   _param_com_arm_on_boot,
+		(ParamInt<px4::params::COM_FLTMODE_BOOT>)   _param_com_fltmode_boot,
+		(ParamInt<px4::params::NAV_RCL_ACT>)        _param_nav_rcl_act
 	)
 };

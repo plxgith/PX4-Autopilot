@@ -43,6 +43,8 @@ using namespace matrix;
 using namespace time_literals;
 using math::radians;
 
+ModuleBase::Descriptor MulticopterRateControl::desc{task_spawn, custom_command, print_usage};
+
 MulticopterRateControl::MulticopterRateControl(bool vtol) :
 	ModuleParams(nullptr),
 	WorkItem(MODULE_NAME, px4::wq_configurations::rate_ctrl),
@@ -91,6 +93,9 @@ MulticopterRateControl::parameters_updated()
 	_rate_control.setFeedForwardGain(
 		Vector3f(_param_mc_rollrate_ff.get(), _param_mc_pitchrate_ff.get(), _param_mc_yawrate_ff.get()));
 
+	_gain_compression.setEnabled(_param_mc_gc_en.get());
+	_gain_compression.setCompressionGainMin(_param_mc_gc_gain_min.get());
+
 
 	// manual rate control acro mode rate limits
 	_acro_rate_max = Vector3f(radians(_param_mc_acro_r_max.get()), radians(_param_mc_acro_p_max.get()),
@@ -104,7 +109,7 @@ MulticopterRateControl::Run()
 {
 	if (should_exit()) {
 		_vehicle_angular_velocity_sub.unregisterCallback();
-		exit_and_cleanup();
+		exit_and_cleanup(desc);
 		return;
 	}
 
@@ -177,12 +182,10 @@ MulticopterRateControl::Run()
 			}
 
 		} else if (_vehicle_rates_setpoint_sub.update(&vehicle_rates_setpoint)) {
-			if (_vehicle_rates_setpoint_sub.copy(&vehicle_rates_setpoint)) {
-				_rates_setpoint(0) = PX4_ISFINITE(vehicle_rates_setpoint.roll)  ? vehicle_rates_setpoint.roll  : rates(0);
-				_rates_setpoint(1) = PX4_ISFINITE(vehicle_rates_setpoint.pitch) ? vehicle_rates_setpoint.pitch : rates(1);
-				_rates_setpoint(2) = PX4_ISFINITE(vehicle_rates_setpoint.yaw)   ? vehicle_rates_setpoint.yaw   : rates(2);
-				_thrust_setpoint = Vector3f(vehicle_rates_setpoint.thrust_body);
-			}
+			_rates_setpoint(0) = PX4_ISFINITE(vehicle_rates_setpoint.roll)  ? vehicle_rates_setpoint.roll  : rates(0);
+			_rates_setpoint(1) = PX4_ISFINITE(vehicle_rates_setpoint.pitch) ? vehicle_rates_setpoint.pitch : rates(1);
+			_rates_setpoint(2) = PX4_ISFINITE(vehicle_rates_setpoint.yaw)   ? vehicle_rates_setpoint.yaw   : rates(2);
+			_thrust_setpoint = Vector3f(vehicle_rates_setpoint.thrust_body);
 		}
 
 		// run the rate controller
@@ -191,6 +194,12 @@ MulticopterRateControl::Run()
 			// reset integral if disarmed
 			if (!_vehicle_control_mode.flag_armed || _vehicle_status.vehicle_type != vehicle_status_s::VEHICLE_TYPE_ROTARY_WING) {
 				_rate_control.resetIntegral();
+				_gain_compression.reset();
+			}
+
+			// reset gain compression on the ground to prevent ground contact from compressing the gains
+			if (_landed) {
+				_gain_compression.reset();
 			}
 
 			// update saturation status from control allocation feedback
@@ -218,6 +227,10 @@ MulticopterRateControl::Run()
 			// run rate controller
 			Vector3f torque_setpoint =
 				_rate_control.update(rates, _rates_setpoint, angular_accel, dt, _maybe_landed || _landed);
+
+			// reduce the loop gain when an oscillation is detected on the controller output
+			torque_setpoint = _gain_compression.getGains().emult(torque_setpoint);
+			_gain_compression.update(torque_setpoint, dt);
 
 			// apply low-pass filtering on yaw axis to reduce high frequency torque caused by rotor acceleration
 			torque_setpoint(2) = _output_lpf_yaw.update(torque_setpoint(2), dt);
@@ -308,8 +321,8 @@ int MulticopterRateControl::task_spawn(int argc, char *argv[])
 	MulticopterRateControl *instance = new MulticopterRateControl(vtol);
 
 	if (instance) {
-		_object.store(instance);
-		_task_id = task_id_is_work_queue;
+		desc.object.store(instance);
+		desc.task_id = task_id_is_work_queue;
 
 		if (instance->init()) {
 			return PX4_OK;
@@ -320,8 +333,8 @@ int MulticopterRateControl::task_spawn(int argc, char *argv[])
 	}
 
 	delete instance;
-	_object.store(nullptr);
-	_task_id = -1;
+	desc.object.store(nullptr);
+	desc.task_id = -1;
 
 	return PX4_ERROR;
 }
@@ -357,5 +370,5 @@ The controller has a PID loop for angular rate error.
 
 extern "C" __EXPORT int mc_rate_control_main(int argc, char *argv[])
 {
-	return MulticopterRateControl::main(argc, argv);
+	return ModuleBase::main(MulticopterRateControl::desc, argc, argv);
 }

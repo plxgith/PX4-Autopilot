@@ -44,6 +44,8 @@ using namespace time_literals;
 namespace rc_update
 {
 
+ModuleBase::Descriptor RCUpdate::desc{task_spawn, custom_command, print_usage};
+
 // TODO: find a better home for this
 static bool operator ==(const manual_control_switches_s &a, const manual_control_switches_s &b)
 {
@@ -87,10 +89,6 @@ RCUpdate::RCUpdate() :
 		/* channel reverse */
 		snprintf(nbuf, sizeof(nbuf), "RC%d_REV", i + 1);
 		_parameter_handles.rev[i] = param_find(nbuf);
-
-		/* channel deadzone */
-		snprintf(nbuf, sizeof(nbuf), "RC%d_DZ", i + 1);
-		_parameter_handles.dz[i] = param_find(nbuf);
 	}
 
 	// RC to parameter mapping for changing parameters with RC
@@ -142,13 +140,9 @@ void RCUpdate::updateParams()
 		param_get(_parameter_handles.max[i], &max);
 		_parameters.max[i] = max;
 
-		float rev = 0.f;
+		int32_t rev = 0;
 		param_get(_parameter_handles.rev[i], &rev);
-		_parameters.rev[i] = (rev < 0.f);
-
-		float dz = 0.f;
-		param_get(_parameter_handles.dz[i], &dz);
-		_parameters.dz[i] = dz;
+		_parameters.rev[i] = (rev < 0);
 	}
 
 	for (int i = 0; i < rc_parameter_map_s::RC_PARAM_MAP_NCHAN; i++) {
@@ -344,7 +338,7 @@ void RCUpdate::Run()
 {
 	if (should_exit()) {
 		_input_rc_sub.unregisterCallback();
-		exit_and_cleanup();
+		exit_and_cleanup(desc);
 		return;
 	}
 
@@ -449,12 +443,9 @@ void RCUpdate::Run()
 			const float min = _parameters.min[i];
 			const float trim = _parameters.trim[i];
 			const float max = _parameters.max[i];
-			const float dz = _parameters.dz[i];
 
 			// piecewise linear function to apply RC calibration
-			_rc.channels[i] = math::interpolateNXY(value,
-			{min, trim - dz, trim + dz, max},
-			{-1.f, 0.f, 0.f, 1.f});
+			_rc.channels[i] = math::interpolateNXY(value, {min, trim, max}, {-1.f, 0.f, 1.f});
 
 			if (_parameters.rev[i]) {
 				_rc.channels[i] = -_rc.channels[i];
@@ -702,8 +693,8 @@ int RCUpdate::task_spawn(int argc, char *argv[])
 	RCUpdate *instance = new RCUpdate();
 
 	if (instance) {
-		_object.store(instance);
-		_task_id = task_id_is_work_queue;
+		desc.object.store(instance);
+		desc.task_id = task_id_is_work_queue;
 
 		if (instance->init()) {
 			return PX4_OK;
@@ -714,8 +705,8 @@ int RCUpdate::task_spawn(int argc, char *argv[])
 	}
 
 	delete instance;
-	_object.store(nullptr);
-	_task_id = -1;
+	desc.object.store(nullptr);
+	desc.task_id = -1;
 
 	return PX4_ERROR;
 }
@@ -725,11 +716,11 @@ int RCUpdate::print_status()
 	PX4_INFO_RAW("Running\n");
 
 	if (_channel_count_max > 0) {
-		PX4_INFO_RAW(" #  MIN  MAX TRIM  DZ REV\n");
+		PX4_INFO_RAW(" #  MIN  MAX TRIM REV\n");
 
 		for (int i = 0; i < _channel_count_max; i++) {
-			PX4_INFO_RAW("%2d %4d %4d %4d %3d %3d\n", i, _parameters.min[i], _parameters.max[i], _parameters.trim[i],
-				     _parameters.dz[i], _parameters.rev[i]);
+			PX4_INFO_RAW("%2d %4d %4d %4d %3d\n",
+				     i, _parameters.min[i], _parameters.max[i], _parameters.trim[i], _parameters.rev[i]);
 		}
 	}
 
@@ -774,5 +765,5 @@ To reduce control latency, the module is scheduled on input_rc publications.
 
 extern "C" __EXPORT int rc_update_main(int argc, char *argv[])
 {
-	return rc_update::RCUpdate::main(argc, argv);
+	return ModuleBase::main(rc_update::RCUpdate::desc, argc, argv);
 }

@@ -51,14 +51,19 @@
 #include <uORB/Subscription.hpp>
 #include <uORB/topics/battery_status.h>
 #include <uORB/topics/vehicle_attitude.h>
-#include <uORB/topics/sensor_gps.h>
+#include <uORB/topics/vehicle_gnss.h>
+#include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_status.h>
+#include <uORB/topics/vehicle_command.h>
+#include <uORB/topics/vehicle_command_ack.h>
 
 using namespace device;
 
-class CrsfRc : public ModuleBase<CrsfRc>, public ModuleParams, public px4::ScheduledWorkItem
+class CrsfRc : public ModuleBase, public ModuleParams, public px4::ScheduledWorkItem
 {
 public:
+	static Descriptor desc;
+
 	CrsfRc(const char *device);
 	~CrsfRc() override;
 
@@ -88,33 +93,42 @@ private:
 
 	bool SendTelemetryAttitude(const int16_t pitch, const int16_t roll, const int16_t yaw);
 
+	bool SendTelemetryBaroAltitude(const uint16_t altitude, const int16_t vertical_speed);
+
 	bool SendTelemetryFlightMode(const char *flight_mode);
+
+	bool BindCRSF();
 
 	Serial *_uart = nullptr; ///< UART interface to RC
 
 	char _device[20] {}; ///< device / serial port path
 	bool _is_singlewire{false};
+	bool _armed{false};
 
 	static constexpr size_t RC_MAX_BUFFER_SIZE{64};
 	uint8_t _rcs_buf[RC_MAX_BUFFER_SIZE] {};
 	uint32_t _bytes_rx{0};
 
 	hrt_abstime _last_packet_seen{0};
+	hrt_abstime _last_stats_tx_seen{0};
 
 	CrsfParserStatistics_t _packet_parser_statistics{0};
 
 	// telemetry
 	hrt_abstime _telemetry_update_last{0};
-	static constexpr int num_data_types{4}; ///< number of different telemetry data types
+	static constexpr int num_data_types{5}; ///< number of different telemetry data types
 	int _next_type{0};
 	uORB::Subscription _battery_status_sub{ORB_ID(battery_status)};
 	uORB::Subscription _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
-	uORB::Subscription _vehicle_gps_position_sub{ORB_ID(vehicle_gps_position)};
+	uORB::Subscription _vehicle_gnss_sub{ORB_ID(vehicle_gnss)};
+	uORB::Subscription _vehicle_local_position_sub{ORB_ID(vehicle_local_position)};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
+	uORB::Subscription _vehicle_cmd_sub{ORB_ID(vehicle_command)};
 
 	enum class crsf_frame_type_t : uint8_t {
 		gps = 0x02,
 		battery_sensor = 0x08,
+		baro_altitude = 0x09,
 		link_statistics = 0x14,
 		rc_channels_packed = 0x16,
 		attitude = 0x1E,
@@ -132,9 +146,21 @@ private:
 	enum class crsf_payload_size_t : uint8_t {
 		gps = 15,
 		battery_sensor = 8,
+		baro_altitude = 4, ///< altitude (uint16) + vertical speed (int16)
 		link_statistics = 10,
 		rc_channels = 22, ///< 11 bits per channel * 16 channels = 22 bytes.
 		attitude = 6,
+	};
+
+	enum class crsf_address_t : uint8_t {
+		flight_controller = 0xC8,
+		crsf_receiver = 0xEC,
+		crsf_transmitter = 0xEE
+	};
+
+	enum class crsf_sub_command_t : uint8_t {
+		subcmd_rx = 0x10,
+		subcmd_rx_bind = 0x01,
 	};
 
 	void WriteFrameHeader(uint8_t *buf, int &offset, const crsf_frame_type_t type, const uint8_t payload_size);

@@ -35,6 +35,8 @@
 
 using namespace time_literals;
 
+ModuleBase::Descriptor CameraFeedback::desc{task_spawn, custom_command, print_usage};
+
 CameraFeedback::CameraFeedback() :
 	ModuleParams(nullptr),
 	WorkItem(MODULE_NAME, px4::wq_configurations::hp_default)
@@ -43,6 +45,12 @@ CameraFeedback::CameraFeedback() :
 
 	if (_p_cam_cap_fback != PARAM_INVALID) {
 		param_get(_p_cam_cap_fback, (int32_t *)&_cam_cap_fback);
+	}
+
+	_p_cam_cap_report = param_find("CAM_CAP_REPORT");
+
+	if (_p_cam_cap_report != PARAM_INVALID) {
+		param_get(_p_cam_cap_report, &_cam_cap_report);
 	}
 }
 
@@ -64,8 +72,19 @@ CameraFeedback::Run()
 {
 	if (should_exit()) {
 		_trigger_sub.unregisterCallback();
-		exit_and_cleanup();
+		exit_and_cleanup(desc);
 		return;
+	}
+
+	// Apply CAM_CAP_REPORT changes live (it only gates a MAVLink message, so no
+	// reboot needed). Checked here because it is only used when publishing below.
+	if (_parameter_update_sub.updated()) {
+		parameter_update_s pupdate;
+		_parameter_update_sub.copy(&pupdate);
+
+		if (_p_cam_cap_report != PARAM_INVALID) {
+			param_get(_p_cam_cap_report, &_cam_cap_report);
+		}
 	}
 
 	camera_trigger_s trig{};
@@ -149,6 +168,12 @@ CameraFeedback::Run()
 
 		capture.result = 1;
 
+		// Cameras that report captures themselves (e.g. implementing the MAVLink
+		// Camera Protocol) set CAM_CAP_REPORT to 0 so we don't emit a duplicate
+		// CAMERA_IMAGE_CAPTURED.
+		// The capture is still published and logged for geotagging regardless.
+		capture.report = (_cam_cap_report != 0);
+
 		_capture_pub.publish(capture);
 	}
 }
@@ -159,8 +184,8 @@ CameraFeedback::task_spawn(int argc, char *argv[])
 	CameraFeedback *instance = new CameraFeedback();
 
 	if (instance) {
-		_object.store(instance);
-		_task_id = task_id_is_work_queue;
+		desc.object.store(instance);
+		desc.task_id = task_id_is_work_queue;
 
 		if (instance->init()) {
 			return PX4_OK;
@@ -171,8 +196,8 @@ CameraFeedback::task_spawn(int argc, char *argv[])
 	}
 
 	delete instance;
-	_object.store(nullptr);
-	_task_id = -1;
+	desc.object.store(nullptr);
+	desc.task_id = -1;
 
 	return PX4_ERROR;
 }
@@ -200,8 +225,10 @@ If camera capture is enabled, then trigger information from the camera capture p
 otherwise trigger information at the point the camera was commanded to trigger is published
 (from the `camera_trigger` module).
 
-The `CAMERA_IMAGE_CAPTURED` message is then emitted (by streaming code) following `CameraCapture` updates.
-`CameraCapture` topics are also logged and can be used for geotagging.
+The `CAMERA_IMAGE_CAPTURED` message is then emitted (by streaming code) following `CameraCapture` updates,
+unless `CAM_CAP_REPORT` is disabled (for cameras that report captures themselves, e.g. cameras
+implementing the MAVLink Camera Protocol). `CameraCapture` topics are always logged and can be used
+for geotagging regardless.
 
 ### Implementation
 
@@ -225,5 +252,5 @@ from the `CameraTrigger` and position information from the vehicle.
 
 extern "C" __EXPORT int camera_feedback_main(int argc, char *argv[])
 {
-	return CameraFeedback::main(argc, argv);
+	return ModuleBase::main(CameraFeedback::desc, argc, argv);
 }
