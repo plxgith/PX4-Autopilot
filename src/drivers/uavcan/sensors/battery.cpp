@@ -157,6 +157,8 @@ UavcanBatteryBridge::battery_sub_cb(const uavcan::ReceivedDataStructure<uavcan::
 	if (battery_aux_support[instance] == false) {
 		publish(msg.getSrcNodeID().get(), &battery_status[instance]);
 	}
+
+	battery_status[instance].status_flags = msg.status_flags;
 }
 
 float
