@@ -76,3 +76,17 @@ float32 design_capacity             # The design capacity of the battery
 uint16 average_time_to_full         # The predicted remaining time until the battery reaches full charge, in minutes
 uint16 over_discharge_count         # Number of battery overdischarge
 float32 nominal_voltage             # Nominal voltage of the battery pack
+
+
+uint16 STATUS_FLAG_IN_USE       = 1     # The battery is currently used as a power supply
+uint16 STATUS_FLAG_CHARGING     = 2     # Charger is active
+uint16 STATUS_FLAG_CHARGED      = 4     # Charging complete, but the charger is still active
+uint16 STATUS_FLAG_TEMP_HOT     = 8     # Battery temperature is above normal
+uint16 STATUS_FLAG_TEMP_COLD    = 16    # Battery temperature is below normal
+uint16 STATUS_FLAG_OVERLOAD     = 32    # Safe operating area violation
+uint16 STATUS_FLAG_BAD_BATTERY  = 64    # This battery should not be used anymore (e.g. low SOH)
+uint16 STATUS_FLAG_NEED_SERVICE = 128   # This battery requires maintenance (e.g. balancing, full recharge)
+uint16 STATUS_FLAG_BMS_ERROR    = 256   # Battery management system/controller error, smart battery interface error
+uint16 STATUS_FLAG_RESERVED_A   = 512   # Keep zero
+uint16 STATUS_FLAG_RESERVED_B   = 1024  # Keep zero
+uint16 status_flags
