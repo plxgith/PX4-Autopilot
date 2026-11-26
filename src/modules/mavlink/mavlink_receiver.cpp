@@ -228,6 +228,10 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 		handle_message_circuit_status(msg);
 		break;
 
+	case MAVLINK_MSG_ID_NODE_STATUS:
+		handle_message_node_status(msg);
+		break;
+
 	case MAVLINK_MSG_ID_SERIAL_CONTROL:
 		handle_message_serial_control(msg);
 		break;
@@ -1814,6 +1818,22 @@ MavlinkReceiver::handle_message_circuit_status(mavlink_message_t *msg)
 	// circuit_status.flags = circuit_mavlink.flags;
 
 	_circuit_status_pub.publish(circuit_status);
+}
+
+void
+MavlinkReceiver::handle_message_node_status(mavlink_message_t *msg)
+{
+	mavlink_node_status_t node_mavlink;
+	mavlink_msg_node_status_decode(msg, &node_mavlink);
+
+	node_status_s node_status {};
+
+	node_status.timestamp = hrt_absolute_time();
+	node_status.health = node_mavlink.health;
+	node_status.mode = node_mavlink.mode;
+	node_status.vendor_specific_status_code = node_mavlink.vendor_specific_status_code;
+
+	_node_status_pub.publish(node_status);
 }
 
 void

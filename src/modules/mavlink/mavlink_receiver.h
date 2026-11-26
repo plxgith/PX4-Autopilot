@@ -84,6 +84,7 @@
 #include <uORB/topics/log_message.h>
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/mavlink_tunnel.h>
+#include <uORB/topics/node_status.h>
 #include <uORB/topics/obstacle_distance.h>
 #include <uORB/topics/offboard_control_mode.h>
 #include <uORB/topics/onboard_computer_status.h>
@@ -177,6 +178,7 @@ private:
 	void handle_message_landing_target(mavlink_message_t *msg);
 	void handle_message_logging_ack(mavlink_message_t *msg);
 	void handle_message_manual_control(mavlink_message_t *msg);
+	void handle_message_node_status(mavlink_message_t *msg);
 	void handle_message_obstacle_distance(mavlink_message_t *msg);
 	void handle_message_odometry(mavlink_message_t *msg);
 	void handle_message_onboard_computer_status(mavlink_message_t *msg);
@@ -306,6 +308,7 @@ private:
 	uORB::Publication<landing_target_pose_s>		_landing_target_pose_pub{ORB_ID(landing_target_pose)};
 	uORB::Publication<log_message_s>			_log_message_pub{ORB_ID(log_message)};
 	uORB::Publication<mavlink_tunnel_s>			_mavlink_tunnel_pub{ORB_ID(mavlink_tunnel)};
+	uORB::Publication<node_status_s>			_node_status_pub{ORB_ID(node_status)};
 	uORB::Publication<obstacle_distance_s>			_obstacle_distance_pub{ORB_ID(obstacle_distance)};
 	uORB::Publication<offboard_control_mode_s>		_offboard_control_mode_pub{ORB_ID(offboard_control_mode)};
 	uORB::Publication<onboard_computer_status_s>		_onboard_computer_status_pub{ORB_ID(onboard_computer_status)};

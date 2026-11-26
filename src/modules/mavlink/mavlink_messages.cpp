@@ -95,6 +95,7 @@
 #include "streams/MANUAL_CONTROL.hpp"
 #include "streams/MOUNT_ORIENTATION.hpp"
 #include "streams/NAV_CONTROLLER_OUTPUT.hpp"
+#include "streams/NODE_STATUS.hpp"
 #include "streams/OBSTACLE_DISTANCE.hpp"
 #include "streams/OPTICAL_FLOW_RAD.hpp"
 #include "streams/ORBIT_EXECUTION_STATUS.hpp"
@@ -567,8 +568,11 @@ static const StreamListItem streams_list[] = {
 	create_stream_list_item<MavlinkStreamGPSRTCMData>(),
 #endif // GPS_RTCM_DATA_HPP
 #if defined(CIRCUIT_STATUS_HPP)
-	create_stream_list_item<MavlinkStreamCircuitStatus>()
+	create_stream_list_item<MavlinkStreamCircuitStatus>(),
 #endif // CIRCUIT_STATUS_HPP
+#if defined(NODE_STATUS_HPP)
+	create_stream_list_item<MavlinkStreamNodeStatus>()
+#endif // NODE_STATUS_HPP
 };
 
 const char *get_stream_name(const uint16_t msg_id)
