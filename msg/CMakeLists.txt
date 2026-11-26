@@ -116,6 +116,7 @@ set(msg_files
 	mission_result.msg
 	mount_orientation.msg
 	navigator_mission_item.msg
+	node_status.msg
 	npfg_status.msg
 	obstacle_distance.msg
 	offboard_control_mode.msg
