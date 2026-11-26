@@ -606,6 +606,8 @@ UavcanNode::init(uavcan::NodeID node_id, UAVCAN_DRIVER::BusEvent &bus_events)
 		}
 	}
 
+	// Register our callback so libuavcan can notify us when a NodeStatus message arrives.
+	// This must be done before starting the UAVCAN node.
 	int res = _node_status_sub.start(NodeStatusCallback(this, &UavcanNode::node_status_sub_cb));
 
 	if (res < 0)

@@ -268,11 +268,16 @@ private:
 		void (UavcanNode::*)(const uavcan::ServiceCallResult<uavcan::protocol::param::ExecuteOpcode> &)> ExecuteOpcodeCallback;
 	typedef uavcan::MethodBinder<UavcanNode *,
 		void (UavcanNode::*)(const uavcan::ServiceCallResult<uavcan::protocol::RestartNode> &)> RestartNodeCallback;
+
+	// Defines how libuavcan calls our NodeStatus callback.
+	// It binds the UavcanNode object to its node_status_sub_cb() function.
 	typedef uavcan::MethodBinder<UavcanNode *,
 		void (UavcanNode::*)(const uavcan::ReceivedDataStructure<uavcan::protocol::NodeStatus> & )> NodeStatusCallback;
 
 	void cb_setget(const uavcan::ServiceCallResult<uavcan::protocol::param::GetSet> &result);
 
+	// Handles a received DroneCAN NodeStatus message.
+	// The message has already been decoded by libuavcan when this function is called.
 	void node_status_sub_cb(const uavcan::ReceivedDataStructure<uavcan::protocol::NodeStatus> &msg);
 
 	uORB::SubscriptionInterval	_parameter_update_sub{ORB_ID(parameter_update), 1_s};
@@ -281,6 +286,9 @@ private:
 
 	uORB::Publication<uavcan_parameter_value_s> _param_response_pub{ORB_ID(uavcan_parameter_value)};
 	uORB::Publication<vehicle_command_ack_s>	_command_ack_pub{ORB_ID(vehicle_command_ack)};
+
+	// Publishes the received DroneCAN status into PX4's internal uORB messaging system.
+	// Other PX4 components, including the MAVLink stream, can subscribe to this topic.
 	uORB::Publication<node_status_s> _node_status_pub{ORB_ID(node_status)};
 
 	/*
@@ -326,6 +334,8 @@ private:
 	void clear_node_params_dirty(uint8_t node_id) { _param_dirty_bitmap[node_id >> 5] &= ~(1 << (node_id & 31)); }
 	bool are_node_params_dirty(uint8_t node_id) const { return bool((_param_dirty_bitmap[node_id >> 5] >> (node_id & 31)) & 1); }
 
+	// Receives DroneCAN NodeStatus messages using the existing PX4 UAVCAN node.
+	// When a message arrives, the registered NodeStatusCallback is invoked.
 	uavcan::Subscriber<uavcan::protocol::NodeStatus, NodeStatusCallback> _node_status_sub {_node};
 
 	bool _check_fw{false};
