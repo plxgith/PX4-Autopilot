@@ -243,6 +243,15 @@ execute_process(
     WORKING_DIRECTORY ${PX4_SOURCE_DIR}
 )
 
+# Applying node_status modifications
+message(STATUS "Applying NODE_STATUS patches")
+
+execute_process(
+    COMMAND ${PYTHON_EXECUTABLE}
+	    ${PX4_SOURCE_DIR}/Tools/patch_node_status.py
+    WORKING_DIRECTORY ${PX4_SOURCE_DIR}
+)
+
 set(package-contact "px4users@googlegroups.com")
 
 set(CMAKE_CXX_STANDARD 14)
