@@ -70,6 +70,7 @@
 #include <uavcan/protocol/param/ExecuteOpcode.hpp>
 #include <uavcan/protocol/param/GetSet.hpp>
 #include <uavcan/protocol/RestartNode.hpp>
+#include <uavcan/protocol/NodeStatus.hpp>
 
 #include <uORB/Publication.hpp>
 #include <uORB/Subscription.hpp>
@@ -78,6 +79,7 @@
 #include <uORB/topics/uavcan_parameter_request.h>
 #include <uORB/topics/uavcan_parameter_value.h>
 #include <uORB/topics/vehicle_command_ack.h>
+#include <uORB/topics/node_status.h>
 
 using namespace time_literals;
 
@@ -266,8 +268,12 @@ private:
 		void (UavcanNode::*)(const uavcan::ServiceCallResult<uavcan::protocol::param::ExecuteOpcode> &)> ExecuteOpcodeCallback;
 	typedef uavcan::MethodBinder<UavcanNode *,
 		void (UavcanNode::*)(const uavcan::ServiceCallResult<uavcan::protocol::RestartNode> &)> RestartNodeCallback;
+	typedef uavcan::MethodBinder<UavcanNode *,
+		void (UavcanNode::*)(const uavcan::ReceivedDataStructure<uavcan::protocol::NodeStatus> & )> NodeStatusCallback;
 
 	void cb_setget(const uavcan::ServiceCallResult<uavcan::protocol::param::GetSet> &result);
+
+	void node_status_sub_cb(const uavcan::ReceivedDataStructure<uavcan::protocol::NodeStatus> &msg);
 
 	uORB::SubscriptionInterval	_parameter_update_sub{ORB_ID(parameter_update), 1_s};
 	uORB::Subscription _vcmd_sub{ORB_ID(vehicle_command)};
@@ -275,6 +281,7 @@ private:
 
 	uORB::Publication<uavcan_parameter_value_s> _param_response_pub{ORB_ID(uavcan_parameter_value)};
 	uORB::Publication<vehicle_command_ack_s>	_command_ack_pub{ORB_ID(vehicle_command_ack)};
+	uORB::Publication<node_status_s> _node_status_pub{ORB_ID(node_status)};
 
 	/*
 	 * The MAVLink parameter bridge needs to know the maximum parameter index
@@ -318,6 +325,8 @@ private:
 	void set_node_params_dirty(uint8_t node_id) { _param_dirty_bitmap[node_id >> 5] |= 1 << (node_id & 31); }
 	void clear_node_params_dirty(uint8_t node_id) { _param_dirty_bitmap[node_id >> 5] &= ~(1 << (node_id & 31)); }
 	bool are_node_params_dirty(uint8_t node_id) const { return bool((_param_dirty_bitmap[node_id >> 5] >> (node_id & 31)) & 1); }
+
+	uavcan::Subscriber<uavcan::protocol::NodeStatus, NodeStatusCallback> _node_status_sub {_node};
 
 	bool _check_fw{false};
 

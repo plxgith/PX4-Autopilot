@@ -606,6 +606,14 @@ UavcanNode::init(uavcan::NodeID node_id, UAVCAN_DRIVER::BusEvent &bus_events)
 		}
 	}
 
+	int res = _node_status_sub.start(NodeStatusCallback(this, &UavcanNode::node_status_sub_cb));
+
+	if (res < 0)
+	{
+		PX4_ERR("NodeStatus subscriber start failed: %d", res);
+		return res;
+	}
+
 	// Start the Node
 	return _node.start();
 }
@@ -648,6 +656,27 @@ UavcanNode::handle_time_sync(const uavcan::TimerEvent &)
 	 * Other nodes will be able to pick the right master anyway.
 	 */
 	_time_sync_master.publish();
+}
+
+void
+UavcanNode::node_status_sub_cb(const uavcan::ReceivedDataStructure<uavcan::protocol::NodeStatus> &msg)
+{
+	// Only process messages from DroneCAN node ID 42
+	if (msg.getSrcNodeID().get() != 42) {
+		return;
+	}
+
+	// Create the uORB message
+	node_status_s node_status{};
+
+	// Copy the status code from the received DroneCAN message
+	node_status.timestamp = hrt_absolute_time();
+	node_status.health = msg.health;
+	node_status.mode = msg.mode;
+	node_status.vendor_specific_status_code = msg.vendor_specific_status_code;
+
+	// Publish the message to uORB
+	_node_status_pub.publish(node_status);
 }
 
 void
